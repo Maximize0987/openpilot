@@ -22,10 +22,10 @@ class DRIVER_MONITOR_SETTINGS:
   def __init__(self):
     self._DT_DMON = DT_DMON
     # ref (page15-16): https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:42018X1947&rid=2
-    self._AWARENESS_TIME = 30. # passive wheeltouch total timeout
+    self._AWARENESS_TIME = 120. # 30. # passive wheeltouch total timeout
     self._AWARENESS_PRE_TIME_TILL_TERMINAL = 15.
     self._AWARENESS_PROMPT_TIME_TILL_TERMINAL = 6.
-    self._DISTRACTED_TIME = 11. # active monitoring total timeout
+    self._DISTRACTED_TIME = 44. # 11. # active monitoring total timeout
     self._DISTRACTED_PRE_TIME_TILL_TERMINAL = 8.
     self._DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 6.
 
@@ -335,8 +335,9 @@ class DriverMonitoring:
         self._reset_awareness()
         return
       # only restore awareness when paying attention and alert is not red
-      self.awareness = min(self.awareness + ((self.settings._RECOVERY_FACTOR_MAX-self.settings._RECOVERY_FACTOR_MIN)*
-                                             (1.-self.awareness)+self.settings._RECOVERY_FACTOR_MIN)*self.step_change, 1.)
+      #self.awareness = min(self.awareness + ((self.settings._RECOVERY_FACTOR_MAX-self.settings._RECOVERY_FACTOR_MIN)*
+      #                                       (1.-self.awareness)+self.settings._RECOVERY_FACTOR_MIN)*self.step_change, 1.)
+      self.awareness = min(self.awareness + (0.05 -self.step_change), 1.)
       if self.awareness == 1.:
         self.awareness_passive = min(self.awareness_passive + self.step_change, 1.)
       # don't display alert banner when awareness is recovering and has cleared orange
@@ -356,7 +357,7 @@ class DriverMonitoring:
       # should always be counting if distracted unless at standstill (lowspeed for always-on) and reaching orange
       # also will not be reaching 0 if DM is active when not engaged
       if not (standstill_exemption or always_on_red_exemption or always_on_lowspeed_exemption):
-        self.awareness = max(self.awareness - self.step_change, -0.1)
+        self.awareness = max(self.awareness - self.step_change, -0.01)  #  self.awareness = max(self.awareness - self.step_change, -0.1)
 
     alert = None
     if self.awareness <= 0.:
