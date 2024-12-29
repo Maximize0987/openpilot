@@ -627,10 +627,13 @@ class CarInterfaceBase(ABC):
 
     cs_out.belowLaneChangeSpeed = cs_out.vEgo < lane_change_speed_min and self.CS.params_list.below_speed_pause
 
-    if cs_out.gearShifter in [GearShifter.park, GearShifter.reverse] or cs_out.doorOpen or \
-      (cs_out.seatbeltUnlatched and cs_out.gearShifter != GearShifter.park):
+    #if cs_out.gearShifter in [GearShifter.park, GearShifter.reverse] or cs_out.doorOpen or \
+    #  (cs_out.seatbeltUnlatched and cs_out.gearShifter != GearShifter.park):
+    #  gear_allowed = False
+        
+    if cs_out.gearShifter in [GearShifter.park, GearShifter.reverse]:
       gear_allowed = False
-
+        
     cs_out.latActive = gear_allowed
 
     if not self.CS.control_initialized:
