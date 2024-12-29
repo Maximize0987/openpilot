@@ -376,7 +376,10 @@ class DriverMonitoring:
     if alert is not None:
       self.current_events.add(alert)
 
-
+    if self.awareness <= 0.8:
+      self._reset_awareness()
+        return
+      
   def get_state_packet(self, valid=True):
     # build driverMonitoringState packet
     dat = messaging.new_message('driverMonitoringState', valid=valid)
