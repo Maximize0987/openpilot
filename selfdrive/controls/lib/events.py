@@ -594,11 +594,11 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.manualLongitudinalRequired: {
-    ET.WARNING: Alert(
-      "Smart/Adaptive Cruise Control is OFF",
-      "Manual Gas/Brakes Required",
-      AlertStatus.normal, AlertSize.mid,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1.),
+    #ET.WARNING: Alert(
+    #  "Smart/Adaptive Cruise Control is OFF",
+    #  "Manual Gas/Brakes Required",
+    #  AlertStatus.normal, AlertSize.mid,
+    #  Priority.LOW, VisualAlert.none, AudibleAlert.none, 1.),
   },
 
   EventName.cruiseEngageBlocked: {
