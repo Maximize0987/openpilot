@@ -204,7 +204,7 @@ class LatControlTorque(LatControl):
           lookahead_lateral_jerk = 0.0
           actual_lateral_jerk = 0.0
           #self.lat_accel_friction_factor = 1.0
-          self.lat_accel_friction_factor = 0.92
+          self.lat_accel_friction_factor = 1.0
         lateral_jerk_setpoint = self.lat_jerk_friction_factor * lookahead_lateral_jerk
         lateral_jerk_measurement = self.lat_jerk_friction_factor * actual_lateral_jerk
 
