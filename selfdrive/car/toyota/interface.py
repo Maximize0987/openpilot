@@ -89,7 +89,7 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.pid.kpBP = [0.0]
       ret.lateralTuning.pid.kpV = [0.61]
       ret.lateralTuning.pid.kiV = [0.097]
-      ret.lateralTuning.pid.kf = 0.00007818594
+      ret.lateralTuning.pid.kf = 0.00005  # 0.00007818594
 
       # 2019+ RAV4 TSS2 uses two different steering racks and specific tuning seems to be necessary.
       # See https://github.com/commaai/openpilot/pull/21429#issuecomment-873652891
