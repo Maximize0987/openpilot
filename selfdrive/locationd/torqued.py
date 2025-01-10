@@ -13,20 +13,20 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 from openpilot.selfdrive.locationd.helpers import PointBuckets, ParameterEstimator
 
 HISTORY = 5  # secs
-POINTS_PER_BUCKET = 1500
-MIN_POINTS_TOTAL = 4000
+POINTS_PER_BUCKET = 1400  # 1500
+MIN_POINTS_TOTAL = 3700  # 4000
 MIN_POINTS_TOTAL_QLOG = 600
 FIT_POINTS_TOTAL = 2000
 FIT_POINTS_TOTAL_QLOG = 600
 MIN_VEL = 15  # m/s
 FRICTION_FACTOR = 1.5  # ~85% of data coverage
-FACTOR_SANITY = 0.3
+FACTOR_SANITY = 0.09   #  0.3  limits twitchy/aggressive
 FACTOR_SANITY_QLOG = 0.5
 FRICTION_SANITY = 0.5
 FRICTION_SANITY_QLOG = 0.8
 STEER_MIN_THRESHOLD = 0.02
-MIN_FILTER_DECAY = 50
-MAX_FILTER_DECAY = 250
+MIN_FILTER_DECAY = 45    #  50
+MAX_FILTER_DECAY = 220   #  250
 LAT_ACC_THRESHOLD = 1
 STEER_BUCKET_BOUNDS = [(-0.5, -0.3), (-0.3, -0.2), (-0.2, -0.1), (-0.1, 0), (0, 0.1), (0.1, 0.2), (0.2, 0.3), (0.3, 0.5)]
 MIN_BUCKET_POINTS = np.array([100, 300, 500, 500, 500, 500, 300, 100])
