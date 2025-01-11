@@ -13,9 +13,9 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 from openpilot.selfdrive.locationd.helpers import PointBuckets, ParameterEstimator
 
 HISTORY = 5  # secs
-POINTS_PER_BUCKET = 1000  # 1500
-MIN_POINTS_TOTAL = 3000 # 4000
-MIN_POINTS_TOTAL_QLOG = 480 # 600
+POINTS_PER_BUCKET = 750  # 1500
+MIN_POINTS_TOTAL = 2000 # 4000
+MIN_POINTS_TOTAL_QLOG = 300 # 600
 FIT_POINTS_TOTAL = 2000
 FIT_POINTS_TOTAL_QLOG = 600
 MIN_VEL = 15  # m/s
