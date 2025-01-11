@@ -15,7 +15,7 @@ from openpilot.selfdrive.locationd.helpers import PointBuckets, ParameterEstimat
 HISTORY = 5  # secs
 POINTS_PER_BUCKET = 1000  # 1500
 MIN_POINTS_TOTAL = 3000 # 4000
-MIN_POINTS_TOTAL_QLOG = 600
+MIN_POINTS_TOTAL_QLOG = 480 # 600
 FIT_POINTS_TOTAL = 2000
 FIT_POINTS_TOTAL_QLOG = 600
 MIN_VEL = 15  # m/s
