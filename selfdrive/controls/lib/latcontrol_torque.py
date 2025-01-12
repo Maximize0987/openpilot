@@ -246,7 +246,7 @@ class LatControlTorque(LatControl):
             pid_log.error = pid_log.error * (1.0 - error_blend_factor) + torque_from_error * error_blend_factor
 
         # compute feedforward (same as nn setpoint output)
-        error = setpoint - measurement
+        error = (setpoint - measurement) * 0.25     # old = error = setpoint - measurement
         friction_input = self.lat_accel_friction_factor * error + self.lat_jerk_friction_factor * lookahead_lateral_jerk
         nn_input = [CS.vEgo, desired_lateral_accel, friction_input, roll] \
                    + past_lateral_accels_desired + future_planned_lateral_accels \
