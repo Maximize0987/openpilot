@@ -237,7 +237,7 @@ class LatControlTorque(LatControl):
         torque_from_setpoint = self.torque_from_nn(nnff_setpoint_input)
         torque_from_measurement = self.torque_from_nn(nnff_measurement_input)
 
-        pid_log.error = torque_from_setpoint - torque_from_measurement
+        pid_log.error = (torque_from_setpoint - torque_from_measurement) * 0.25        # old =   pid_log.error = torque_from_setpoint - torque_from_measurement
         error_blend_factor = interp(abs(desired_lateral_accel), [1.0, 2.0], [0.0, 1.0])
         if error_blend_factor > 0.0:  # blend in stronger error response when in high lat accel
           nnff_error_input = [CS.vEgo, setpoint - measurement, lateral_jerk_setpoint - lateral_jerk_measurement, 0.0]
@@ -265,7 +265,7 @@ class LatControlTorque(LatControl):
                                                               lateral_jerk_setpoint, lateral_accel_deadzone, friction_compensation=self.use_lateral_jerk, gravity_adjusted=False)
         torque_from_measurement = self.torque_from_lateral_accel(LatControlInputs(measurement, roll_compensation, CS.vEgo, CS.aEgo), self.torque_params,
                                                                  lateral_jerk_measurement, lateral_accel_deadzone, friction_compensation=self.use_lateral_jerk, gravity_adjusted=False)
-        pid_log.error = torque_from_setpoint - torque_from_measurement
+        pid_log.error = (torque_from_setpoint - torque_from_measurement) * 0.25       # old =  pid_log.error = torque_from_setpoint - torque_from_measurement
         error = (desired_lateral_accel - actual_lateral_accel) * 0.25    # old = error = desired_lateral_accel - actual_lateral_accel
         if self.use_lateral_jerk:
           friction_input = self.lat_accel_friction_factor * error + self.lat_jerk_friction_factor * lookahead_lateral_jerk
@@ -276,7 +276,7 @@ class LatControlTorque(LatControl):
                                             gravity_adjusted=True)
 
       freeze_integrator = steer_limited or CS.steeringPressed or CS.vEgo < 5
-      output_torque = self.pid.update(pid_log.error * 0.25,
+      output_torque = self.pid.update(pid_log.error,
                                       feedforward=ff,
                                       speed=CS.vEgo,
                                       freeze_integrator=freeze_integrator)
