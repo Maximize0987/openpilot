@@ -30,7 +30,7 @@ LOW_SPEED_Y_NN = [12, 3, 1, 0]
 
 LAT_PLAN_MIN_IDX = 5
 
-ERROR_PERCENT = 0.9
+ERROR_PERCENT = 1.0
 
 def get_predicted_lateral_jerk(lat_accels, t_diffs):
   # compute finite difference between subsequent model_data.acceleration.y values
