@@ -20,7 +20,7 @@ class CarControllerParams:
   ACCEL_MIN = -3.5  # m/s2
 
   STEER_STEP = 1
-  STEER_MAX = 1513   #1500
+  STEER_MAX = 1495   #1500
   STEER_ERROR_MAX = 350     # max delta between torque cmd and torque motor
 
   # Lane Tracing Assist (LTA) control limits
