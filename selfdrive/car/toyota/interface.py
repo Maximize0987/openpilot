@@ -1,4 +1,4 @@
-fromfrom. cereal import car
+from cereal import car
 from openpilot.common.numpy_fast import clip
 from openpilot.common.params import Params
 from panda import Panda
