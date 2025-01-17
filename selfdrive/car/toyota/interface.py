@@ -87,9 +87,8 @@ class CarInterface(CarInterfaceBase):
       ret.lateralTuning.init('pid')
       ret.lateralTuning.pid.kiBP = [0.0]
       ret.lateralTuning.pid.kpBP = [0.0]
-      ret.lateralTuning.pid.kpV = [0.3] # [0.52]
-      ret.lateralTuning.pid.kiV = [0.1] # [0.125]
-      ret.lateralTuning.pid.kdV = [3.0]
+      ret.lateralTuning.pid.kpV = [0.52]
+      ret.lateralTuning.pid.kiV = [0.125]
       ret.lateralTuning.pid.kf = 0.00007818594
 
       # 2019+ RAV4 TSS2 uses two different steering racks and specific tuning seems to be necessary.
