@@ -7,6 +7,7 @@ from common.realtime import DT_MDL
 #from system.swaglog import cloudlog
 #from common.logger import sLogger
 from common.params import Params
+from openpilot.common.swaglog import cloudlog
 
 TRAJECTORY_SIZE = 33
 # positive numbers go right
