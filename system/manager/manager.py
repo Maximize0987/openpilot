@@ -35,10 +35,10 @@ def manager_init() -> None:
     params.clear_all(ParamKeyType.DEVELOPMENT_ONLY)
 
   default_params: list[tuple[str, str | bytes]] = [
-    ("CompletedTrainingVersion", "0"),
+    ("CompletedTrainingVersion", "0.2.0"),    # 0
     ("DisengageOnAccelerator", "0"),
     ("GsmMetered", "1"),
-    ("HasAcceptedTerms", "0"),
+    ("HasAcceptedTerms", "2"),     # 0
     ("LanguageSetting", "main_en"),
     ("OpenpilotEnabledToggle", "1"),
     ("LongitudinalPersonality", str(custom.LongitudinalPersonalitySP.standard)),
@@ -117,7 +117,7 @@ def manager_init() -> None:
     ("OsmDownloadedDate", "0"),
     ("OSMDownloadProgress", "{}"),
     ("SidebarTemperatureOptions", "0"),
-    ("SunnylinkEnabled", "1"),
+    ("SunnylinkEnabled", "0"),
     ("SunnylinkDongleId", f"{UNREGISTERED_SUNNYLINK_DONGLE_ID}"),
     ("CustomDrivingModel", "0"),
     ("DrivingModelGeneration", "4"),
