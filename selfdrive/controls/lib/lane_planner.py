@@ -5,7 +5,7 @@ from common.filter_simple import FirstOrderFilter
 from common.numpy_fast import interp
 from common.realtime import DT_MDL
 #from system.swaglog import cloudlog
-from common.logger import sLogger
+#from common.logger import sLogger
 from common.params import Params
 
 TRAJECTORY_SIZE = 33
