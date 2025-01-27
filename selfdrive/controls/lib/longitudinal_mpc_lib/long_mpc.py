@@ -82,7 +82,7 @@ def get_T_FOLLOW(personality=custom.LongitudinalPersonalitySP.standard):
   elif personality==custom.LongitudinalPersonalitySP.aggressive:
     return 0.7    # old = 1.0
   elif personality==custom.LongitudinalPersonalitySP.overtake:
-    return 0.25
+    return 0.1
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
