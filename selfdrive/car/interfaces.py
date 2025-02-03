@@ -683,7 +683,7 @@ class CarInterfaceBase(ABC):
           if not cs_out.cruiseState.enabled:
             events.add(EventName.buttonCancel)
           else:
-            events.add(EventName.manualSteeringRequired)
+            events.add(EventName.XmanualSteeringRequiredX)       #   events.add(EventName.manualSteeringRequired)
         else:  # enabled MADS
           if not cs_out.cruiseState.enabled:
             enable_pressed = True
