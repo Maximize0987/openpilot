@@ -376,11 +376,11 @@ class DriverMonitoring:
     if alert is not None:
       self.current_events.add(alert)
 
-    if self.awareness <= 0.6:
+    if self.awareness <= 0.8:
       self.awareness = 0.99
-    if self.awareness_active <= 0.6:
+    if self.awareness_active <= 0.8:
       self.awareness_active = 0.99
-    if self.awareness_passive <= 0.6:
+    if self.awareness_passive <= 0.8:
       self.awareness_passive = 0.99
       
       
