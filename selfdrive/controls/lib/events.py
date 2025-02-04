@@ -593,13 +593,13 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
       Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 1.),
   },
 
-  EventName.XmanualSteeringRequiredX: {
-    ET.WARNING: Alert(
-      "WTF WTF WTF",
-      "Manual Steering Required",
-      AlertStatus.normal, AlertSize.mid,
-      Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 1.),
-  },
+  #EventName.XmanualSteeringRequiredX: {
+    #ET.WARNING: Alert(
+      #"WTF WTF WTF",
+      #"Manual Steering Required",
+      #AlertStatus.normal, AlertSize.mid,
+      #Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 1.),
+  #},
   
   EventName.manualLongitudinalRequired: {
     ET.WARNING: Alert(
