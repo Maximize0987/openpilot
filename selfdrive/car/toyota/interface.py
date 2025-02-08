@@ -34,13 +34,13 @@ class CarInterface(CarInterfaceBase):
       ret.safetyConfigs[0].safetyParam |= Panda.FLAG_TOYOTA_LTA
 
       # LTA control can be more delayed and winds up more often
-      ret.steerActuatorDelay = 0.48         #     ret.steerActuatorDelay = 0.18
+      ret.steerActuatorDelay = 0.18         #     ret.steerActuatorDelay = 0.18
       ret.steerLimitTimer = 0.9    #   ret.steerLimitTimer = 0.8
     else:
       CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 
-      ret.steerActuatorDelay = 0.42          #       ret.steerActuatorDelay = 0.12  # Default delay, Prius has larger delay
-      ret.steerLimitTimer = 0.5       #   ret.steerLimitTimer = 0.4
+      ret.steerActuatorDelay = 0.62          #   FARMVILLE DELAY    ret.steerActuatorDelay = 0.12  # Default delay, Prius has larger delay
+      ret.steerLimitTimer = 0.6       #   ret.steerLimitTimer = 0.4
 
       if 0x23 in fingerprint[0]:  # Detect if ZSS is present
         ret.spFlags |= ToyotaFlagsSP.SP_ZSS.value
