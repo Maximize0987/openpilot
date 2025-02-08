@@ -135,7 +135,7 @@ class Calibrator:
     valid_idxs = self.get_valid_idxs()
     if valid_idxs:
       self.wide_from_device_euler = np.mean(self.wide_from_device_eulers[valid_idxs], axis=0)
-      self.height = np.mean(self.heights[valid_idxs], axis=0)
+      self.height = HEIGHT_INIT    #    self.height = np.mean(self.heights[valid_idxs], axis=0)
       rpys = self.rpys[valid_idxs]
       self.rpy = np.mean(rpys, axis=0)
       max_rpy_calib = np.array(np.max(rpys, axis=0))
