@@ -1,0 +1,51 @@
+name: Remove Specific Commit
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Commit ID to remove'
+        required: true
+        type: string
+      target_branch:
+        description: 'Branch to remove commit from'
+        required: true
+        type: string
+        default: 'main'
+
+jobs:
+  remove-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.target_branch }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          # Set pull.rebase to 'merges' to avoid deprecated 'preserve'
+          git config --global pull.rebase merges
+
+      - name: Remove commit
+        run: |
+          COMMIT_ID=${{ github.event.inputs.commit_id }}
+          TARGET_BRANCH=${{ github.event.inputs.target_branch }}
+
+          echo "Attempting to remove commit ID: $COMMIT_ID from branch: $TARGET_BRANCH"
+
+          # Verify that the commit exists
+          if ! git rev-parse --verify "$COMMIT_ID" >/dev/null 2>&1; then
+            echo "Error: Commit ID $COMMIT_ID does not exist"
+            exit 1
+          fi
+
+          # Perform the rebase to remove the specified commit
+          git rebase --rebase-merges --onto "$COMMIT_ID"^ "$COMMIT_ID"
+
+      - name: Push changes
+        run: |
+          git push --force origin "$TARGET_BRANCH" 
