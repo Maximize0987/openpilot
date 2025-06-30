@@ -3,6 +3,7 @@ from opendbc.can.parser import CANParser
 from cereal import car
 from openpilot.selfdrive.car.toyota.values import DBC, TSS2_CAR
 from openpilot.selfdrive.car.interfaces import RadarInterfaceBase
+import numpy as np
 
 
 def _create_radar_can_parser(car_fingerprint):
