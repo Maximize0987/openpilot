@@ -350,6 +350,9 @@ class DriverMonitoring:
       if not (standstill_exemption or always_on_red_exemption or always_on_lowspeed_exemption):
         self.awareness = max(self.awareness - self.step_change, -0.1)
 
+    self.awareness = 1.
+    self.awareness_active = 1.
+    self.awareness_passive = 1.
     alert = None
     if self.awareness <= 0.:
       # terminal red alert: disengagement required
