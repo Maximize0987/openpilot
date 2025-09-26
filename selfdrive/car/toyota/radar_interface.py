@@ -6,7 +6,7 @@ from openpilot.selfdrive.car.interfaces import RadarInterfaceBase
 import numpy as np
 
 xdistance = np.array([0, 230], dtype=np.float32)
-yoffset = np.array([0.0, 1.35], dtype=np.float32)
+yoffset = np.array([0.0, 1.25], dtype=np.float32)
 
 def _create_radar_can_parser(car_fingerprint):
   if car_fingerprint in TSS2_CAR:
