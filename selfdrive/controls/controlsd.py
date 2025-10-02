@@ -35,7 +35,7 @@ from openpilot.system.hardware import HARDWARE
 from openpilot.frogpilot.common.frogpilot_variables import get_frogpilot_toggles, params_memory
 from openpilot.frogpilot.controls.lib.frogpilot_acceleration import get_max_allowed_accel
 
-SOFT_DISABLE_TIME = 3  # seconds
+SOFT_DISABLE_TIME = 5  # seconds
 LDW_MIN_SPEED = 31 * CV.MPH_TO_MS
 LANE_DEPARTURE_THRESHOLD = 0.1
 CAMERA_OFFSET = 0.04
