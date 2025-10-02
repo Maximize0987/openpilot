@@ -633,7 +633,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   # Unused
 
   EventName.locationdTemporaryError: {
-    ET.NO_ENTRY: NoEntryAlert("locationd Temporary Error"),
+    #ET.NO_ENTRY: NoEntryAlert("locationd Temporary Error"),
     ET.SOFT_DISABLE: soft_disable_alert("locationd Temporary Error"),
   },
 
