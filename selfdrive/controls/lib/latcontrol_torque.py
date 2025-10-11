@@ -66,6 +66,10 @@ class LatControlTorque(LatControl):
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
+      diff = actual_lateral_accel - desired_lateral_accel
+      if diff > 0.1 and desired_lateral_accel > 0.5
+        print(f"DLA: {desired_lateral_accel} Diff: {diff}")
+      
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
