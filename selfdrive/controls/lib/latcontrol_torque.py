@@ -24,7 +24,7 @@ LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [15, 13, 10, 5]
 
 hipcent = 0
-ala = 0
+hiala = 0
 
 class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
