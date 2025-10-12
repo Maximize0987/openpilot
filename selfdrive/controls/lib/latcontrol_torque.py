@@ -23,6 +23,7 @@ from openpilot.frogpilot.controls.lib.neural_network_feedforward import LOW_SPEE
 LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [15, 13, 10, 5]
 
+hipcent = 0
 
 class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
@@ -66,9 +67,17 @@ class LatControlTorque(LatControl):
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
-      diff = actual_lateral_accel - desired_lateral_accel
-      if diff > 0.05 and desired_lateral_accel > 0.7:
-        print(f"DLA: {desired_lateral_accel} Diff: {diff}")
+      
+      if abs(actual_lateral_accel) > abs(desired_lateral_accel):
+        diff = abs(actual_lateral_accel) - abs(desired_lateral_accel)
+        diff = round(diff,3)
+        dla = abs(desired_lateral_accel)
+        dla = round(dla,3)
+        if desired_lateral_accel > 0.7:
+          pcent = round((diff / desired_lateral_accel) * 100,2)          
+          if pcent > hipcent:
+            hipcent = pcent
+            print(f"DLA: {desired_lateral_accel} Diff: {diff} Hi: {hipcent}")
       
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
