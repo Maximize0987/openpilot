@@ -67,7 +67,7 @@ class LatControlTorque(LatControl):
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
-      
+      global hipcent 
       if abs(actual_lateral_accel) > abs(desired_lateral_accel):
         diff = abs(actual_lateral_accel) - abs(desired_lateral_accel)
         diff = round(diff,3)
