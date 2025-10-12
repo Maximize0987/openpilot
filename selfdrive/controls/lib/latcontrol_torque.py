@@ -24,6 +24,7 @@ LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [15, 13, 10, 5]
 
 hipcent = 0
+ala = 0
 
 class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
@@ -68,16 +69,23 @@ class LatControlTorque(LatControl):
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
       global hipcent 
+      global hiala
+      ala = abs(actual_lateral_accel)
+      ala = round(ala,2)
+      if ala > hiala:
+        hiala = ala
       if abs(actual_lateral_accel) > abs(desired_lateral_accel):
         diff = abs(actual_lateral_accel) - abs(desired_lateral_accel)
         diff = round(diff,3)
         dla = abs(desired_lateral_accel)
         dla = round(dla,3)
         if desired_lateral_accel > 0.7:
-          pcent = round((diff / desired_lateral_accel) * 100,2)          
+          pcent = round((diff / desired_lateral_accel) * 100,4)          
           if pcent > hipcent:
             hipcent = pcent
-            print(f"DLA: {desired_lateral_accel} Diff: {diff} Hi: {hipcent}")
+            print(f"DLA: {dla} Diff: {diff} HiA: {hiala} HiC: {hipcent}")
+      else:
+        hipcent -= 0.0001
       
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
