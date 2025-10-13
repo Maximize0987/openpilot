@@ -79,8 +79,8 @@ class LatControlTorque(LatControl):
         diff = round(diff,3)
         dla = abs(desired_lateral_accel)
         dla = round(dla,3)
-        if desired_lateral_accel > 0.6:
-          pcent = round((diff / desired_lateral_accel) * 100,2)          
+        if dla > 0.6:
+          pcent = round((diff / dla) * 100,2)          
           if pcent > hipcent:
             hipcent = pcent
             print(f"DLA: {dla} Diff: {diff} HiA: {hiala} HiC: {hipcent}")
