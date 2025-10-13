@@ -67,24 +67,6 @@ class LatControlTorque(LatControl):
       # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
-
-      global hipcent 
-      global hiala
-      ala = abs(actual_lateral_accel)
-      ala = round(ala,2)
-      if ala > hiala:
-        hiala = ala
-      if abs(actual_lateral_accel) > abs(desired_lateral_accel):
-        diff = abs(actual_lateral_accel) - abs(desired_lateral_accel)
-        diff = round(diff,3)
-        dla = abs(desired_lateral_accel)
-        dla = round(dla,3)
-        if dla > 0.5:
-          pcent = round((diff / dla) * 100,3)          
-          if pcent > hipcent:
-            hipcent = pcent
-            print(f"DLA: {dla} Diff: {diff} HiA: {hiala} HiC: {hipcent}")
-      hipcent -= 0.02
       
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
