@@ -80,12 +80,13 @@ class LatControlTorque(LatControl):
         dla = abs(desired_lateral_accel)
         dla = round(dla,3)
         if dla > 0.5:
-          pcent = round((diff / dla) * 100,2)          
+          pcent = round((diff / dla) * 100,3)          
           if pcent > hipcent:
             hipcent = pcent
             print(f"DLA: {dla} Diff: {diff} HiA: {hiala} HiC: {hipcent}")
       else:
         hipcent -= 0.01
+      hipcent -= 0.01
       
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
