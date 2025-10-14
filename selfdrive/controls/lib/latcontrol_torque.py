@@ -98,9 +98,9 @@ class LatControlTorque(LatControl):
       global hiala
       ala = abs(actual_lateral_accel)
       ala = round(ala,2)
-      if ala > hiala:
+      if ala > hiala and not freeze_integrator:
         hiala = ala
-      if abs(actual_lateral_accel) > abs(desired_lateral_accel):
+      if abs(actual_lateral_accel) > abs(desired_lateral_accel) and not freeze_integrator:
         diff = abs(actual_lateral_accel) - abs(desired_lateral_accel)
         diff = round(diff,3)
         dla = abs(desired_lateral_accel)
