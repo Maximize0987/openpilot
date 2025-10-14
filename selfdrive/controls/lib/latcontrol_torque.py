@@ -109,7 +109,9 @@ class LatControlTorque(LatControl):
           pcent = round((diff / dla) * 100,2)          
           if pcent > hipcent:
             hipcent = pcent
-            print(f"DLA: {dla} HiA: {hiala} HiP: {hipcent} Err: {pid_log.error} FF: {ff}")
+            err = round(pid_log.error,2)
+            ffagain = round(ff,2)
+            print(f"DLA: {dla} HiA: {hiala} HiP: {hipcent} Err: {err} FF: {ffagain}")
       hipcent -= 0.02
       
       pid_log.active = True
