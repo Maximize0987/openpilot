@@ -63,18 +63,12 @@ class LatControlTorque(LatControl):
         actual_curvature_llk = llk.angularVelocityCalibrated.value[2] / CS.vEgo
         actual_curvature = interp(CS.vEgo, [2.0, 5.0], [actual_curvature_vm, actual_curvature_llk])
         curvature_deadzone = 0.0
-      lastdla =  abs(desired_lateral_accel) 
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
       # desired rate is the desired rate of change in the setpoint, not the absolute desired curvature
       # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
-      lastala = abs(actual_lateral_accel)
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
-      global lastpcent
-      if lastala > lastdla:
-        lastdiff = abs(lastala) - abs(lastdla)
-        lastpcent = round((lastdiff / lastdla) * 100,2) 
         
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
@@ -126,7 +120,14 @@ class LatControlTorque(LatControl):
             rl = round(right_lane,2)
             print(f"DLA: {dla} HiP: {hipcent} PreP {lastpcent} LL: {ll} RL: {rl}")
       hipcent -= 0.02
-      
+
+      lastdla =  abs(desired_lateral_accel)
+      lastala = abs(actual_lateral_accel)
+      global lastpcent
+      if lastala > lastdla:
+        lastdiff = abs(lastala) - abs(lastdla)
+        lastpcent = round((lastdiff / lastdla) * 100,2)
+        
       pid_log.active = True
       pid_log.p = self.pid.p
       pid_log.i = self.pid.i
