@@ -26,6 +26,7 @@ LOW_SPEED_Y = [15, 13, 10, 5]
 
 hipcent = 0
 hiala = 0
+lastpcent = 0
 
 class LatControlTorque(LatControl):
   def __init__(self, CP, CI):
@@ -62,13 +63,19 @@ class LatControlTorque(LatControl):
         actual_curvature_llk = llk.angularVelocityCalibrated.value[2] / CS.vEgo
         actual_curvature = interp(CS.vEgo, [2.0, 5.0], [actual_curvature_vm, actual_curvature_llk])
         curvature_deadzone = 0.0
+      lastdla =  abs(desired_lateral_accel) 
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
       # desired rate is the desired rate of change in the setpoint, not the absolute desired curvature
       # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
+      lastala = abs(actual_lateral_accel)
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
-      
+      global lastpcent
+      if lastala > lastdla:
+        lastdiff = abs(lastala) - abs(lastdla)
+        lastpcent = round((lastdiff / lastdla) * 100,2) 
+        
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
@@ -106,7 +113,7 @@ class LatControlTorque(LatControl):
         diff = round(diff,3)
         dla = abs(desired_lateral_accel)
         dla = round(dla,2)
-        if dla > 0.5:
+        if dla > 0.4:
           pcent = round((diff / dla) * 100,2)          
           if pcent > hipcent:
             hipcent = pcent
@@ -117,8 +124,7 @@ class LatControlTorque(LatControl):
             ll = round(left_lane,2)
             right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
             rl = round(right_lane,2)
-            print(f"DLA: {dla} HiP: {hipcent} Err: {err} FF: {ffagain} OT: {o_t}")
-            print(f"Left Lane: {ll} Right Lane {rl}")
+            print(f"DLA: {dla} HiP: {hipcent} PreP {lastpcent} LL: {ll} RL: {rl}")
       hipcent -= 0.02
       
       pid_log.active = True
