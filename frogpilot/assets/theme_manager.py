@@ -152,14 +152,14 @@ def update_theme_asset(asset_type, theme, holiday_theme):
   if not asset_location.exists() or theme == "stock":
     if (STOCKOP_THEME_PATH / asset_type).is_dir():
       asset_location = STOCKOP_THEME_PATH / asset_type
-      print(f"Using the stock {asset_type[:-1]} instead")
+      #print(f"Using the stock {asset_type[:-1]} instead")
     else:
       if save_location.exists() or save_location.is_symlink():
         if save_location.is_symlink() or save_location.is_file():
           save_location.unlink()
         elif save_location.is_dir():
           shutil.rmtree(save_location)
-      print(f"Using the stock {asset_type[:-1]} instead")
+      #print(f"Using the stock {asset_type[:-1]} instead")
       return
 
   if save_location.exists() or save_location.is_symlink():
@@ -170,7 +170,7 @@ def update_theme_asset(asset_type, theme, holiday_theme):
 
   save_location.parent.mkdir(parents=True, exist_ok=True)
   save_location.symlink_to(asset_location, target_is_directory=True)
-  print(f"Linked {save_location} to {asset_location}")
+  #print(f"Linked {save_location} to {asset_location}")
 
 def update_wheel_image(image, holiday_theme="stock", random_event=True):
   wheel_save_location = ACTIVE_THEME_PATH / "steering_wheel"
@@ -190,7 +190,7 @@ def update_wheel_image(image, holiday_theme="stock", random_event=True):
 
   if not wheel_location.exists():
     wheel_location = STOCKOP_THEME_PATH / "steering_wheel"
-    print("Using the stock steering wheel instead")
+    #print("Using the stock steering wheel instead")
 
   if wheel_save_location.exists():
     if wheel_save_location.is_symlink():
@@ -209,7 +209,7 @@ def update_wheel_image(image, holiday_theme="stock", random_event=True):
     if destination_file.exists():
       destination_file.unlink()
     destination_file.symlink_to(source_file)
-    print(f"Linked {destination_file} to {source_file}")
+    #print(f"Linked {destination_file} to {source_file}")
 
 class ThemeManager:
   def __init__(self):
@@ -281,7 +281,7 @@ class ThemeManager:
 
     if asset_mappings != self.previous_asset_mappings:
       for asset, (asset_type, current_value) in asset_mappings.items():
-        print(f"Updating {asset}: {asset_type} with value {current_value}")
+        #print(f"Updating {asset}: {asset_type} with value {current_value}")
 
         if asset_type == "wheel_image":
           update_wheel_image(current_value, self.holiday_theme, random_event=False)
@@ -302,7 +302,7 @@ class ThemeManager:
       delete_file(theme_path)
 
     theme_url = download_link + ext
-    print(f"Downloading theme from GitLab: {theme_name}")
+    #print(f"Downloading theme from GitLab: {theme_name}")
     download_file(CANCEL_DOWNLOAD_PARAM, theme_path, DOWNLOAD_PROGRESS_PARAM, theme_url, theme_param, params_memory)
 
     if params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
@@ -311,7 +311,7 @@ class ThemeManager:
       return
 
     if verify_download(theme_path, theme_url):
-      print(f"Theme {theme_name} downloaded and verified successfully from GitLab!")
+      #print(f"Theme {theme_name} downloaded and verified successfully from GitLab!")
       if ext == ".zip":
         params_memory.put(DOWNLOAD_PROGRESS_PARAM, "Unpacking theme...")
         extract_zip(theme_path, download_path)
@@ -344,7 +344,7 @@ class ThemeManager:
         delete_file(theme_path)
 
       theme_url = download_link + ext
-      print(f"Downloading theme from GitHub: {theme_name}")
+      #print(f"Downloading theme from GitHub: {theme_name}")
       download_file(CANCEL_DOWNLOAD_PARAM, theme_path, DOWNLOAD_PROGRESS_PARAM, theme_url, theme_param, params_memory)
 
       if params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
@@ -353,7 +353,7 @@ class ThemeManager:
         return
 
       if verify_download(theme_path, theme_url):
-        print(f"Theme {theme_name} downloaded and verified successfully from GitHub!")
+        #print(f"Theme {theme_name} downloaded and verified successfully from GitHub!")
         if ext == ".zip":
           params_memory.put(DOWNLOAD_PROGRESS_PARAM, "Unpacking theme...")
           extract_zip(theme_path, download_path)
@@ -382,10 +382,10 @@ class ThemeManager:
         elif "gitlab" in repo_url:
           api_url = f"https://gitlab.com/api/v4/projects/firestar5683%2FFrogPilot-Resources/repository/tree?ref={branch}&recursive=true"
         else:
-          print(f"Unsupported repository URL: {repo_url}")
+          #print(f"Unsupported repository URL: {repo_url}")
           return assets
 
-        print(f"Fetching assets from branch '{branch}': {api_url}")
+        #print(f"Fetching assets from branch '{branch}': {api_url}")
         response = self.session.get(api_url, timeout=10)
         response.raise_for_status()
         content = response.json()
@@ -429,7 +429,7 @@ class ThemeManager:
         themes_path = THEME_SAVE_PATH / "theme_packs"
         existing_assets = {item.parent.name.replace("_", " ").title() for item in themes_path.glob(f"*/{subfolder}") if item.is_dir()}
       params.put(key, ",".join(sorted(set(assets) - existing_assets)))
-      print(f"{key} updated successfully")
+      #print(f"{key} updated successfully")
 
     update_param("DownloadableColors", downloadable_colors, "colors")
     update_param("DownloadableDistanceIcons", downloadable_distance_icons, "distance_icons")
@@ -459,35 +459,35 @@ class ThemeManager:
         theme_path = THEME_SAVE_PATH / "steering_wheels" / theme_name
         matching_files = list(theme_path.parent.glob(f"{theme_name}.*"))
         if not matching_files:
-          print(f"  {theme_name} for {theme_component} not found. Downloading...")
+          #print(f"  {theme_name} for {theme_component} not found. Downloading...")
           self.download_theme(theme_component, theme_name, theme_param)
           update_frogpilot_toggles()
         elif theme_name.replace("_", " ").split(".")[0].title() not in downloadable_list:
           if theme_path.exists():
-            print(f"{theme_name} for {theme_component} is outdated. Deleting...")
+            #print(f"{theme_name} for {theme_component} is outdated. Deleting...")
             delete_file(theme_path)
           continue
       else:
         theme_path = THEME_SAVE_PATH / "theme_packs" / theme_name / theme_component
         if not theme_path.exists():
-          print(f"  {theme_name} for {theme_component} not found. Downloading...")
+          #print(f"  {theme_name} for {theme_component} not found. Downloading...")
           self.download_theme(theme_component, theme_name, theme_param)
           update_frogpilot_toggles()
         elif theme_name.replace("_", " ").split(".")[0].title() not in downloadable_list:
           if theme_path.exists():
-            print(f"{theme_name} for {theme_component} is outdated. Deleting...")
+            #print(f"{theme_name} for {theme_component} is outdated. Deleting...")
             delete_file(theme_path)
           continue
 
     for dir_path in THEME_SAVE_PATH.glob("**/*"):
       if dir_path.is_dir() and not any(dir_path.iterdir()):
-        print(f"Deleting empty folder: {dir_path}")
+        #print(f"Deleting empty folder: {dir_path}")
         dir_path.rmdir()
       elif dir_path.is_file() and dir_path.name.startswith("tmp"):
-        print(f"Deleting temp file: {dir_path}")
+        #print(f"Deleting temp file: {dir_path}")
         dir_path.unlink()
 
-    print("Theme validation complete.")
+    #print("Theme validation complete.")
 
   def update_themes(self, frogpilot_toggles, boot_run=False):
     if self.downloading_theme:
@@ -495,7 +495,7 @@ class ThemeManager:
 
     repo_url = get_repository_url()
     if repo_url is None:
-      print("GitHub and GitLab are offline...")
+      #print("GitHub and GitLab are offline...")
       return
 
     assets = self.fetch_assets(repo_url)
@@ -510,7 +510,7 @@ class ThemeManager:
 
     for theme, available_assets in assets["themes"].items():
       theme_name = theme.replace("_", " ").split(".")[0].title()
-      print(f"Theme found: {theme_name}")
+      #print(f"Theme found: {theme_name}")
 
       if "colors" in available_assets:
         downloadable_colors.append(theme_name)
@@ -525,12 +525,12 @@ class ThemeManager:
 
     downloadable_wheels = [wheel.replace("_", " ").split(".")[0].title() for wheel in assets["wheels"]]
 
-    print(f"Downloadable Colors: {downloadable_colors}")
-    print(f"Downloadable Icons: {downloadable_icons}")
-    print(f"Downloadable Signals: {downloadable_signals}")
-    print(f"Downloadable Sounds: {downloadable_sounds}")
-    print(f"Downloadable Distance Icons: {downloadable_distance_icons}")
-    print(f"Downloadable Wheels: {downloadable_wheels}")
+    #print(f"Downloadable Colors: {downloadable_colors}")
+    #print(f"Downloadable Icons: {downloadable_icons}")
+    #print(f"Downloadable Signals: {downloadable_signals}")
+    #print(f"Downloadable Sounds: {downloadable_sounds}")
+    #print(f"Downloadable Distance Icons: {downloadable_distance_icons}")
+    #print(f"Downloadable Wheels: {downloadable_wheels}")
 
     if boot_run:
       self.validate_themes(downloadable_colors, downloadable_distance_icons, downloadable_icons, downloadable_signals, downloadable_sounds, downloadable_wheels, frogpilot_toggles)
