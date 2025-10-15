@@ -56,6 +56,10 @@ class LatControlTorque(LatControl):
     else:
       actual_curvature_vm = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
+      left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+      ll = round(left_lane,2)
+      right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+      rl = round(right_lane,2)
       if self.use_steering_angle:
         actual_curvature = actual_curvature_vm
         curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
@@ -112,16 +116,12 @@ class LatControlTorque(LatControl):
           pcent = round((diff / dla) * 100,2)          
           if pcent > hipcent:
             hipcent = pcent
-            left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
-            ll = round(left_lane,2)
-            right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
-            rl = round(right_lane,2)
             print(f"DLA: {dla} HiP: {hipcent} PreP {lastpcent} LL: {ll} RL: {rl}")
 
-      lastdla =  dla
-      lastala = ala
+      lastdla = abs(desired_lateral_accel)
+      lastala = abs(actual_lateral_accel)
       if lastala > lastdla:
-        lastdiff = abs(lastala) - abs(lastdla)
+        lastdiff = lastala - lastdla
         lastpcent = round((lastdiff / lastdla) * 100,2)
 
       hipcent -= 0.02
