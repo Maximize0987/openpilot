@@ -112,22 +112,20 @@ class LatControlTorque(LatControl):
           pcent = round((diff / dla) * 100,2)          
           if pcent > hipcent:
             hipcent = pcent
-            err = round(pid_log.error,4)
-            o_t = round(output_torque,4)
-            ffagain = round(ff,4)
             left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
             ll = round(left_lane,2)
             right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
             rl = round(right_lane,2)
             print(f"DLA: {dla} HiP: {hipcent} PreP {lastpcent} LL: {ll} RL: {rl}")
-      hipcent -= 0.02
 
-      lastdla =  abs(desired_lateral_accel)
-      lastala = abs(actual_lateral_accel)
+      lastdla =  dla
+      lastala = ala
       if lastala > lastdla:
         lastdiff = abs(lastala) - abs(lastdla)
         lastpcent = round((lastdiff / lastdla) * 100,2)
-        
+
+      hipcent -= 0.02
+      
       pid_log.active = True
       pid_log.p = self.pid.p
       pid_log.i = self.pid.i
