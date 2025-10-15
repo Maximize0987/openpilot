@@ -7,6 +7,8 @@ from openpilot.selfdrive.car.interfaces import LatControlInputs
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.pid import PIDController
 from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
+from openpilot.selfdrive.controls.lib.controlsd import recent_blinker, publish_logs
+from openpilot.selfdrive.controls.lib.controlsd import recent_steer_pressed, state_control
 
 from openpilot.frogpilot.controls.lib.neural_network_feedforward import LOW_SPEED_Y_NN, NeuralNetworkFeedforward
 
@@ -23,6 +25,9 @@ from openpilot.frogpilot.controls.lib.neural_network_feedforward import LOW_SPEE
 
 LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [15, 13, 10, 5]
+
+LL_CLOSE = 1.7
+LANE_NUDGE = 0.005
 
 hipcent = 0
 hiala = 0
@@ -57,9 +62,9 @@ class LatControlTorque(LatControl):
       actual_curvature_vm = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
       left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
-      ll = round(left_lane,2)
+      ll = round(abs(left_lane,2))
       right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
-      rl = round(right_lane,2)
+      rl = round(abs(right_lane,2))
       if self.use_steering_angle:
         actual_curvature = actual_curvature_vm
         curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
@@ -73,7 +78,10 @@ class LatControlTorque(LatControl):
       # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
-        
+      if ll < LL_CLOSE and rl > LL_CLOSE and not recent_blinker or recent_steer_pressed:
+        desired_lateral_accel += LANE_NUDGE
+      if rl < LL_CLOSE and ll > LL_CLOSE and not recent_blinker or recent_steer_pressed:
+        desired_lateral_accel -= LANE_NUDGE
       low_speed_factor = interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y_NN if frogpilot_toggles.nnff else LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
@@ -116,7 +124,7 @@ class LatControlTorque(LatControl):
           pcent = round((diff / dla) * 100,2)          
           if pcent > hipcent:
             hipcent = pcent
-            print(f"DLA: {dla} HiP: {hipcent} PreP {lastpcent} LL: {ll} RL: {rl}")
+            print(f"DLA: {desired_lateral_accel} HiP: {hipcent} PreP {lastpcent} LL: {ll} RL: {rl}")
 
       lastdla = abs(desired_lateral_accel)
       lastala = abs(actual_lateral_accel)
