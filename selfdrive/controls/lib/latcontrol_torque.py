@@ -1,4 +1,5 @@
 import math
+import capnp
 
 from cereal import log
 from openpilot.common.numpy_fast import interp
