@@ -112,7 +112,12 @@ class LatControlTorque(LatControl):
             err = round(pid_log.error,4)
             o_t = round(output_torque,4)
             ffagain = round(ff,4)
+            left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+            ll = round(left_lane,2)
+            right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+            rl = round(right_lane,2)
             print(f"DLA: {dla} HiP: {hipcent} Err: {err} FF: {ffagain} OT: {o_t}")
+            print(f"Left Lane: {ll} Right Lane {rl}")
       hipcent -= 0.02
       
       pid_log.active = True
