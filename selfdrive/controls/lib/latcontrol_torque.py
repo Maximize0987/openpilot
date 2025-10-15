@@ -98,6 +98,7 @@ class LatControlTorque(LatControl):
 
       global hipcent 
       global hiala
+      global lastpcent
       ala = abs(actual_lateral_accel)
       ala = round(ala,2)
       if ala > hiala and not freeze_integrator:
@@ -123,7 +124,6 @@ class LatControlTorque(LatControl):
 
       lastdla =  abs(desired_lateral_accel)
       lastala = abs(actual_lateral_accel)
-      global lastpcent
       if lastala > lastdla:
         lastdiff = abs(lastala) - abs(lastdla)
         lastpcent = round((lastdiff / lastdla) * 100,2)
