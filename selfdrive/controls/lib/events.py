@@ -505,7 +505,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
 
   EventName.steerTempUnavailableSilent: {
     ET.WARNING: Alert(
-      "Steering Temporarily Unavailable",
+      "Not So Silent",
       "",
       AlertStatus.userPrompt, AlertSize.small,
       Priority.LOW, VisualAlert.steerRequired, AudibleAlert.prompt, 1.8),
@@ -580,19 +580,19 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.preLaneChangeLeft: {
-    ET.WARNING: Alert(
-      "Steer Left to Start Lane Change Once Safe",
-      "",
-      AlertStatus.normal, AlertSize.small,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
+    #ET.WARNING: Alert(
+      #"Steer Left to Start Lane Change Once Safe",
+      #"",
+      #AlertStatus.normal, AlertSize.small,
+      #Priority.LOW, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
   },
 
   EventName.preLaneChangeRight: {
-    ET.WARNING: Alert(
-      "Steer Right to Start Lane Change Once Safe",
-      "",
-      AlertStatus.normal, AlertSize.small,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
+    #ET.WARNING: Alert(
+      #"Steer Right to Start Lane Change Once Safe",
+      #"",
+      #AlertStatus.normal, AlertSize.small,
+      #Priority.LOW, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
   },
 
   EventName.laneChangeBlocked: {
@@ -604,11 +604,11 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.laneChange: {
-    ET.WARNING: Alert(
-      "Changing Lanes",
-      "",
-      AlertStatus.normal, AlertSize.small,
-      Priority.LOW, VisualAlert.none, AudibleAlert.none, .1),
+    #ET.WARNING: Alert(
+      #"Changing Lanes",
+      #"",
+      #AlertStatus.normal, AlertSize.small,
+      #Priority.LOW, VisualAlert.none, AudibleAlert.none, .1),
   },
 
   EventName.steerSaturated: {
@@ -772,11 +772,11 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.noGps: {
-    ET.PERMANENT: Alert(
-      "Poor GPS reception",
-      "Ensure device has a clear view of the sky",
-      AlertStatus.normal, AlertSize.mid,
-      Priority.LOWER, VisualAlert.none, AudibleAlert.none, .2, creation_delay=600.)
+    #ET.PERMANENT: Alert(
+      #"Poor GPS reception",
+      #"Ensure device has a clear view of the sky",
+      #AlertStatus.normal, AlertSize.mid,
+      #Priority.LOWER, VisualAlert.none, AudibleAlert.none, .2, creation_delay=600.)
   },
 
   EventName.soundsUnavailable: {
@@ -795,8 +795,8 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.wrongGear: {
-    ET.SOFT_DISABLE: user_soft_disable_alert("Gear not D"),
-    ET.NO_ENTRY: NoEntryAlert("Gear not D"),
+    #ET.SOFT_DISABLE: user_soft_disable_alert("Gear not D"),
+    #ET.NO_ENTRY: NoEntryAlert("Gear not D"),
   },
 
   # This alert is thrown when the calibration angles are outside of the acceptable range.
@@ -823,18 +823,18 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.doorOpen: {
-    ET.SOFT_DISABLE: user_soft_disable_alert("Door Open"),
-    ET.NO_ENTRY: NoEntryAlert("Door Open"),
+    #ET.SOFT_DISABLE: user_soft_disable_alert("Door Open"),
+    #ET.NO_ENTRY: NoEntryAlert("Door Open"),
   },
 
   EventName.seatbeltNotLatched: {
-    ET.SOFT_DISABLE: user_soft_disable_alert("Seatbelt Unlatched"),
-    ET.NO_ENTRY: NoEntryAlert("Seatbelt Unlatched"),
+    #ET.SOFT_DISABLE: user_soft_disable_alert("Seatbelt Unlatched"),
+    #ET.NO_ENTRY: NoEntryAlert("Seatbelt Unlatched"),
   },
 
   EventName.espDisabled: {
-    ET.SOFT_DISABLE: soft_disable_alert("Electronic Stability Control Disabled"),
-    ET.NO_ENTRY: NoEntryAlert("Electronic Stability Control Disabled"),
+    #ET.SOFT_DISABLE: soft_disable_alert("Electronic Stability Control Disabled"),
+    #ET.NO_ENTRY: NoEntryAlert("Electronic Stability Control Disabled"),
   },
 
   EventName.lowBattery: {
@@ -1012,12 +1012,12 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
 
   # When the car is driving faster than most cars in the training data, the model outputs can be unpredictable.
   EventName.speedTooHigh: {
-    ET.WARNING: Alert(
-      "Speed Too High",
-      "Model uncertain at this speed",
-      AlertStatus.userPrompt, AlertSize.mid,
-      Priority.HIGH, VisualAlert.steerRequired, AudibleAlert.promptRepeat, 4.),
-    ET.NO_ENTRY: NoEntryAlert("Slow down to engage"),
+    #ET.WARNING: Alert(
+      #"Speed Too High",
+      #"Model uncertain at this speed",
+      #AlertStatus.userPrompt, AlertSize.mid,
+      #Priority.HIGH, VisualAlert.steerRequired, AudibleAlert.promptRepeat, 4.),
+    #ET.NO_ENTRY: NoEntryAlert("Slow down to engage"),
   },
 
   EventName.lowSpeedLockout: {
@@ -1153,19 +1153,19 @@ FROGPILOT_EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   FrogPilotEventName.turningLeft: {
-    ET.WARNING: Alert(
-      "Turning left",
-      "",
-      AlertStatus.normal, AlertSize.small,
-      Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
+    #ET.WARNING: Alert(
+      #"Turning left",
+      #"",
+      #AlertStatus.normal, AlertSize.small,
+      #Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
   },
 
   FrogPilotEventName.turningRight: {
-    ET.WARNING: Alert(
-      "Turning right",
-      "",
-      AlertStatus.normal, AlertSize.small,
-      Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
+    #ET.WARNING: Alert(
+      #"Turning right",
+      #"",
+      #AlertStatus.normal, AlertSize.small,
+      #Priority.LOWEST, VisualAlert.none, AudibleAlert.none, .1, alert_rate=0.75),
   },
 
   # Random Events
