@@ -29,8 +29,8 @@ UNCERT_SLOPE_TRIG = 0.12  # per second
 UNCERT_MAG_TRIG = 0.50
 
 # Lookup table for turns
-_A_TOTAL_MAX_V = [1.7, 3.2]
-_A_TOTAL_MAX_BP = [20., 40.]
+_A_TOTAL_MAX_V = [1.1, 4.2, 5.8]     # old = _A_TOTAL_MAX_V = [1.7, 3.2]Add commentMore actions
+_A_TOTAL_MAX_BP = [0., 21., 50.]     # old = _A_TOTAL_MAX_BP = [20., 40.]
 
 
 def get_max_accel(v_ego):
