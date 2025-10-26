@@ -74,21 +74,22 @@ class CarInterface(CarInterfaceBase):
       ret.wheelSpeedFactor = 1.035
 
     elif candidate in (CAR.TOYOTA_RAV4_TSS2, CAR.TOYOTA_RAV4_TSS2_2022, CAR.TOYOTA_RAV4_TSS2_2023, CAR.TOYOTA_RAV4_PRIME, CAR.TOYOTA_SIENNA_4TH_GEN):
-      ret.lateralTuning.init('pid')
-      ret.lateralTuning.pid.kiBP = [0.0]
-      ret.lateralTuning.pid.kpBP = [0.0]
-      ret.lateralTuning.pid.kpV = [0.6]
-      ret.lateralTuning.pid.kiV = [0.1]
-      ret.lateralTuning.pid.kf = 0.00007818594
+      CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
+      #ret.lateralTuning.init('pid')
+      #ret.lateralTuning.pid.kiBP = [0.0]
+      #ret.lateralTuning.pid.kpBP = [0.0]
+      #ret.lateralTuning.pid.kpV = [0.6]
+      #ret.lateralTuning.pid.kiV = [0.1]
+      #ret.lateralTuning.pid.kf = 0.00007818594
 
       # 2019+ RAV4 TSS2 uses two different steering racks and specific tuning seems to be necessary.
       # See https://github.com/commaai/openpilot/pull/21429#issuecomment-873652891
-      for fw in car_fw:
-        if fw.ecu == "eps" and (fw.fwVersion.startswith(b'\x02') or fw.fwVersion in [b'8965B42181\x00\x00\x00\x00\x00\x00']):
-          ret.lateralTuning.pid.kpV = [0.15]
-          ret.lateralTuning.pid.kiV = [0.05]
-          ret.lateralTuning.pid.kf = 0.00004
-          break
+      #for fw in car_fw:
+        #if fw.ecu == "eps" and (fw.fwVersion.startswith(b'\x02') or fw.fwVersion in [b'8965B42181\x00\x00\x00\x00\x00\x00']):
+          #ret.lateralTuning.pid.kpV = [0.15]
+          #ret.lateralTuning.pid.kiV = [0.05]
+          #ret.lateralTuning.pid.kf = 0.00004
+          #break
 
     ret.centerToFront = ret.wheelbase * 0.44
 
