@@ -1,9 +1,15 @@
 import math
+import capnp
+import time
+import os
 import numpy as np
 from collections import deque
 
 from cereal import log
+import cereal.messaging as messaging
+from openpilot.common.numpy_fast import interp      #
 from openpilot.common.filter_simple import FirstOrderFilter
+from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper, DT_CTRL      #
 from openpilot.selfdrive.car.interfaces import FRICTION_THRESHOLD
 from openpilot.selfdrive.controls.lib.drive_helpers import MIN_SPEED, get_friction
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
@@ -20,6 +26,10 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 # proportional gain is increased at low speeds by the PID controller.
 # Additionally, there is friction in the steering wheel that needs
 # to be overcome to move it at all, this is compensated for too.
+
+LL_CLOSE = 1.8
+NUDGE_INPUT = [-1.5, -1.0, -0.05, 0, 0.05, 1.0, 1.5]
+NUDGE_OUTPUT = [-0.044, -0.034, -0.018, 0, 0.018, 0.037, 0.046]
 
 KP = 1.0
 KI = 0.3
@@ -45,6 +55,13 @@ class LatControlTorque(LatControl):
     self.previous_measurement = 0.0
     self.measurement_rate_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents', 'frogpilotPlan'])
+
+    self.no_nudge = 0
+    self.last_ll = 0
+    self.last_rl = 0
+    self.hipcent = 0
+    
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
     self.torque_params.latAccelOffset = latAccelOffset
@@ -62,6 +79,21 @@ class LatControlTorque(LatControl):
       output_torque = 0.0
       pid_log.active = False
     else:
+      left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+      ll = round(abs(left_lane), 2)
+      right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+      rl = round(abs(right_lane), 2)
+      lane_avg = left_lane + right_lane
+      lane_val = interp(lane_avg, NUDGE_INPUT, NUDGE_OUTPUT)
+      self.sm.update(0)
+      if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
+        self.no_nudge = self.sm.frame
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 2.6 # cooldown after blinker
+      #if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
+        #desired_lateral_accel += lane_val   
+      if rl < 2.5 > ll:
+        self.last_ll = ll
+        self.last_rl = rl        
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
