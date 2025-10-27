@@ -28,7 +28,7 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 # to be overcome to move it at all, this is compensated for too.
 
 LL_CLOSE = 1.8
-NUDGE_INPUT = [-1.2, -0.05, 0, 0.05, 1.2]
+NUDGE_INPUT = [-1.3, -0.05, 0, 0.05, 1.3]
 NUDGE_OUTPUT = [-0.05, -0.014, 0, 0.014, 0.05]
 
 KP = 1.0
