@@ -89,8 +89,6 @@ class LatControlTorque(LatControl):
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
       nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 2.6 # cooldown after blinker
-      #if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
-        #desired_lateral_accel += lane_val   
       if rl < 2.5 > ll:
         self.last_ll = ll
         self.last_rl = rl        
@@ -103,6 +101,8 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
+      if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
+        future_desired_lateral_accel += lane_val
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
