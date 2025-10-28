@@ -48,8 +48,8 @@ void FrogPilotAnnotatedCameraWidget::showEvent(QShowEvent *event) {
 
   if (scene.is_metric || frogpilot_toggles.value("use_si_metrics").toBool()) {
     accelerationUnit = tr(" m/s²");
-    leadDistanceUnit = tr(" meters");
-    leadSpeedUnit = frogpilot_toggles.value("use_si_metrics").toBool() ? tr(" m/s") : tr(" km/h");
+    leadDistanceUnit = tr(" m");
+    leadSpeedUnit = tr(" mph");     //   leadSpeedUnit = frogpilot_toggles.value("use_si_metrics").toBool() ? tr(" m/s") : tr(" km/h");
 
     distanceConversion = 1.0f;
     speedConversion = scene.is_metric ? MS_TO_KPH : MS_TO_MPH;
@@ -522,11 +522,11 @@ void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUI
   p.restore();
 }
 
-void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent, QPointF *chevron, const cereal::FrogPilotPlan::Reader &frogpilotPlan, const cereal::RadarState::LeadData::Reader &lead_data) {
+void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent, QPointF *chevron, const cereal::CarState::Reader &carState, const cereal::FrogPilotPlan::Reader &frogpilotPlan, const cereal::RadarState::LeadData::Reader &lead_data) {
   float leadDistance = lead_data.getDRel() + (adjacent ? fabs(lead_data.getYRel()) : 0);
   float leadSpeed = std::max(lead_data.getVLead(), 0.0f);
 
-  p.setFont(InterFont(40, QFont::Bold));
+  p.setFont(InterFont(65, QFont::Bold));
   p.setPen(QPen(whiteColor()));
 
   QString text;
@@ -540,10 +540,10 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
     text = QString("%1 %2 (%3) | %4 %5 | %6 %7")
               .arg(qRound(leadDistance * distanceConversion))
               .arg(leadDistanceUnit)
-              .arg(QString("Desired: %1").arg(frogpilotPlan.getDesiredFollowDistance() * distanceConversion))
+              .arg(QString("D: %1").arg(frogpilotPlan.getDesiredFollowDistance() * distanceConversion))
               .arg(qRound(leadSpeed * speedConversionMetrics))
               .arg(leadSpeedUnit)
-              .arg(QString::number(leadDistance / std::max(speed / speedConversion, 1.0f), 'f', 2))
+              .arg(QString::number(leadDistance / std::max(speed / speedConversion, 0.1f), 'f', 2))
               .arg("s");
   }
 
@@ -551,8 +551,8 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   int textHeight = metrics.height();
   int textWidth = metrics.horizontalAdvance(text);
 
-  int textX = ((chevron[2].x() + chevron[0].x()) / 2) - textWidth / 2;
-  int textY = chevron[0].y() + textHeight + 5;
+  int textX = 1080 - (textWidth / 2);       //  int textX = ((chevron[2].x() + chevron[0].x()) / 2) - textWidth / 2;
+  int textY = (textHeight /2) + 880;       //  int textY = chevron[0].y() + textHeight + 5;
 
   if (!adjacent) {
     int xMargin = textWidth * 0.25;
