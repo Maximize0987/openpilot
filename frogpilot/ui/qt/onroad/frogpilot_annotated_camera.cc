@@ -525,7 +525,8 @@ void FrogPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p, FrogPilotUI
 void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent, QPointF *chevron, const cereal::FrogPilotPlan::Reader &frogpilotPlan, const cereal::RadarState::LeadData::Reader &lead_data) {
   float leadDistance = lead_data.getDRel() + (adjacent ? fabs(lead_data.getYRel()) : 0);
   float leadSpeed = std::max(lead_data.getVLead(), 0.0f);
-
+  float v_rel = lead_data.getVRel();
+  
   p.setFont(InterFont(65, QFont::Bold));
   p.setPen(QPen(whiteColor()));
 
@@ -541,7 +542,7 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
               .arg(qRound(leadDistance * distanceConversion))
               .arg(leadDistanceUnit)
               .arg(qRound(frogpilotPlan.getDesiredFollowDistance() * distanceConversion))
-              .arg(qRound(leadSpeed * speedConversionMetrics))
+              .arg(qRound(v_rel * speedConversionMetrics))   //  .arg(qRound(leadSpeed * speedConversionMetrics))
               .arg(leadSpeedUnit)
               .arg(QString::number(leadDistance / std::max(speed / speedConversion, 0.1f), 'f', 2))
               .arg("s");
