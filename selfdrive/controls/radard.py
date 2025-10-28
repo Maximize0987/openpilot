@@ -19,7 +19,7 @@ from openpilot.frogpilot.common.frogpilot_variables import THRESHOLD, get_frogpi
 from openpilot.selfdrive.controls.controlsd import LaneChangeDirection, LaneChangeState
 
 # Default lead acceleration decay set to 50% at 1s
-_LEAD_ACCEL_TAU = 0.6
+_LEAD_ACCEL_TAU = 1.5   # from firestar =_LEAD_ACCEL_TAU = 0.6
 
 # radar tracks
 SPEED, ACCEL = 0, 1     # Kalman filter states enum
@@ -28,7 +28,7 @@ SPEED, ACCEL = 0, 1     # Kalman filter states enum
 V_EGO_STATIONARY = 4.   # no stationary object flag below this speed
 
 RADAR_TO_CENTER = 2.7   # (deprecated) RADAR is ~ 2.7m ahead from center of car
-RADAR_TO_CAMERA = 1.52  # RADAR is ~ 1.5m ahead from center of mesh frame
+RADAR_TO_CAMERA = 1.59  # RADAR is ~ 1.5m ahead from center of mesh frame
 
 
 class KalmanParams:
@@ -85,7 +85,7 @@ class Track:
 
     # Learn if constant acceleration
     if abs(self.aLeadK) < 0.5:
-      self.aLeadTau.x = min(max(self.aLeadTau.x, 1e-2) * 1.1, _LEAD_ACCEL_TAU)
+      self.aLeadTau.x = _LEAD_ACCEL_TAU   #   self.aLeadTau.x = min(max(self.aLeadTau.x, 1e-2) * 1.1, _LEAD_ACCEL_TAU)   #  undo firestar
     else:
       self.aLeadTau.update(0.0)
 
@@ -119,18 +119,22 @@ class Track:
       return -self.yRel > right_lane
 
   def potential_far_lead(self, standstill: bool, model_data: capnp._DynamicStructReader):
-    if standstill or self.vLead < 1 or abs(self.yRel) > 1:
-      return False
-
     left_lane = interp(self.dRel, model_data.laneLines[1].x, model_data.laneLines[1].y)
     right_lane = interp(self.dRel, model_data.laneLines[2].x, model_data.laneLines[2].y)
-
-    if left_lane < -self.yRel < right_lane:
-      self.radarfulFilter.update(1)
-      return True
-    else:
-      self.radarfulFilter.update(0)
+    if standstill or self.vLead < 1 or abs(self.dRel) < 105 or -self.yRel < left_lane or -self.yRel > right_lane:            #    if standstill or self.vLead < 1 or abs(self.yRel) > 1:
       return False
+
+    return left_lane < -self.yRel < right_lane
+    
+    #left_lane = interp(self.dRel, model_data.laneLines[1].x, model_data.laneLines[1].y)
+    #right_lane = interp(self.dRel, model_data.laneLines[2].x, model_data.laneLines[2].y)
+
+    #if left_lane < -self.yRel < right_lane:
+      #self.radarfulFilter.update(1)
+      #return True
+    #else:
+      #self.radarfulFilter.update(0)
+      #return False
 
   def potential_low_speed_lead(self, v_ego: float):
     # stop for stuff in front of you and low speed, even without model confirmation
@@ -175,24 +179,29 @@ def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, model_
   # stationary radar points can be false positives
   dist_sane = abs(track.dRel - offset_vision_dist) < max([(offset_vision_dist)*.25, 5.0])
   vel_sane = (abs(track.vRel + v_ego - lead.v[0]) < 10) or (v_ego + track.vRel > 3)
-  if dist_sane and vel_sane:
+  left_lane = interp(track.dRel, model_data.laneLines[1].x, model_data.laneLines[1].y)
+  right_lane = interp(track.dRel, model_data.laneLines[2].x, model_data.laneLines[2].y)
+  if dist_sane and vel_sane and (left_lane < -track.yRel < right_lane):
     return track
   else:
     return None
 
 
 def get_RadarState_from_vision(lead_msg: capnp._DynamicStructReader, v_ego: float, model_v_ego: float):
+  #prev_aLeadK = getattr(get_RadarState_from_vision, "prev_aLeadK", 0.0)
+  #blended_aLeadK = 0.8 * float(lead_msg.a[0]) + 0.2 * prev_aLeadK
+  #get_RadarState_from_vision.prev_aLeadK = blended_aLeadK
   lead_v_rel_pred = lead_msg.v[0] - model_v_ego
-  prev_aLeadK = getattr(get_RadarState_from_vision, "prev_aLeadK", 0.0)
-  blended_aLeadK = 0.8 * float(lead_msg.a[0]) + 0.2 * prev_aLeadK
-  get_RadarState_from_vision.prev_aLeadK = blended_aLeadK
   return {
     "dRel": float(lead_msg.x[0] - RADAR_TO_CAMERA),
     "yRel": float(-lead_msg.y[0]),
+    #vRel": float(lead_msg.v[0] - model_v_ego),
+    #"vLead": float(v_ego + (lead_msg.v[0] - model_v_ego)),
+    #"vLeadK": float(v_ego + (lead_msg.v[0] - model_v_ego)),
     "vRel": float(lead_v_rel_pred),
     "vLead": float(v_ego + lead_v_rel_pred),
     "vLeadK": float(v_ego + lead_v_rel_pred),
-    "aLeadK": blended_aLeadK,
+    "aLeadK": float(lead_msg.a[0]),
     "aLeadTau": 0.3,
     "fcw": False,
     "modelProb": float(lead_msg.prob),
@@ -207,15 +216,18 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
              frogpilotPlan: capnp._DynamicStructReader, frogpilot_toggles: SimpleNamespace,
              low_speed_override: bool = True) -> dict[str, Any]:
   # Determine leads, this is where the essential logic happens
-  if len(tracks) > 0 and ready and lead_msg.prob > frogpilot_toggles.lead_detection_probability:
+  if len(tracks) > 0 and ready and lead_msg.prob > (frogpilot_toggles.lead_detection_probability * 1.5):
     track = match_vision_to_track(v_ego, lead_msg, model_data, tracks, frogpilot_toggles)
   else:
     track = None
 
+  left_lane = interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[1].x, model_data.laneLines[1].y)
+  right_lane = interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[2].x, model_data.laneLines[2].y)  
+               
   lead_dict = {'status': False}
   if track is not None:
     lead_dict = track.get_RadarState(lead_msg.prob)
-  elif (track is None) and ready and (lead_msg.prob > frogpilot_toggles.lead_detection_probability):
+  elif (track is None) and ready and (lead_msg.prob > (frogpilot_toggles.lead_detection_probability * 1.5)) and (left_lane < float(lead_msg.y[0]) < right_lane):
     lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)
 
   if low_speed_override:
@@ -228,7 +240,7 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
         lead_dict = closest_track.get_RadarState()
 
     if not lead_dict['status'] and len(tracks) > 0:
-      far_lead_tracks = [c for c in tracks.values() if c.potential_far_lead(standstill, model_data) and c.radarfulFilter.x >= THRESHOLD]
+      far_lead_tracks = [c for c in tracks.values() if c.potential_far_lead(standstill, model_data)]
       if len(far_lead_tracks) > 0:
         closest_track = min(far_lead_tracks, key=lambda c: c.dRel)
         lead_dict = closest_track.get_RadarState()
