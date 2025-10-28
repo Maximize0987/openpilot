@@ -396,7 +396,7 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("SteerDelayStock", "", 3, ""),
   ("SteerFriction", "", 3, ""),
   ("SteerFrictionStock", "", 3, ""),
-  ("SteerKP", "", 3, ""),
+  ("SteerKP", "1.0", 3, ""),
   ("SteerKPStock", "1.0", 3, ""),
   ("SteerLatAccel", "", 3, ""),
   ("SteerLatAccelStock", "", 3, ""),
