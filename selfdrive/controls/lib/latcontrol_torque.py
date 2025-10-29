@@ -104,7 +104,7 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
-      fdla = interp(fdla, KP_INPUT, KP_OUTPUT)
+      fdla = interp(future_desired_lateral_accel, KP_INPUT, KP_OUTPUT)
       #future_desired_lateral_accel *= fdla
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
         future_desired_lateral_accel += lane_val
