@@ -529,7 +529,7 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   
   p.setFont(InterFont(75, QFont::Bold));
   if (v_rel < -8) {   
-    p.setPen(QPen(redColor()));
+    p.setPen(QPen(red2Color()));
   } else if (v_rel > -8 && v_rel < -4) {
     p.setPen(QPen(orangeColor()));
   } else if (v_rel > -4 && v_rel < 0) {
