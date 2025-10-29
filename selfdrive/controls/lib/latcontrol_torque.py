@@ -28,8 +28,11 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 # to be overcome to move it at all, this is compensated for too.
 
 LL_CLOSE = 1.8
-NUDGE_INPUT = [-1.3, -0.05, 0, 0.05, 1.3]
+NUDGE_INPUT = [-1.35, -0.1, -0.05, 0, 1.25]
 NUDGE_OUTPUT = [-0.05, -0.014, 0, 0.014, 0.05]
+
+KF_INPUT = [-3, -0.2, 0, 0.2, 3]
+KF_OUTPUT = [0.96, 0, 0, 0, 0.96]
 
 KP = 1.0
 KI = 0.3
@@ -101,6 +104,8 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
+      fdla = interp(fdla, KP_INPUT, KP_OUTPUT)
+      #future_desired_lateral_accel *= fdla
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
         future_desired_lateral_accel += lane_val
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
