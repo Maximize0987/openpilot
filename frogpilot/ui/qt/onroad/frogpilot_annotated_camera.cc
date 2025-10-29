@@ -528,8 +528,15 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   float v_rel = lead_data.getVRel();
   
   p.setFont(InterFont(65, QFont::Bold));
-  p.setPen(QPen(whiteColor()));
-
+  if (v_rel < -8) {   
+    p.setPen(QPen(redColor()));
+  } else if (v_rel > -8 && v_rel < -4) {
+    p.setPen(QPen(orangeColor()));
+  } else if (v_rel > -4 && v_rel < 0) {
+    p.setPen(QPen(yellowColor()));
+  } else { 
+    p.setPen(QPen(whiteColor()));
+  }
   QString text;
   if (adjacent) {
     text = QString("%1 %2 | %3 %4")
@@ -538,7 +545,7 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
               .arg(qRound(leadSpeed * speedConversionMetrics))
               .arg(leadSpeedUnit);
   } else {
-    text = QString("%1 %2 (%3) | %4 %5 | %6 %7")
+    text = QString("%1 %2 ( %3 ) | %4 %5 | %6 %7")
               .arg(qRound(leadDistance * distanceConversion))
               .arg(leadDistanceUnit)
               .arg(qRound(frogpilotPlan.getDesiredFollowDistance() * distanceConversion))
