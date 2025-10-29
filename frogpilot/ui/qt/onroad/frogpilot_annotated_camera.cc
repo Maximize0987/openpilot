@@ -527,7 +527,7 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   float leadSpeed = std::max(lead_data.getVLead(), 0.0f);
   float v_rel = lead_data.getVRel();
   
-  p.setFont(InterFont(65, QFont::Bold));
+  p.setFont(InterFont(75, QFont::Bold));
   if (v_rel < -8) {   
     p.setPen(QPen(redColor()));
   } else if (v_rel > -8 && v_rel < -4) {
@@ -560,7 +560,7 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   int textWidth = metrics.horizontalAdvance(text);
 
   int textX = 1080 - (textWidth / 2);       //  int textX = ((chevron[2].x() + chevron[0].x()) / 2) - textWidth / 2;
-  int textY = (textHeight /2) + 880;       //  int textY = chevron[0].y() + textHeight + 5;
+  int textY = (textHeight /2) + 180;       //  int textY = chevron[0].y() + textHeight + 5;
 
   if (!adjacent) {
     int xMargin = textWidth * 0.25;
