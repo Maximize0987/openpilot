@@ -560,7 +560,7 @@ void FrogPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   int textWidth = metrics.horizontalAdvance(text);
 
   int textX = 1080 - (textWidth / 2);       //  int textX = ((chevron[2].x() + chevron[0].x()) / 2) - textWidth / 2;
-  int textY = (textHeight /2) + 180;       //  int textY = chevron[0].y() + textHeight + 5;
+  int textY = (textHeight /2) + 900;       //  int textY = chevron[0].y() + textHeight + 5;
 
   if (!adjacent) {
     int xMargin = textWidth * 0.25;
