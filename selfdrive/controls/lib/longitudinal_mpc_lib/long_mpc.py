@@ -422,7 +422,7 @@ class LongitudinalMpc:
       scale = float(np.interp(uncertainty, [0.45, 0.60], [1.2, 1.5]))
       speed_jerk *= scale
 
-    if abs(filter_time_factor - prev_filter_time_factor) > 1e-3:
+    #if abs(filter_time_factor - prev_filter_time_factor) > 1e-3:
       #cloudlog.error(f"LON_FILTER; filter_time_factor={filter_time_factor:.2f}; uncertainty={uncertainty:.3f}; v_ego={v_ego:.2f} mps; lead_dist={lead_dist:.2f} m; accel_reengage={accel_reengage}")
 
     if self.mode == 'acc':
