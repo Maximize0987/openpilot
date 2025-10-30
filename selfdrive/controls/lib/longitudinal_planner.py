@@ -343,7 +343,7 @@ class LongitudinalPlanner:
         pass
 
     # now_t defined earlier
-    over = uncertainty > 1.0
+    over = uncertainty > 10.0     #   over = uncertainty > 1.0
     # Log on threshold edge or at ~1 Hz
     if over != self.prev_uncert_over or (now_t - self.last_uncert_log_t) > 1.0:
       try:
