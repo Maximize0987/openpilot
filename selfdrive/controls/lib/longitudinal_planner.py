@@ -336,27 +336,27 @@ class LongitudinalPlanner:
     # Trigger if either slope is high or magnitude is high; require a valid lead and closing
     panic_bypass = closing_fast and (uncert_slope > UNCERT_SLOPE_TRIG or uncertainty >= UNCERT_MAG_TRIG)
 
-    if panic_bypass:
-      try:
-        cloudlog.error(f"LON_SLOPE; slope={uncert_slope:.3f}/s; uncertainty={uncertainty:.3f}; v_ego={v_ego:.2f}; v_rel={(v_ego - self.lead_one.vLead) if self.lead_one.status else 0.0:.2f}; lead_dist={self.lead_dist_f if self.lead_dist_f is not None else -1:.2f}; trigger=True")
-      except Exception:
-        pass
+    #if panic_bypass:
+      #try:
+        #cloudlog.error(f"LON_SLOPE; slope={uncert_slope:.3f}/s; uncertainty={uncertainty:.3f}; v_ego={v_ego:.2f}; v_rel={(v_ego - self.lead_one.vLead) if self.lead_one.status else 0.0:.2f}; lead_dist={self.lead_dist_f if self.lead_dist_f is not None else -1:.2f}; trigger=True")
+      #except Exception:
+        #pass
 
     # now_t defined earlier
-    over = uncertainty > 10.0     #   over = uncertainty > 1.0
+    over = uncertainty > 1.0
     # Log on threshold edge or at ~1 Hz
-    if over != self.prev_uncert_over or (now_t - self.last_uncert_log_t) > 1.0:
-      try:
-        cloudlog.error(
-          f"LON_UNCERT; v_ego={v_ego:.2f} mps; desireEntropy={desire_entropy:.3f}; "
-          f"brakeRawMax={(raw_brake_max if 'raw_brake_max' in locals() else -1.0):.3f}; "
-          f"brakeDecayed={(disengage_risk if 'disengage_risk' in locals() else -1.0):.3f}; "
-          f"lam={(lam if 'lam' in locals() else -1.0):.2f}; uncertainty={uncertainty:.3f}; over={over}"
-        )
-      except Exception as e:
-        cloudlog.warning(f"LON_UNCERT log error: {e}")
-      self.prev_uncert_over = over
-      self.last_uncert_log_t = now_t
+    #if over != self.prev_uncert_over or (now_t - self.last_uncert_log_t) > 1.0:
+      #try:
+        #cloudlog.error(
+          #f"LON_UNCERT; v_ego={v_ego:.2f} mps; desireEntropy={desire_entropy:.3f}; "
+          #f"brakeRawMax={(raw_brake_max if 'raw_brake_max' in locals() else -1.0):.3f}; "
+          #f"brakeDecayed={(disengage_risk if 'disengage_risk' in locals() else -1.0):.3f}; "
+          #f"lam={(lam if 'lam' in locals() else -1.0):.2f}; uncertainty={uncertainty:.3f}; over={over}"
+        #)
+      #except Exception as e:
+        #cloudlog.warning(f"LON_UNCERT log error: {e}")
+      #self.prev_uncert_over = over
+      #self.last_uncert_log_t = now_t
 
     # Asymmetric accel release with hysteresis + dwell to prevent on/off pulsing
     rise_dwell_s, fall_dwell_s = 0.6, 0.4
