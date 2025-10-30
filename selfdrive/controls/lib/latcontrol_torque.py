@@ -37,6 +37,7 @@ KF_OUTPUT = [0.96, 0.995, 1, 0.995, 0.96]
 KP = 1.0
 KI = 0.3
 KD = 0.0
+KF = 0.985
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
 
@@ -105,7 +106,7 @@ class LatControlTorque(LatControl):
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
       fdla = interp(future_desired_lateral_accel, KF_INPUT, KF_OUTPUT)
-      future_desired_lateral_accel *= fdla
+      future_desired_lateral_accel *= KF # fdla
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
         future_desired_lateral_accel += lane_val
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
