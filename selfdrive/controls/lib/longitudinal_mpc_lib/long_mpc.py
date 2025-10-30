@@ -423,7 +423,7 @@ class LongitudinalMpc:
       speed_jerk *= scale
 
     if abs(filter_time_factor - prev_filter_time_factor) > 1e-3:
-      cloudlog.error(f"LON_FILTER; filter_time_factor={filter_time_factor:.2f}; uncertainty={uncertainty:.3f}; v_ego={v_ego:.2f} mps; lead_dist={lead_dist:.2f} m; accel_reengage={accel_reengage}")
+      #cloudlog.error(f"LON_FILTER; filter_time_factor={filter_time_factor:.2f}; uncertainty={uncertainty:.3f}; v_ego={v_ego:.2f} mps; lead_dist={lead_dist:.2f} m; accel_reengage={accel_reengage}")
 
     if self.mode == 'acc':
       a_change_cost = acceleration_jerk if prev_accel_constraint else 0
