@@ -96,7 +96,7 @@ private:
   QColor redColor(int alpha = 255) { return QColor(201, 34, 49, alpha); }
   QColor red2Color(int alpha = 255) { return QColor(255, 0, 0, alpha); }
   QColor whiteColor(int alpha = 255) { return QColor(255, 255, 255, alpha); }
-  QColor orangeColor(int alpha = 255) { return QColor(255, 128, 0, alpha); }
+  QColor orangeColor(int alpha = 255) { return QColor(255, 166, 75, alpha); }
   QColor yellowColor(int alpha = 255) { return QColor(255, 255, 0, alpha); }
 
   QElapsedTimer glowTimer;
