@@ -109,8 +109,8 @@ class LatControlTorque(LatControl):
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
       fdla = interp(future_desired_lateral_accel, KF_INPUT, KF_OUTPUT)
       future_desired_lateral_accel *= KF # fdla
-      #if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
-        #future_desired_lateral_accel += lane_val
+      if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
+        future_desired_lateral_accel += lane_val
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
