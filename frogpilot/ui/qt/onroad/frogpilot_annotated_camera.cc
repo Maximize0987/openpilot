@@ -726,7 +726,7 @@ void FrogPilotAnnotatedCameraWidget::paintRadarTracks(QPainter &p, const cereal:
     float x = std::clamp(static_cast<float>(track.calibrated_point.x()), 0.0f, float(viewport.width() - diameter));
     float y = std::clamp(static_cast<float>(track.calibrated_point.y()), 0.0f, float(viewport.height() - diameter));
 
-    p.setBrush(redColor());
+    p.setBrush(rTrackColor());
     p.drawEllipse(QPointF(x + diameter / 2.0f, y + diameter / 2.0f), diameter / 2.0f, diameter / 2.0f);
   }
 
