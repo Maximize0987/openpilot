@@ -98,6 +98,7 @@ private:
   QColor whiteColor(int alpha = 255) { return QColor(255, 255, 255, alpha); }
   QColor orangeColor(int alpha = 255) { return QColor(255, 166, 75, alpha); }
   QColor yellowColor(int alpha = 255) { return QColor(255, 255, 0, alpha); }
+  QColor rTrackColor(int alpha = 255) { return QColor(249, 83, 227, alpha); }
 
   QElapsedTimer glowTimer;
   QElapsedTimer pendingLimitTimer;
