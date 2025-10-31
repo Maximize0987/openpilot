@@ -62,7 +62,8 @@ class LatControlTorque(LatControl):
     self.measurement_rate_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
     self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents', 'frogpilotPlan'])
-
+  
+    self.last_nudge = 0
     self.no_nudge = 0
     self.last_ll = 0
     self.last_rl = 0
@@ -98,7 +99,7 @@ class LatControlTorque(LatControl):
       if rl > 2.5 or abs(ll) > 2.5:
         self.last_ll = ll
         self.last_rl = rl   
-        #nudge_off = false
+        nudge_off = False
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
@@ -112,6 +113,7 @@ class LatControlTorque(LatControl):
       future_desired_lateral_accel *= KF # fdla
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
         future_desired_lateral_accel += lane_val
+        self.last_nudge = lane_val
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
