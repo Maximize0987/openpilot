@@ -95,9 +95,10 @@ class LatControlTorque(LatControl):
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
       nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.0 # cooldown after blinker
-      if rl < 2.5 > ll:
+      if rl > 2.5 or abs(ll) > 2.5:
         self.last_ll = ll
-        self.last_rl = rl        
+        self.last_rl = rl   
+        nudge_off = false
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
