@@ -94,7 +94,7 @@ class LatControlTorque(LatControl):
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
-      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 2.6 # cooldown after blinker
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.0 # cooldown after blinker
       if rl < 2.5 > ll:
         self.last_ll = ll
         self.last_rl = rl        
