@@ -25,7 +25,7 @@ MAX_CURVATURE = 0.2
 
 # EU guidelines
 MAX_LATERAL_JERK = 5.0
-MAX_LATERAL_ACCEL_NO_ROLL = 3.0  # m/s^2
+MAX_LATERAL_ACCEL_NO_ROLL = 4.0  # m/s^2        #  MAX_LATERAL_ACCEL_NO_ROLL = 3.0  # m/s^2
 MAX_VEL_ERR = 5.0
 
 ButtonEvent = car.CarState.ButtonEvent
