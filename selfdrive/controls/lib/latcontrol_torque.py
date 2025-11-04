@@ -31,11 +31,11 @@ LL_CLOSE = 1.8
 NUDGE_INPUT = [-1.55, -0.15, -0.05, 0.05, 1.45]
 NUDGE_OUTPUT = [-0.07, -0.02, 0, 0.02, 0.07]
 
-#KF_INPUT = [-3, -0.1, 0, 0.1, 3]
-#KF_OUTPUT = [0.977, 0.98, 1, 0.98, 0.977]
+KF_INPUT = [-3, -0.01, 0, 0.01, 3]
+KF_OUTPUT = [0.974, 0.974, 1, 0.976, 0.976]
 
-KF_INPUT = [0, 10, 14]
-KF_OUTPUT = [1.1, 1, 0.9775]
+#KF_INPUT = [0, 10, 14]
+#KF_OUTPUT = [1.1, 1, 0.9775]
 
 KP = 1.0
 KI = 0.3
@@ -111,8 +111,8 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
-      #fdla = interp(future_desired_lateral_accel, KF_INPUT, KF_OUTPUT)
-      fdla = interp(CS.vEgo, KF_INPUT, KF_OUTPUT)
+      fdla = interp(future_desired_lateral_accel, KF_INPUT, KF_OUTPUT)
+      #fdla = interp(CS.vEgo, KF_INPUT, KF_OUTPUT)
       future_desired_lateral_accel *= fdla # KF
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
         future_desired_lateral_accel += lane_val
