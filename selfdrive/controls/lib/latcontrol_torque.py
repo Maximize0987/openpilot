@@ -43,8 +43,8 @@ KD = 0.0
 KF = 0.9775
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
-#KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
-KP_INTERP = [188, 90, 49, 23, 8.6, 4.1, 2.6, 1.5, KP]        # 25% lower kp
+KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
+#KP_INTERP = [188, 90, 49, 23, 8.6, 4.1, 2.6, 1.5, KP]        # 25% lower kp
 #KP_INTERP = [300, 144, 78, 36, 13.8, 6.6, 4.2, 2.4, KP]       # 20% higher kp
 
 LP_FILTER_CUTOFF_HZ = 1.2
@@ -116,7 +116,7 @@ class LatControlTorque(LatControl):
       fdla = interp(future_desired_lateral_accel, KF_INPUT, KF_OUTPUT)
       #fdla = interp(CS.vEgo, KF_INPUT, KF_OUTPUT)
       future_desired_lateral_accel *= fdla # KF
-      if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and not nudge_off:
+      if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
