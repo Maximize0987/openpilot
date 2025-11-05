@@ -43,8 +43,9 @@ KD = 0.0
 KF = 0.9775
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
-KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
-#KP_INTERP = [188, 90, 49, 23, 8.6, 4.1, 2.6, 1.5, KP]
+#KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
+KP_INTERP = [188, 90, 49, 23, 8.6, 4.1, 2.6, 1.5, KP]        # 25% lower kp
+#KP_INTERP = [300, 144, 78, 36, 13.8, 6.6, 4.2, 2.4, KP]       # 20% higher kp
 
 LP_FILTER_CUTOFF_HZ = 1.2
 LAT_ACCEL_REQUEST_BUFFER_SECONDS = 1.0
