@@ -29,7 +29,7 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 
 LL_CLOSE = 1.8
 NUDGE_INPUT = [-1.55, -0.15, -0.05, 0.05, 1.45]
-NUDGE_OUTPUT = [-0.07, -0.02, 0, 0.02, 0.07]
+NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
 
 KF_INPUT = [-3, -0.01, 0, 0.01, 3]
 KF_OUTPUT = [0.965, 0.965, 0.9675, 0.97, 0.97]
