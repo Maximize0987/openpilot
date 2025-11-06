@@ -486,7 +486,7 @@ std::unordered_map<std::string, uint32_t> keys = {
     {"ShowStoppingPointMetrics", PERSISTENT},
     {"ShowStorageLeft", PERSISTENT},
     {"ShowStorageUsed", PERSISTENT},
-    {"Sidebar", PERSISTENT},
+    {"Sidebar", CLEAR_ON_MANAGER_START},     //    {"Sidebar", PERSISTENT},
     {"SignalMetrics", PERSISTENT},
     {"SignalToDownload", CLEAR_ON_MANAGER_START},
     {"SLCConfirmation", PERSISTENT},
