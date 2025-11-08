@@ -15,7 +15,7 @@ from openpilot.system.hardware import HARDWARE, PC
 from openpilot.system.hardware.hw import Paths
 from openpilot.common.swaglog import cloudlog
 
-KONIKID = 70E963F86154A8DD
+KONIKID = "70E963F86154A8DD"
 
 UNREGISTERED_DONGLE_ID = "UnregisteredDevice"
 
