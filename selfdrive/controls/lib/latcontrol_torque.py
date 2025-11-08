@@ -28,19 +28,22 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 # to be overcome to move it at all, this is compensated for too.
 
 LL_CLOSE = 1.8
-NUDGE_INPUT = [-1.55, -0.15, -0.05, 0.05, 1.45]
+NUDGE_INPUT = [-1.55, -0.2, -0.05, 0.1, 1.45]
 NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
 
-KF_INPUT = [-2, -0.01, 0, 0.01, 2]
-KF_OUTPUT = [0.945, 0.96, 0.965, 0.965, 0.955]
+#KF_INPUT = [-2, -0.01, 0, 0.01, 2]
+#KF_OUTPUT = [0.945, 0.96, 0.965, 0.965, 0.955]
 
+KF_LC = [-1, -0.2, 0, 0.2, 1]
+KF_RC = [1, 0.2, 0, -0.2, -1]
+KF_OC = [1.07, 1.05, 1.03, 1, 0.97]
 #KF_INPUT = [0, 10, 14]
 #KF_OUTPUT = [1.1, 1, 0.9775]
 
 KP = 1.0
 KI = 0.3
 KD = 0.0
-KF = 0.9775
+KF = 0.96    # default base for curvature corrrection used in line 118
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
@@ -112,10 +115,12 @@ class LatControlTorque(LatControl):
       delay_frames = int(np.clip(lat_delay / self.dt, 1, self.lat_accel_request_buffer_len))
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
-      future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
-      fdla = interp(future_desired_lateral_accel, KF_INPUT, KF_OUTPUT)
-      #fdla = interp(CS.vEgo, KF_INPUT, KF_OUTPUT)
-      future_desired_lateral_accel *= fdla # KF
+      future_desired_lateral_accel = (desired_curvature * CS.vEgo ** 2) * KF      #   future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
+      if future_desired_lateral_accel > 0:
+        fdla = interp(lane_avg, KF_RC, KF_OC)        
+      else: 
+        fdla = interp(lane_avg, KF_LC, KF_OC)
+      future_desired_lateral_accel *= fdla
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
