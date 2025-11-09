@@ -126,14 +126,16 @@ class LatControlTorque(LatControl):
       if future_desired_lateral_accel > 0.1 and not nudge_off:
         fdla = interp(lane_avg, KF_RC, KF_OC)
         future_desired_lateral_accel *= fdla
+        fdla1 = 1
       elif future_desired_lateral_accel < -0.1 and not nudge_off: 
         fdla = interp(lane_avg, KF_LC, KF_OC)
         future_desired_lateral_accel *= fdla
+        fdla1 = 0
       fdla3 = round(future_desired_lateral_accel, 3)
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
-      if abs(fdla1) > 0.8 and not nudge_off:
+      if abs(fdla2) > 0.8 and not nudge_off:
         fdla4 = fdla3 / fdla2
         fdla4 = round(fdla4, 3)
         lane_avg = round(lane_avg, 3)
