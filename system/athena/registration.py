@@ -80,7 +80,7 @@ def register(show_spinner=False, register_konik=False) -> str | None:
           dongle_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=16))
         else:
           dongleauth = json.loads(resp.text)
-           dongle_id = KONIKID  # dongle_id = dongleauth["dongle_id"]
+          dongle_id = KONIKID  # dongle_id = dongleauth["dongle_id"]
         break
       except Exception:
         cloudlog.exception("failed to authenticate")
