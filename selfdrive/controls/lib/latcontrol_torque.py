@@ -116,7 +116,7 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2     #   future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
-      flda1 = round(future_desired_lateral_accel, 3)
+      fdla1 = round(future_desired_lateral_accel, 3)
       future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
       if future_desired_lateral_accel > 0:
