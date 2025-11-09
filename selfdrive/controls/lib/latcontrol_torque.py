@@ -102,7 +102,7 @@ class LatControlTorque(LatControl):
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
-      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.0 # cooldown after blinker
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.2 # cooldown after blinker
       if rl > 2.5 or abs(ll) > 2.5:
         self.last_ll = ll
         self.last_rl = rl   
@@ -119,18 +119,18 @@ class LatControlTorque(LatControl):
       fdla1 = round(future_desired_lateral_accel, 3)
       future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
-      if future_desired_lateral_accel > 0:
+      if future_desired_lateral_accel > 0.1 and not nudge_off:
         fdla = interp(lane_avg, KF_RC, KF_OC)        
-      else: 
+      elif future_desired_lateral_accel < -0.1 and not nudge_off:: 
         fdla = interp(lane_avg, KF_LC, KF_OC)
       future_desired_lateral_accel *= fdla
       fdla3 = round(future_desired_lateral_accel, 3)
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
-      if abs(fdla1) > 0.5:
+      if abs(fdla1) > 0.5 and not nudge_off:
         fdla4 = fdla3 / fdla1
-        fdla4 = round(future_desired_lateral_accel, 3)
+        fdla4 = round(fdla4, 3)
         lane_avg = round(lane_avg, 3)
         print(f"1: {fdla1} 2: {fdla2} 3: {fdla3} 4: {lane_avg} 5: {fdla4}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
