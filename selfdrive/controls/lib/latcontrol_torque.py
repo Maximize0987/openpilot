@@ -130,7 +130,7 @@ class LatControlTorque(LatControl):
         self.last_nudge = lane_val
       if abs(fdla1) > 0.5:
         fdla4 = fdla3 / fdla1
-        fdla4 round(future_desired_lateral_accel, 3)
+        fdla4 = round(future_desired_lateral_accel, 3)
         lane_avg = round(lane_avg, 3)
         print(f"1: {fdla1} 2: {fdla2} 3: {fdla3} 4: {lane_avg} 5: {fdla4}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
