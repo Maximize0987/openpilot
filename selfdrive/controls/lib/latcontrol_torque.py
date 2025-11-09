@@ -117,13 +117,13 @@ class LatControlTorque(LatControl):
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2     #   future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
       flda1 = future_desired_lateral_accel
-      future_desired_lateral_accel = future_desired_lateral_accel *= KF
+      #future_desired_lateral_accel = future_desired_lateral_accel *= KF
       fdla2 = future_desired_lateral_accel
       if future_desired_lateral_accel > 0:
         fdla = interp(lane_avg, KF_RC, KF_OC)        
       else: 
         fdla = interp(lane_avg, KF_LC, KF_OC)
-      future_desired_lateral_accel *= fdla
+      #future_desired_lateral_accel *= fdla
       fdla3 = future_desired_lateral_accel
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
