@@ -116,20 +116,22 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2     #   future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
-      flda1 = future_desired_lateral_accel
+      flda1 = round(future_desired_lateral_accel, 3)
       future_desired_lateral_accel *= KF
-      fdla2 = future_desired_lateral_accel
+      fdla2 = round(future_desired_lateral_accel, 3)
       if future_desired_lateral_accel > 0:
         fdla = interp(lane_avg, KF_RC, KF_OC)        
       else: 
         fdla = interp(lane_avg, KF_LC, KF_OC)
       future_desired_lateral_accel *= fdla
-      fdla3 = future_desired_lateral_accel
+      fdla3 = round(future_desired_lateral_accel, 3)
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla1) > 0.5:
         fdla4 = fdla3 / fdla1
+        fdla4 round(future_desired_lateral_accel, 3)
+        lane_avg = round(lane_avg, 3)
         print(f"1: {fdla1} 2: {fdla2} 3: {fdla3} 4: {lane_avg} 5: {fdla4}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
