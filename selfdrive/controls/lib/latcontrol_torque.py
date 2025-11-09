@@ -72,6 +72,7 @@ class LatControlTorque(LatControl):
   
     self.last_nudge = 0
     self.no_nudge = 0
+    self.no_kf = 0
     self.last_ll = 0
     self.last_rl = 0
     self.hipcent = 0
@@ -102,7 +103,9 @@ class LatControlTorque(LatControl):
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
+        self.no_kf = self.sm.frame
       nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.2 # cooldown after blinker
+      kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 1.0 # cooldown after blinker
       if rl > 2.5 or abs(ll) > 2.5:
         self.last_ll = ll
         self.last_rl = rl   
@@ -119,11 +122,13 @@ class LatControlTorque(LatControl):
       fdla1 = round(future_desired_lateral_accel, 3)
       future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
+      fdla = 1
       if future_desired_lateral_accel > 0.1 and not nudge_off:
-        fdla = interp(lane_avg, KF_RC, KF_OC)        
+        fdla = interp(lane_avg, KF_RC, KF_OC)
+        future_desired_lateral_accel *= fdla
       elif future_desired_lateral_accel < -0.1 and not nudge_off:: 
         fdla = interp(lane_avg, KF_LC, KF_OC)
-      future_desired_lateral_accel *= fdla
+        future_desired_lateral_accel *= fdla
       fdla3 = round(future_desired_lateral_accel, 3)
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
