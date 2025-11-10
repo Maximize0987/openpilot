@@ -34,9 +34,9 @@ NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
 #KF_INPUT = [-2, -0.01, 0, 0.01, 2]
 #KF_OUTPUT = [0.945, 0.96, 0.965, 0.965, 0.955]
 
-KF_LC = [-1, -0.1, 0, 0.1, 1]
-KF_RC = [1, 0.1, 0, -0.1, -1]
-KF_OC = [1.09, 1.07, 1.05, 1, 0.95]
+KF_INPUT = [-1, -0.1, 0, 0.1, 1]
+KF_LC = [1.08, 1.06, 1.03, 1, 0.95]
+KF_RC = [0.95, 1, 1.03, 1.06, 1.08]
 #KF_INPUT = [0, 10, 14]
 #KF_OUTPUT = [1.1, 1, 0.9775]
 
@@ -103,9 +103,10 @@ class LatControlTorque(LatControl):
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
-        self.no_kf = self.sm.frame
       nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.2 # cooldown after blinker
-      kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 1.0 # cooldown after blinker
+      if CS.steeringPressed:
+        self.no_kf = self.sm.frame
+      kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.2 # cooldown after blinker
       if rl > 2.5 or abs(ll) > 2.5:
         self.last_ll = ll
         self.last_rl = rl   
@@ -123,19 +124,17 @@ class LatControlTorque(LatControl):
       future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
       fdla = 1
-      if future_desired_lateral_accel > 0.1 and not nudge_off:
-        fdla = interp(lane_avg, KF_RC, KF_OC)
+      if future_desired_lateral_accel > 0.1 and not kf_off:
+        fdla = interp(lane_avg, KF_INPUT, KF_RC)
         future_desired_lateral_accel *= fdla
-        fdla1 = 1
-      elif future_desired_lateral_accel < -0.1 and not nudge_off: 
-        fdla = interp(lane_avg, KF_LC, KF_OC)
+      elif future_desired_lateral_accel < -0.1 and not kf_off: 
+        fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
-        fdla1 = 0
       fdla3 = round(future_desired_lateral_accel, 3)
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
-      if abs(fdla2) > 0.8 and not nudge_off:
+      if abs(fdla2) > 0.8 and not nudge_off or kf_off:
         fdla4 = fdla3 / fdla2
         fdla4 = round(fdla4, 3)
         lane_avg = round(lane_avg, 3)
