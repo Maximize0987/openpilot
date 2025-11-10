@@ -136,10 +136,10 @@ class LatControlTorque(LatControl):
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.8 and not nudge_off or kf_off:
-        fdla4 = fdla3 / fdla2
+        #fdla4 = fdla3 / fdla2
         fdla4 = round(fdla4, 3)
         lane_avg = round(lane_avg, 3)
-        print(f"1: {fdla1} 2: {fdla2} 3: {fdla3} 4: {lane_avg} 5: {fdla4}")
+        #print(f"1: {fdla1} 2: {fdla2} 3: {fdla3} 4: {lane_avg} 5: {fdla4}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
