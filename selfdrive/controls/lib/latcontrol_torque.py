@@ -43,7 +43,7 @@ KF_RC = [0.94, 1, 1.03, 1.06, 1.08]
 KP = 1.0
 KI = 0.3
 KD = 0.0
-KF = 0.96    # default base for curvature corrrection used in line 118
+KF = 0.955    # default base for curvature corrrection used in line 118
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
@@ -100,6 +100,7 @@ class LatControlTorque(LatControl):
       rl = round(abs(right_lane), 2)
       lane_avg = left_lane + right_lane
       lane_val = interp(lane_avg, NUDGE_INPUT, NUDGE_OUTPUT)
+      lane_avg = round(lane_avg, 2)
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
         self.no_nudge = self.sm.frame
@@ -123,23 +124,24 @@ class LatControlTorque(LatControl):
       fdla1 = round(future_desired_lateral_accel, 3)
       future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
-      fdla = 1
-      fdla3 =1
+      fdla4 = 0
       if future_desired_lateral_accel > 0.1 and not kf_off:
         fdla = interp(lane_avg, KF_INPUT, KF_RC)
         future_desired_lateral_accel *= fdla
+        fdla3 = round(future_desired_lateral_accel, 3)
+        fdla4 = fdla3 / fdla1
+        fdla4 = round(fdla4, 3)
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
-      fdla3 = round(future_desired_lateral_accel, 3)
+        fdla3 = round(future_desired_lateral_accel, 3)
+        fdla4 = fdla3 / fdla1
+        fdla4 = round(fdla4, 3)
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.8 and not nudge_off or kf_off:
-        #fdla4 = fdla3 / fdla2
-       # fdla4 = round(fdla4, 3)
-        lane_avg = round(lane_avg, 3)
-        #print(f"1: {fdla1} 2: {fdla2} 3: {fdla3} 4: {lane_avg} 5: {fdla4}")
+        print(f"LA: {lane_avg} %: {fdla4}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
