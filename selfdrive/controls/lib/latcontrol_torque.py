@@ -143,7 +143,7 @@ class LatControlTorque(LatControl):
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.8 and not nudge_off and not kf_off:
-        self.cycles = self.cycles += 1
+        self.cycles = self.cycles + 1
         self.total_kf = self.total_kf + fdla4
         avg_kf = self.total_kf / self.cycles
         print(f"LA: {lane_avg} %: {fdla4} AVG: {avg_kf}")
