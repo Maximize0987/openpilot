@@ -75,6 +75,8 @@ class LatControlTorque(LatControl):
     self.no_kf = 0
     self.last_ll = 0
     self.last_rl = 0
+    self.cycles = 0
+    self.total_kf = 0
     self.hipcent = 0
     
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
@@ -140,8 +142,11 @@ class LatControlTorque(LatControl):
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
-      if abs(fdla2) > 0.8 and not nudge_off or kf_off:
-        print(f"LA: {lane_avg} %: {fdla4}")
+      if abs(fdla2) > 0.8 and not nudge_off and not kf_off:
+        self.cycles = self.cycles += 1
+        self.total_kf = self.total_kf + fdla4
+        avg_kf = self.total_kf / self.cycles
+        print(f"LA: {lane_avg} %: {fdla4} AVG: {avg_kf}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
