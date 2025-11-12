@@ -133,20 +133,24 @@ class LatControlTorque(LatControl):
         fdla3 = round(future_desired_lateral_accel, 3)
         fdla4 = fdla3 / fdla1
         fdla4 = round(fdla4, 3)
+        self.cycles = self.cycles + 1
+        self.total_kf = self.total_kf + fdla4
+        avg_kf = self.total_kf / self.cycles
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
         fdla4 = fdla3 / fdla1
         fdla4 = round(fdla4, 3)
+        self.cycles = self.cycles + 1
+        self.total_kf = self.total_kf + fdla4
+        avg_kf = self.total_kf / self.cycles
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.8 and not nudge_off and not kf_off:
-        self.cycles = self.cycles + 1
-        self.total_kf = self.total_kf + fdla4
-        avg_kf = self.total_kf / self.cycles
-        print(f"LA: {lane_avg} %: {fdla4} AVG: {avg_kf}")
+        avg_kfp = round(avg_kf, 4)
+        print(f"LA: {lane_avg} %: {fdla4} AVG: {avg_kfp}")
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
