@@ -34,16 +34,16 @@ NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
 #KF_INPUT = [-2, -0.01, 0, 0.01, 2]
 #KF_OUTPUT = [0.945, 0.96, 0.965, 0.965, 0.955]
 
-KF_INPUT = [-1, -0.1, 0, 0.1, 1]
-KF_LC = [1.14, 1.08, 1.05, 1, 0.94]
-KF_RC = [0.92, 1, 1.06, 1.09, 1.2]
+KF_INPUT = [-1, 0, 1]
+KF_LC = [1.08, 1, 0.95]
+KF_RC = [0.95, 1, 1.08]
 #KF_INPUT = [0, 10, 14]
 #KF_OUTPUT = [1.1, 1, 0.9775]
 
 KP = 1.0
 KI = 0.3
 KD = 0.0
-KF = 0.952    # default base for curvature corrrection used in line 118
+KF = 0.955    # default base for curvature corrrection used in line 118
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
