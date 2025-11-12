@@ -171,7 +171,7 @@ def frogpilot_boot_functions(build_metadata, params_cache):
 
   def backup_thread():
     while not system_time_valid():
-      print("Waiting for system time to become valid...")
+      #print("Waiting for system time to become valid...")
       time.sleep(1)
 
     backup_frogpilot(build_metadata)
