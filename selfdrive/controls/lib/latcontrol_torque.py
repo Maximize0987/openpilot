@@ -28,7 +28,7 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 # to be overcome to move it at all, this is compensated for too.
 
 LL_CLOSE = 1.8
-NUDGE_INPUT = [-1.55, -0.2, -0.05, 0.1, 1.45]
+NUDGE_INPUT = [-1.58, -0.23, -0.08, 0.07, 1.42]
 NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
 
 #KF_INPUT = [-2, -0.01, 0, 0.01, 2]
@@ -114,6 +114,7 @@ class LatControlTorque(LatControl):
         self.last_ll = ll
         self.last_rl = rl   
         nudge_off = False
+        kf_off = False
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
