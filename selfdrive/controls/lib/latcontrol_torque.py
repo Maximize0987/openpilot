@@ -134,7 +134,7 @@ class LatControlTorque(LatControl):
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
         fdla4 = fdla3 / fdla1
-        fdla4 = round(fdla4, 3)
+        fdla4 = round(fdla4, 4)
         self.rightcycles = self.rightcycles + 1
         self.rightkf = self.rightkf + fdla4
         avg_kf = self.rightkf / self.rightcycles
