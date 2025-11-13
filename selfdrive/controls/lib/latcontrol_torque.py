@@ -27,23 +27,19 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 # Additionally, there is friction in the steering wheel that needs
 # to be overcome to move it at all, this is compensated for too.
 
+KF_BUCKET = 10000
 LL_CLOSE = 1.8
 NUDGE_INPUT = [-1.58, -0.23, -0.08, 0.07, 1.42]
 NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
 
-#KF_INPUT = [-2, -0.01, 0, 0.01, 2]
-#KF_OUTPUT = [0.945, 0.96, 0.965, 0.965, 0.955]
-
 KF_INPUT = [-1.08, -0.08, 0.92]
 KF_LC = [1.05, 1, 0.95]
 KF_RC = [0.95, 1, 1.05]
-#KF_INPUT = [0, 10, 14]
-#KF_OUTPUT = [1.1, 1, 0.9775]
 
 KP = 1.0
 KI = 0.3
 KD = 0.0
-KF = 0.955    # default base for curvature corrrection used in line 118
+KF = 0.955    # default base for curvature corrrection
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 #KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
@@ -73,11 +69,13 @@ class LatControlTorque(LatControl):
     self.last_nudge = 0
     self.no_nudge = 0
     self.no_kf = 0
-    self.last_ll = 0
-    self.last_rl = 0
-    self.cycles = 0
-    self.total_kf = 0
-    self.hipcent = 0
+    self.leftcycles = 0
+    self.rightcycles = 0
+    self.leftkf = 0
+    self.rightkf = 0
+    self.kf_live = 0.955
+    self.avg_rkf = 0.955
+    self.avg_lkf = 0.955
     
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -96,6 +94,7 @@ class LatControlTorque(LatControl):
       output_torque = 0.0
       pid_log.active = False
     else:
+      # lane line data receive for lane centering
       left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
       ll = round(abs(left_lane), 2)
       right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
@@ -104,17 +103,16 @@ class LatControlTorque(LatControl):
       lane_val = interp(lane_avg, NUDGE_INPUT, NUDGE_OUTPUT)
       lane_avg = round(lane_avg, 2)
       self.sm.update(0)
-      if CS.leftBlinker or CS.rightBlinker: # or CS.steeringPressed:
+      if CS.leftBlinker or CS.rightBlinker:
         self.no_nudge = self.sm.frame
-      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.6 # cooldown after blinker
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.8 # cooldown after blinker
       if CS.steeringPressed:
         self.no_kf = self.sm.frame
-      kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.6 # cooldown after blinker
-      if rl > 2.5 or abs(ll) > 2.5:
-        self.last_ll = ll
-        self.last_rl = rl   
+      kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.8 # cooldown after blinker
+      if rl > 2.5 or abs(ll) > 2.5:  
         nudge_off = False
         kf_off = False
+      # end lane position data  
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
@@ -123,9 +121,12 @@ class LatControlTorque(LatControl):
       delay_frames = int(np.clip(lat_delay / self.dt, 1, self.lat_accel_request_buffer_len))
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
-      future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2     #   future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
+      future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2 
       fdla1 = round(future_desired_lateral_accel, 3)
-      future_desired_lateral_accel *= KF
+      if KF = self.kf_live:
+        future_desired_lateral_accel *= KF
+      else:
+        future_desired_lateral_accel *= self.kf_live
       fdla2 = round(future_desired_lateral_accel, 3)
       fdla4 = 0
       if future_desired_lateral_accel > 0.1 and not kf_off:
@@ -134,24 +135,36 @@ class LatControlTorque(LatControl):
         fdla3 = round(future_desired_lateral_accel, 3)
         fdla4 = fdla3 / fdla1
         fdla4 = round(fdla4, 3)
-        self.cycles = self.cycles + 1
-        self.total_kf = self.total_kf + fdla4
-        avg_kf = self.total_kf / self.cycles
+        self.rightcycles = self.rightcycles + 1
+        self.rightkf = self.rightkf + fdla4
+        avg_kf = self.rightkf / self.rightcycles
+        if self.rightcycles = KF_BUCKET:
+          self.avg_rkf = avg_kf
+          self.rightcycles = 0
+          print(f"NEW RIGHT AVERAGE NEW RIGHT AVERAGE NEW RIGHT AVERAGE: {self.avg_rkf}")
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
         fdla4 = fdla3 / fdla1
-        fdla4 = round(fdla4, 3)
-        self.cycles = self.cycles + 1
-        self.total_kf = self.total_kf + fdla4
-        avg_kf = self.total_kf / self.cycles
+        fdla4 = round(fdla4, 4)
+        self.leftcycles = self.leftcycles + 1
+        self.leftkf = self.leftkf + fdla4
+        avg_kf = self.leftkf / self.leftcycles
+        if self.leftcycles = KF_BUCKET:
+          self.avg_lkf = avg_kf
+          self.leftcycles = 0
+          print(f"NEW LEFT AVERAGE NEW LEFT AVERAGE NEW LEFT AVERAGE: {self.avg_Lkf}")
+      self.kf_live = self.avg_rkf + self.leftkf / 2
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and not nudge_off and not kf_off:
-        avg_kfp = round(avg_kf, 4)
-        print(f"LA: {lane_avg} %: {fdla4} AVG: {avg_kfp}")
+        lkf = round(self.leftkf, 4)
+        rkf = round(self.rightkf, 4)
+        avg = round(self.kf_live, 4)
+        print(f"CV: {fdla4} LA: {lkf} RA: {rkf} LV: {avg}")
+        
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
