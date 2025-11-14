@@ -112,6 +112,10 @@ class LatControlTorque(LatControl):
       if rl > 2.5 or abs(ll) > 2.5:  
         nudge_off = False
         kf_off = False
+      fdla1 = 1
+      fdla2 = 1
+      fdla3 = 1
+      fdla4 = 1
       # end lane position data  
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
@@ -128,7 +132,6 @@ class LatControlTorque(LatControl):
       else:
         future_desired_lateral_accel *= self.kf_live
       fdla2 = round(future_desired_lateral_accel, 3)
-      fdla4 = 0
       if future_desired_lateral_accel > 0.1 and not kf_off:
         fdla = interp(lane_avg, KF_INPUT, KF_RC)
         future_desired_lateral_accel *= fdla
