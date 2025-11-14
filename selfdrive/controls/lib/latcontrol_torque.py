@@ -138,7 +138,7 @@ class LatControlTorque(LatControl):
         self.rightcycles = self.rightcycles + 1
         self.rightkf = self.rightkf + fdla4
         avg_kf = self.rightkf / self.rightcycles
-        if self.rightcycles = KF_BUCKET:
+        if self.rightcycles == KF_BUCKET:
           self.avg_rkf = avg_kf
           self.rightcycles = 0
           print(f"NEW RIGHT AVERAGE NEW RIGHT AVERAGE NEW RIGHT AVERAGE: {self.avg_rkf}")
@@ -151,7 +151,7 @@ class LatControlTorque(LatControl):
         self.leftcycles = self.leftcycles + 1
         self.leftkf = self.leftkf + fdla4
         avg_kf = self.leftkf / self.leftcycles
-        if self.leftcycles = KF_BUCKET:
+        if self.leftcycles == KF_BUCKET:
           self.avg_lkf = avg_kf
           self.leftcycles = 0
           print(f"NEW LEFT AVERAGE NEW LEFT AVERAGE NEW LEFT AVERAGE: {self.avg_Lkf}")
