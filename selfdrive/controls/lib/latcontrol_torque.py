@@ -172,8 +172,8 @@ class LatControlTorque(LatControl):
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and CS.vEgo > 22 and not nudge_off and not kf_off:
-        lkf = round(self.avg_rkf, 4)
-        rkf = round(self.avg_lkf, 4)
+        lkf = round(self.avg_lkf, 4)
+        rkf = round(self.avg_rkf, 4)
         avg = round(self.kf_live, 4)
         print(f"CV: {fdla4} LA: {lkf} RA: {rkf} LV: {avg}")
         
