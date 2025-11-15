@@ -97,10 +97,10 @@ class LatControlTorque(LatControl):
       pid_log.active = False
     else:
       # lane line data receive for lane centering
+      #left_lane_valid = model_v2.laneLineProbs[1] > 0.5
+      #right_lane_valid = model_v2.laneLineProbs[2] > 0.5
       left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
-      ll = round(abs(left_lane), 2)
       right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
-      rl = round(abs(right_lane), 2)
       lane_avg = left_lane + right_lane
       lane_val = interp(lane_avg, NUDGE_INPUT, NUDGE_OUTPUT)
       lane_avg = round(lane_avg, 2)
