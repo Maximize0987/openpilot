@@ -136,11 +136,13 @@ class LatControlTorque(LatControl):
         fdla = interp(lane_avg, KF_INPUT, KF_RC)
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
-        fdla4 = fdla3 / fdla1
-        fdla4 = round(fdla4, 4)
-        self.rightcycles = self.rightcycles + 1
-        self.rightkf = self.rightkf + fdla4
-        avg_kf = self.rightkf / self.rightcycles
+        if flda3 != 0 and fdla1 != 0:
+          fdla4 = 1
+          fdla4 = fdla3 / fdla1
+          fdla4 = round(fdla4, 4)
+          self.rightcycles = self.rightcycles + 1
+          self.rightkf = self.rightkf + fdla4
+          avg_kf = self.rightkf / self.rightcycles
         if self.rightcycles == KF_BUCKET:
           self.avg_rkf = avg_kf
           self.rightcycles = 0
@@ -149,11 +151,13 @@ class LatControlTorque(LatControl):
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
-        fdla4 = fdla3 / fdla1
-        fdla4 = round(fdla4, 4)
-        self.leftcycles = self.leftcycles + 1
-        self.leftkf = self.leftkf + fdla4
-        avg_kf = self.leftkf / self.leftcycles
+        if flda3 != 0 and fdla1 != 0:
+          fdla4 = 1
+          fdla4 = fdla3 / fdla1
+          fdla4 = round(fdla4, 4)
+          self.leftcycles = self.leftcycles + 1
+          self.leftkf = self.leftkf + fdla4
+          avg_kf = self.leftkf / self.leftcycles
         if self.leftcycles == KF_BUCKET:
           self.avg_lkf = avg_kf
           self.leftcycles = 0
