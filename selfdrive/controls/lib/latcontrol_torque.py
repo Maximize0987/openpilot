@@ -136,7 +136,7 @@ class LatControlTorque(LatControl):
         fdla = interp(lane_avg, KF_INPUT, KF_RC)
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
-        if flda3 != 0 and fdla1 != 0:
+        if fdla3 != 0 and fdla1 != 0:
           fdla4 = 1
           fdla4 = fdla3 / fdla1
           fdla4 = round(fdla4, 4)
@@ -151,7 +151,7 @@ class LatControlTorque(LatControl):
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
-        if flda3 != 0 and fdla1 != 0:
+        if fdla3 != 0 and fdla1 != 0:
           fdla4 = 1
           fdla4 = fdla3 / fdla1
           fdla4 = round(fdla4, 4)
