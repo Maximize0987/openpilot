@@ -111,7 +111,7 @@ class LatControlTorque(LatControl):
       if CS.steeringPressed:
         self.no_kf = self.sm.frame
       kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.8 # cooldown after blinker
-      if rl > 2.5 or abs(ll) > 2.5:  
+      if right_lane > 2.5 or abs(left_lane) > 2.5:  
         nudge_off = False
         kf_off = False
       fdla1 = 1
