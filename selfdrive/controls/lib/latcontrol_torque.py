@@ -76,6 +76,8 @@ class LatControlTorque(LatControl):
     self.kf_live = 0.955
     self.avg_rkf = 0.955
     self.avg_lkf = 0.955
+    self.total_lkf = 0
+    self.total_rkf = 0
     
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -141,12 +143,13 @@ class LatControlTorque(LatControl):
           fdla4 = fdla3 / fdla1
           fdla4 = round(fdla4, 4)
           self.rightcycles = self.rightcycles + 1
-          self.rightkf = self.rightkf + fdla4
-          avg_kf = self.rightkf / self.rightcycles
+          self.total_rkf = self.total_rkf + fdla4
+          avg_kf = self.total_rkf / self.rightcycles
         if self.rightcycles == KF_BUCKET:
           self.avg_rkf = avg_kf
           self.rightcycles = 0
-          self.kf_live = (self.avg_rkf + self.leftkf) / 2
+          self.total_rkf = 0
+          self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
           print(f"NEW RIGHT AVERAGE NEW RIGHT AVERAGE NEW RIGHT AVERAGE: {self.avg_rkf}")
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
@@ -157,19 +160,20 @@ class LatControlTorque(LatControl):
           fdla4 = fdla3 / fdla1
           fdla4 = round(fdla4, 4)
           self.leftcycles = self.leftcycles + 1
-          self.leftkf = self.leftkf + fdla4
-          avg_kf = self.leftkf / self.leftcycles
+          self.total_lkf = self.total_lkf + fdla4
+          avg_kf = self.total_lkf / self.leftcycles
         if self.leftcycles == KF_BUCKET:
           self.avg_lkf = avg_kf
           self.leftcycles = 0
-          self.kf_live = (self.avg_rkf + self.leftkf) / 2
+          self.total_lkf = 0
+          self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
           print(f"NEW LEFT AVERAGE NEW LEFT AVERAGE NEW LEFT AVERAGE: {self.avg_Lkf}")
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and not nudge_off and not kf_off:
-        lkf = round(self.leftkf, 4)
-        rkf = round(self.rightkf, 4)
+        lkf = round(self.avg_rkf, 4)
+        rkf = round(self.avg_lkf, 4)
         avg = round(self.kf_live, 4)
         print(f"CV: {fdla4} LA: {lkf} RA: {rkf} LV: {avg}")
         
