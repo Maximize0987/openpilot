@@ -146,6 +146,7 @@ class LatControlTorque(LatControl):
         if self.rightcycles == KF_BUCKET:
           self.avg_rkf = avg_kf
           self.rightcycles = 0
+          self.kf_live = self.avg_rkf + self.leftkf / 2
           print(f"NEW RIGHT AVERAGE NEW RIGHT AVERAGE NEW RIGHT AVERAGE: {self.avg_rkf}")
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
@@ -161,8 +162,8 @@ class LatControlTorque(LatControl):
         if self.leftcycles == KF_BUCKET:
           self.avg_lkf = avg_kf
           self.leftcycles = 0
+          self.kf_live = self.avg_rkf + self.leftkf / 2
           print(f"NEW LEFT AVERAGE NEW LEFT AVERAGE NEW LEFT AVERAGE: {self.avg_Lkf}")
-      self.kf_live = self.avg_rkf + self.leftkf / 2
       if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
