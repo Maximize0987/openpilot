@@ -168,7 +168,7 @@ class LatControlTorque(LatControl):
           self.total_lkf = 0
           self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
           print(f"NEW LEFT AVERAGE NEW LEFT AVERAGE NEW LEFT AVERAGE: {self.avg_Lkf}")
-      if rl > ll < LL_CLOSE or ll > rl < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
+      if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and CS.vEgo > 22 and not nudge_off and not kf_off:
