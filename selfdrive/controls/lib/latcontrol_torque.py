@@ -143,7 +143,6 @@ class LatControlTorque(LatControl):
           self.rightcycles = 0
           self.total_rkf = 0
           self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
-          print(f"NEW RIGHT AVERAGE NEW RIGHT AVERAGE NEW RIGHT AVERAGE: {self.avg_rkf}")
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
@@ -151,7 +150,7 @@ class LatControlTorque(LatControl):
         if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 22:
           fdla4 = 1
           fdla4 = fdla3 / fdla1
-          fdla4 = round(fdla4, 4)
+          fdla4 = round(fdla4, 3)
           self.leftcycles = self.leftcycles + 1
           self.total_lkf = self.total_lkf + fdla4
           avg_kf = self.total_lkf / self.leftcycles
@@ -160,15 +159,15 @@ class LatControlTorque(LatControl):
           self.leftcycles = 0
           self.total_lkf = 0
           self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
-          print(f"NEW LEFT AVERAGE NEW LEFT AVERAGE NEW LEFT AVERAGE: {self.avg_lkf}")
       if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and CS.vEgo > 22 and not nudge_off and not kf_off:
-        lkf = round(self.avg_lkf, 4)
-        rkf = round(self.avg_rkf, 4)
-        avg = round(self.kf_live, 4)
-        print(f"CV: {fdla4} LA: {lkf} RA: {rkf} LV: {avg}")
+        lkf = round(self.avg_lkf, 3)
+        rkf = round(self.avg_rkf, 3)
+        avg = round(self.kf_live, 3)
+        roll_comp = round(roll_compensation, 4)
+        print(f"CV: {fdla4} LA: {lkf} RA: {rkf} LV: {avg} Roll: {roll_comp}")
       # end lane position data   
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
