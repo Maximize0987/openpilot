@@ -71,11 +71,9 @@ class LatControlTorque(LatControl):
     self.no_kf = 0
     self.leftcycles = 0
     self.rightcycles = 0
-    self.leftkf = 0
-    self.rightkf = 0
-    self.kf_live = 0.955
-    self.avg_rkf = 0.955
-    self.avg_lkf = 0.955
+    self.kf_live = KF
+    self.avg_rkf = KF
+    self.avg_lkf = KF
     self.total_lkf = 0
     self.total_rkf = 0
     
@@ -96,6 +94,14 @@ class LatControlTorque(LatControl):
       output_torque = 0.0
       pid_log.active = False
     else:
+      measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
+      roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
+      curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
+      lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
+
+      delay_frames = int(np.clip(lat_delay / self.dt, 1, self.lat_accel_request_buffer_len))
+      expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
+      future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2 
       # lane line data receive for lane centering
       #left_lane_valid = model_v2.laneLineProbs[1] > 0.5
       #right_lane_valid = model_v2.laneLineProbs[2] > 0.5
@@ -118,21 +124,8 @@ class LatControlTorque(LatControl):
       fdla2 = 1
       fdla3 = 1
       fdla4 = 1
-      # end lane position data  
-      measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
-      roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY
-      curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
-      lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
-
-      delay_frames = int(np.clip(lat_delay / self.dt, 1, self.lat_accel_request_buffer_len))
-      expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
-      # TODO factor out lateral jerk from error to later replace it with delay independent alternative
-      future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2 
-      fdla1 = round(future_desired_lateral_accel, 3)
-      if KF == self.kf_live:
-        future_desired_lateral_accel *= KF
-      else:
-        future_desired_lateral_accel *= self.kf_live
+      fdla1 = round(future_desired_lateral_accel, 3)      
+      future_desired_lateral_accel *= self.kf_live
       fdla2 = round(future_desired_lateral_accel, 3)
       if future_desired_lateral_accel > 0.1 and not kf_off:
         fdla = interp(lane_avg, KF_INPUT, KF_RC)
@@ -176,7 +169,7 @@ class LatControlTorque(LatControl):
         rkf = round(self.avg_rkf, 4)
         avg = round(self.kf_live, 4)
         print(f"CV: {fdla4} LA: {lkf} RA: {rkf} LV: {avg}")
-        
+      # end lane position data   
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
