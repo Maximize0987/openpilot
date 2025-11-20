@@ -164,11 +164,12 @@ class LatControlTorque(LatControl):
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and CS.vEgo > 22 and not nudge_off and not kf_off:
+        fdla2 = round(future_desired_lateral_accel, 2)
         lkf = round(self.avg_lkf, 3)
         rkf = round(self.avg_rkf, 3)
         avg = round(self.kf_live, 3)
         roll_comp = round(roll_compensation, 4)
-        print(f"CV: {fdla4} LA: {lkf} RA: {rkf} Roll: {roll_comp}")
+        print(f"LA: {fdla2} CV: {fdla4} AVG: {avg} Roll: {roll_comp}")
       # end lane position data   
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
