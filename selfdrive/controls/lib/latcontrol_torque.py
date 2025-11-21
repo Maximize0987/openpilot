@@ -39,7 +39,7 @@ KF_RC = [0.95, 1, 1.05]
 KP = 1.0
 KI = 0.3
 KD = 0.0
-KF = 0.955    # default base for curvature corrrection
+KF = 0.95    # default base for curvature corrrection
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 #KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
