@@ -82,13 +82,6 @@ class LatControlTorque(LatControl):
       measurement = measured_curvature * CS.vEgo ** 2
       error = setpoint - measurement
 
-      # Lane centering correction for better center-lane keeping
-      CENTERING_GAIN_BP = [0, 10, 20, 30]  # m/s breakpoints
-      CENTERING_GAIN_V = [0.15, 0.12, 0.08, 0.05]  # correction gains
-      centering_gain = np.interp(CS.vEgo, CENTERING_GAIN_BP, CENTERING_GAIN_V)
-      lane_centering_correction = centering_gain * error
-      error += lane_centering_correction
-
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(error)
       ff = gravity_adjusted_future_lateral_accel
