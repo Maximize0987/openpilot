@@ -126,7 +126,7 @@ class LatControlTorque(LatControl):
       fdla3 = 1
       fdla4 = 1
       fdla1 = round(future_desired_lateral_accel, 3)      
-      future_desired_lateral_accel *= self.kf_live
+      future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
       if future_desired_lateral_accel > 0.1 and not kf_off:
         fdla = interp(lane_avg, KF_INPUT, KF_RC)
@@ -143,7 +143,7 @@ class LatControlTorque(LatControl):
           self.avg_rkf = avg_kf
           self.rightcycles = 0
           self.total_rkf = 0
-          #self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
+          self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
       elif future_desired_lateral_accel < -0.1 and not kf_off: 
         fdla = interp(lane_avg, KF_INPUT, KF_LC)
         future_desired_lateral_accel *= fdla
@@ -159,7 +159,7 @@ class LatControlTorque(LatControl):
           self.avg_lkf = avg_kf
           self.leftcycles = 0
           self.total_lkf = 0
-          #self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
+          self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
       if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
         future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
