@@ -437,7 +437,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("WarningSoftVolume", "101", 2, "101"),
   ("WheelIcon", "frog", 0, "stock"),
   ("WheelSpeed", "0", 2, "0"),
-  ("StopDistance", "6", 3, "6")
+  ("StopDistance", "6", 3, "6"),
+  ("RecoveryPower", "1.0", 2, "1.0")
 ]
 
 misc_tuning_levels: list[tuple[str, str | bytes, int, str]] = [
@@ -616,6 +617,8 @@ class FrogPilotVariables:
     toggle.vEgoStopping = np.clip(params.get_float("VEgoStopping"), 0.01, 1) if advanced_longitudinal_tuning and tuning_level >= level["VEgoStopping"] else toggle.vEgoStopping
 
     toggle.stop_distance = params.get_float("StopDistance") if advanced_longitudinal_tuning and tuning_level >= level["StopDistance"] else 6.0
+
+    toggle.recovery_power = np.clip(params.get_float("RecoveryPower"), 0.5, 2.0) if advanced_longitudinal_tuning and tuning_level >= level["RecoveryPower"] else 1.0
 
     toggle.alert_volume_controller = params.get_bool("AlertVolumeControl") if tuning_level >= level["AlertVolumeControl"] else default.get_bool("AlertVolumeControl")
     toggle.disengage_volume = params.get_int("DisengageVolume") if toggle.alert_volume_controller and tuning_level >= level["DisengageVolume"] else default.get_int("DisengageVolume")
