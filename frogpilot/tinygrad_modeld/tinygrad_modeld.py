@@ -33,6 +33,7 @@ from openpilot.frogpilot.common.frogpilot_variables import get_frogpilot_toggles
 
 PROCESS_NAME = "frogpilot.tinygrad_modeld.tinygrad_modeld"
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
+RECOVERY_POWER = 1.0 # The higher this number the more aggressively the model will recover to lanecenter, too high and it will ping-pong
 
 
 LAT_SMOOTH_SECONDS = 0.26
@@ -43,6 +44,8 @@ MIN_LAT_CONTROL_SPEED = 0.3
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                           lat_action_t: float, long_action_t: float, v_ego: float, mlsim: bool, is_v9: bool) -> log.ModelDataV2.Action:
     plan = model_output['plan'][0]
+    if 'planplus' in model_output:
+      plan = plan + RECOVERY_POWER*model_output['planplus'][0]
     desired_accel, should_stop = get_accel_from_plan_tomb_raider(plan[:,Plan.VELOCITY][:,0],
                                                                  plan[:,Plan.ACCELERATION][:,0],
                                                                  ModelConstants.T_IDXS,
@@ -56,7 +59,7 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
       else:
         desired_curvature = prev_action.desiredCurvature
     else:
-      desired_curvature = get_curvature_from_output(model_output, v_ego, lat_action_t, mlsim=mlsim)
+      desired_curvature = get_curvature_from_output(model_output, plan, v_ego, lat_action_t, mlsim=mlsim)
     if v_ego > MIN_LAT_CONTROL_SPEED:
       desired_curvature = smooth_value(desired_curvature, prev_action.desiredCurvature, LAT_SMOOTH_SECONDS)
     else:
