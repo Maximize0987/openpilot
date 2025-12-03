@@ -724,6 +724,12 @@ class Controls:
       desired_lateral_accel = model_v2.action.desiredCurvature * (clipped_speed**2)
       desired_lateral_accel = desired_lateral_accel * 0.9                                          # added to fix uneeded steer saturated warnings
       undershooting = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel) > 1.2     # test reduce saturated warnings   old value 1.2
+      if undershooting:
+        val1 = abs(desired_lateral_accel) / abs(1e-3 + actual_lateral_accel)
+        print(f"UNDERSHOOTING: {val1}")
+      if lac_log.saturated:
+        val2 = abs(actuators.steer) 
+        print(f"LAC_LOG_SAT: {val2}")
       turning = abs(desired_lateral_accel) > 1.0
       #commanded_torque_at_max = abs(lac_log.output) > 0.99
       #if undershooting and turning and (lac_log.saturated or commanded_torque_at_max):
