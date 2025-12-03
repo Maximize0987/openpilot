@@ -169,7 +169,7 @@ class LatControlTorque(LatControl):
         rkf = round(self.avg_rkf, 3)
         avg = round(self.kf_live, 3)
         roll_comp = round(roll_compensation, 4)
-        print(f"LA: {fdla2} CV: {fdla4} AVG: {avg} Roll: {roll_comp}")
+        #print(f"LA: {fdla2} CV: {fdla4} AVG: {avg} Roll: {roll_comp}")
       # end lane position data   
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
