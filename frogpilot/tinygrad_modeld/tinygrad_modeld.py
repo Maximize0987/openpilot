@@ -1,4 +1,4 @@
-b#!/usr/bin/env python3
+#!/usr/bin/env python3
 import os
 from openpilot.system.hardware import TICI
 os.environ['DEV'] = 'QCOM' if TICI else 'LLVM'
