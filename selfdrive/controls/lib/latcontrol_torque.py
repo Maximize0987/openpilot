@@ -29,8 +29,9 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 
 KF_BUCKET = 10000
 LL_CLOSE = 1.8
-NUDGE_INPUT = [-1.5, -0.23, -0.08, 0.07, 1.34]
-NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
+#NUDGE_INPUT = [-1.5, -0.23, -0.08, 0.07, 1.34]
+#NUDGE_OUTPUT = [-0.08, -0.02, 0, 0.02, 0.08]
+NUDGE_OUTPUT = [-0.03, 0, 0.03]
 
 KF_INPUT = [-1.08, -0.08, 0.92]
 KF_LC = [1.06, 1, 0.95]
@@ -109,7 +110,7 @@ class LatControlTorque(LatControl):
       left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
       right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
       lane_avg = left_lane + right_lane
-      lane_val = interp(lane_avg, NUDGE_INPUT, NUDGE_OUTPUT)
+      lane_val = interp(lane_avg, KF_INPUT, NUDGE_OUTPUT)
       lane_avg = round(lane_avg, 2)
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker:
@@ -161,7 +162,7 @@ class LatControlTorque(LatControl):
           self.total_lkf = 0
           self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
       if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and CS.vEgo > 22 and not nudge_off:
-        #future_desired_lateral_accel += lane_val
+        future_desired_lateral_accel += lane_val
         self.last_nudge = lane_val
       if abs(fdla2) > 0.4 and CS.vEgo > 22 and not nudge_off and not kf_off:
         fdla2 = round(future_desired_lateral_accel, 2)
