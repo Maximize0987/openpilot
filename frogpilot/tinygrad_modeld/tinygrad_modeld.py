@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+b#!/usr/bin/env python3
 import os
 from openpilot.system.hardware import TICI
 os.environ['DEV'] = 'QCOM' if TICI else 'LLVM'
@@ -35,7 +35,7 @@ PROCESS_NAME = "frogpilot.tinygrad_modeld.tinygrad_modeld"
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
 
 
-LAT_SMOOTH_SECONDS = 0.245
+LAT_SMOOTH_SECONDS = 0.25
 LONG_SMOOTH_SECONDS = 0.3
 MIN_LAT_CONTROL_SPEED = 0.3
 
