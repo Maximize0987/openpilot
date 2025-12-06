@@ -1,31 +1,37 @@
 import math
+import capnp
+import time
+import os
 import numpy as np
 from collections import deque
 
 from cereal import log
+import cereal.messaging as messaging
+from openpilot.common.numpy_fast import interp      #
+from openpilot.common.filter_simple import FirstOrderFilter
+from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper, DT_CTRL      #
 from openpilot.selfdrive.car.interfaces import FRICTION_THRESHOLD
 from openpilot.selfdrive.controls.lib.drive_helpers import MIN_SPEED, get_friction
-from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.pid import PIDController
 from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
 
-# At higher speeds (25+mph) we can assume:
-# Lateral acceleration achieved by a specific car correlates to
-# torque applied to the steering rack. It does not correlate to
-# wheel slip, or to speed.
+KF_BUCKET = 10000
+LL_CLOSE = 1.8
 
-# This controller applies torque to achieve desired lateral
-# accelerations. To compensate for the low speed effects the
-# proportional gain is increased at low speeds by the PID controller.
-# Additionally, there is friction in the steering wheel that needs
-# to be overcome to move it at all, this is compensated for too.
+LANE_IN = [-1.08, -0.08, 0.92]
+NUDGE_OUT = [-0.04, 0, 0.04]
+KF_LC = [1.06, 1, 0.95]
+KF_RC = [0.95, 1, 1.06]
 
-KP = 0.6
+KP = 0.8
 KI = 0.15
+KD = 0.0
+KF = 0.955    # default base for curvature corrrection
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
+#KP_INTERP = [300, 144, 78, 36, 13.8, 6.6, 4.2, 2.4, KP]       # 20% higher kp
 
 LP_FILTER_CUTOFF_HZ = 1.2
 JERK_LOOKAHEAD_SECONDS = 0.19
