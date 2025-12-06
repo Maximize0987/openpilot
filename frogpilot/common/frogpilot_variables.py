@@ -19,6 +19,7 @@ from openpilot.selfdrive.car.mock.interface import CarInterface
 from openpilot.selfdrive.car.mock.values import CAR as MOCK
 from openpilot.selfdrive.car.toyota.values import ToyotaFlags, ToyotaFrogPilotFlags
 from openpilot.selfdrive.controls.lib.desire_helper import LANE_CHANGE_SPEED_MIN
+from openpilot.selfdrive.controls.lib.latcontrol_torque import KP
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.system.hardware import HARDWARE
 from openpilot.system.hardware.power_monitoring import VBATT_PAUSE_CHARGING
@@ -129,7 +130,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("AdvancedLateralTune", "0", 2, "0"),
   ("AdvancedLongitudinalTune", "0", 3, "0"),
   ("AggressiveFollow", "1.25", 2, "1.25"),
-  ("AggressiveFollowHigh", "1.25", 2, "1.25"),
   ("AggressiveJerkAcceleration", "50", 3, "50"),
   ("AggressiveJerkDanger", "100", 3, "100"),
   ("AggressiveJerkDeceleration", "50", 3, "50"),
@@ -148,8 +148,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("AvailableModelNames", "", 1, ""),
   ("AvailableModelSeries", "", 1, ""),
   ("AvailableModels", "", 1, ""),
-  ("CommunityFavorites", "", 1, ""),
-  ("UserFavorites", "", 0, ""),
   ("BigMap", "0", 2, "0"),
   ("BlacklistedModels", "", 2, ""),
   ("BlindSpotMetrics", "1", 3, "0"),
@@ -231,7 +229,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("FrogsGoMoosTweak", "1", 2, "0"),
   ("FullMap", "0", 2, "0"),
   ("GasRegenCmd", "1", 2, "0"),
-  ("GMPedalLongitudinal", "1", 2, "1"),
   ("GithubSshKeys", "", 0, ""),
   ("GithubUsername", "", 0, ""),
   ("GoatScream", "0", 1, "0"),
@@ -286,10 +283,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("Model", DEFAULT_MODEL, 1, DEFAULT_MODEL),
   ("ModelDrivesAndScores", "", 2, ""),
   ("ModelRandomizer", "0", 2, "0"),
-  ("ModelReleasedDates", "", 1, ""),
   ("ModelUI", "1", 2, "0"),
   ("ModelVersions", "", 2, ""),
-  ("SortModelsByDate", "0", 2, "0"),
   ("NavigationUI", "1", 1, "0"),
   ("NavSettingLeftSide", "0", 0, "0"),
   ("NavSettingTime24h", "0", 0, "0"),
@@ -330,7 +325,6 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("RecordFront", "0", 0, "0"),
   ("RefuseVolume", "101", 2, "101"),
   ("RelaxedFollow", "1.75", 2, "1.75"),
-  ("RelaxedFollowHigh", "1.75", 2, "1.75"),
   ("RelaxedJerkAcceleration", "50", 3, "50"),
   ("RelaxedJerkDanger", "100", 3, "100"),
   ("RelaxedJerkDeceleration", "50", 3, "50"),
@@ -385,10 +379,9 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("SpeedLimitFiller", "0", 0, "0"),
   ("SpeedLimitSources", "0", 2, "0"),
   ("SshEnabled", "0", 0, "0"),
-  ("StartupMessageBottom", "Human-tested, frog-approved 🐸", 0, "Always keep hands on wheel and eyes on road"),
-  ("StartupMessageTop", "Hop in and buckle up!", 0, "Be ready to take over at any time"),
+  ("StartupMessageBottom", "🐸", 0, "🐸"),
+  ("StartupMessageTop", "Drive Safe", 0, "Drive Safe"),
   ("StandardFollow", "1.45", 2, "1.45"),
-  ("StandardFollowHigh", "1.45", 2, "1.45"),
   ("StandardJerkAcceleration", "50", 3, "50"),
   ("StandardJerkDanger", "100", 3, "100"),
   ("StandardJerkDeceleration", "50", 3, "50"),
@@ -403,8 +396,8 @@ frogpilot_default_params: list[tuple[str, str | bytes, int, str]] = [
   ("SteerDelayStock", "", 3, ""),
   ("SteerFriction", "", 3, ""),
   ("SteerFrictionStock", "", 3, ""),
-  ("SteerKP", "", 3, ""),
-  ("SteerKPStock", "", 3, ""),
+  ("SteerKP", "1.0", 3, "1.0"),
+  ("SteerKPStock", "1.0", 3, "1.0"),
   ("SteerLatAccel", "", 3, ""),
   ("SteerLatAccelStock", "", 3, ""),
   ("SteerRatio", "", 3, ""),
@@ -574,7 +567,7 @@ class FrogPilotVariables:
     startAccel = CP.startAccel
     stopAccel = CP.stopAccel
     steerActuatorDelay = CP.steerActuatorDelay
-    steerKp = CP.lateralTuning.torque.kp
+    steerKp = CP.lateralTuning.pid.kp if CP.lateralTuning.which() == "pid" else KP
     steerRatio = CP.steerRatio
     toggle.stoppingDecelRate = CP.stoppingDecelRate
     taco_hacks_allowed = CP.safetyConfigs[0].safetyModel == SafetyModel.hyundaiCanfd
@@ -608,7 +601,7 @@ class FrogPilotVariables:
     toggle.use_custom_steerActuatorDelay = bool(round(toggle.steerActuatorDelay, 2) != round(steerActuatorDelay, 2))
     toggle.friction = np.clip(params.get_float("SteerFriction"), 0, 0.5) if advanced_lateral_tuning and tuning_level >= level["SteerFriction"] else friction
     toggle.use_custom_friction = bool(round(toggle.friction, 2) != round(friction, 2)) and is_torque_car and not toggle.force_auto_tune or toggle.force_auto_tune_off
-    toggle.steerKp = [[0], [np.clip(params.get_float("SteerKP"), steerKp * 0.5, steerKp * 1.5) if advanced_lateral_tuning and is_torque_car and tuning_level >= level["SteerKP"] else steerKp]]
+    toggle.steerKp = [[0], [np.clip(params.get_float("SteerKP"), steerKp * 0.5, steerKp * 2.5) if advanced_lateral_tuning and is_torque_car and tuning_level >= level["SteerKP"] else steerKp]]
     toggle.latAccelFactor = np.clip(params.get_float("SteerLatAccel"), latAccelFactor * 0.75, latAccelFactor * 1.25) if advanced_lateral_tuning and tuning_level >= level["SteerLatAccel"] else latAccelFactor
     toggle.use_custom_latAccelFactor = bool(round(toggle.latAccelFactor, 2) != round(latAccelFactor, 2)) and is_torque_car and not toggle.force_auto_tune or toggle.force_auto_tune_off
     toggle.steerRatio = np.clip(params.get_float("SteerRatio"), steerRatio * 0.5, steerRatio * 1.5) if advanced_lateral_tuning and tuning_level >= level["SteerRatio"] else steerRatio
@@ -679,31 +672,28 @@ class FrogPilotVariables:
     toggle.aggressive_jerk_danger = np.clip(params.get_int("AggressiveJerkDanger") / 100, 0.25, 2) if aggressive_profile and tuning_level >= level["AggressiveJerkDanger"] else default.get_int("AggressiveJerkDanger") / 100
     toggle.aggressive_jerk_speed = np.clip(params.get_int("AggressiveJerkSpeed") / 100, 0.25, 2) if aggressive_profile and tuning_level >= level["AggressiveJerkSpeed"] else default.get_int("AggressiveJerkSpeed") / 100
     toggle.aggressive_jerk_speed_decrease = np.clip(params.get_int("AggressiveJerkSpeedDecrease") / 100, 0.25, 2) if aggressive_profile and tuning_level >= level["AggressiveJerkSpeedDecrease"] else default.get_int("AggressiveJerkSpeedDecrease") / 100
-    toggle.aggressive_follow = [np.clip(params.get_float("AggressiveFollow"), 1, MAX_T_FOLLOW) if aggressive_profile and tuning_level >= level["AggressiveFollow"] else default.get_float("AggressiveFollow"),
-                                np.clip(params.get_float("AggressiveFollowHigh"), 1, MAX_T_FOLLOW) if aggressive_profile and tuning_level >= level["AggressiveFollowHigh"] else default.get_float("AggressiveFollowHigh")]
+    toggle.aggressive_follow = np.clip(params.get_float("AggressiveFollow"), 1, MAX_T_FOLLOW) if aggressive_profile and tuning_level >= level["AggressiveFollow"] else default.get_float("AggressiveFollow")
     standard_profile = toggle.custom_personalities and (params.get_bool("StandardPersonalityProfile") if tuning_level >= level["StandardPersonalityProfile"] else default.get_bool("StandardPersonalityProfile"))
     toggle.standard_jerk_acceleration = np.clip(params.get_int("StandardJerkAcceleration") / 100, 0.25, 2) if standard_profile and tuning_level >= level["StandardJerkAcceleration"] else default.get_int("StandardJerkAcceleration") / 100
     toggle.standard_jerk_deceleration = np.clip(params.get_int("StandardJerkDeceleration") / 100, 0.25, 2) if standard_profile and tuning_level >= level["StandardJerkDeceleration"] else default.get_int("StandardJerkDeceleration") / 100
     toggle.standard_jerk_danger = np.clip(params.get_int("StandardJerkDanger") / 100, 0.25, 2) if standard_profile and tuning_level >= level["StandardJerkDanger"] else default.get_int("StandardJerkDanger") / 100
     toggle.standard_jerk_speed = np.clip(params.get_int("StandardJerkSpeed") / 100, 0.25, 2) if standard_profile and tuning_level >= level["StandardJerkSpeed"] else default.get_int("StandardJerkSpeed") / 100
     toggle.standard_jerk_speed_decrease = np.clip(params.get_int("StandardJerkSpeedDecrease") / 100, 0.25, 2) if standard_profile and tuning_level >= level["StandardJerkSpeedDecrease"] else default.get_int("StandardJerkSpeedDecrease") / 100
-    toggle.standard_follow = [np.clip(params.get_float("StandardFollow"), 1, MAX_T_FOLLOW) if standard_profile and tuning_level >= level["StandardFollow"] else default.get_float("StandardFollow"),
-                              np.clip(params.get_float("StandardFollowHigh"), 1, MAX_T_FOLLOW) if standard_profile and tuning_level >= level["StandardFollowHigh"] else default.get_float("StandardFollowHigh")]
+    toggle.standard_follow = np.clip(params.get_float("StandardFollow"), 1, MAX_T_FOLLOW) if standard_profile and tuning_level >= level["StandardFollow"] else default.get_float("StandardFollow")
     relaxed_profile = toggle.custom_personalities and (params.get_bool("RelaxedPersonalityProfile") if tuning_level >= level["RelaxedPersonalityProfile"] else default.get_bool("RelaxedPersonalityProfile"))
     toggle.relaxed_jerk_acceleration = np.clip(params.get_int("RelaxedJerkAcceleration") / 100, 0.25, 2) if relaxed_profile and tuning_level >= level["RelaxedJerkAcceleration"] else default.get_int("RelaxedJerkAcceleration") / 100
     toggle.relaxed_jerk_deceleration = np.clip(params.get_int("RelaxedJerkDeceleration") / 100, 0.25, 2) if relaxed_profile and tuning_level >= level["RelaxedJerkDeceleration"] else default.get_int("RelaxedJerkDeceleration") / 100
     toggle.relaxed_jerk_danger = np.clip(params.get_int("RelaxedJerkDanger") / 100, 0.25, 2) if relaxed_profile and tuning_level >= level["RelaxedJerkDanger"] else default.get_int("RelaxedJerkDanger") / 100
     toggle.relaxed_jerk_speed = np.clip(params.get_int("RelaxedJerkSpeed") / 100, 0.25, 2) if relaxed_profile and tuning_level >= level["RelaxedJerkSpeed"] else default.get_int("RelaxedJerkSpeed") / 100
     toggle.relaxed_jerk_speed_decrease = np.clip(params.get_int("RelaxedJerkSpeedDecrease") / 100, 0.25, 2) if relaxed_profile and tuning_level >= level["RelaxedJerkSpeedDecrease"] else default.get_int("RelaxedJerkSpeedDecrease") / 100
-    toggle.relaxed_follow = [np.clip(params.get_float("RelaxedFollow"), 1, MAX_T_FOLLOW) if relaxed_profile and tuning_level >= level["RelaxedFollow"] else default.get_float("RelaxedFollow"),
-                             np.clip(params.get_float("RelaxedFollowHigh"), 1, MAX_T_FOLLOW) if relaxed_profile and tuning_level >= level["RelaxedFollowHigh"] else default.get_float("RelaxedFollowHigh")]
+    toggle.relaxed_follow = np.clip(params.get_float("RelaxedFollow"), 1, MAX_T_FOLLOW) if relaxed_profile and tuning_level >= level["RelaxedFollow"] else default.get_float("RelaxedFollow")
     traffic_profile = toggle.custom_personalities and (params.get_bool("TrafficPersonalityProfile") if tuning_level >= level["TrafficPersonalityProfile"] else default.get_bool("TrafficPersonalityProfile"))
     toggle.traffic_mode_jerk_acceleration = [np.clip(params.get_int("TrafficJerkAcceleration") / 100, 0.25, 2) if traffic_profile and tuning_level >= level["TrafficJerkAcceleration"] else default.get_int("TrafficJerkAcceleration") / 100, toggle.aggressive_jerk_acceleration]
     toggle.traffic_mode_jerk_deceleration = [np.clip(params.get_int("TrafficJerkDeceleration") / 100, 0.25, 2) if traffic_profile and tuning_level >= level["TrafficJerkDeceleration"] else default.get_int("TrafficJerkDeceleration") / 100, toggle.aggressive_jerk_deceleration]
     toggle.traffic_mode_jerk_danger = [np.clip(params.get_int("TrafficJerkDanger") / 100, 0.25, 2) if traffic_profile and tuning_level >= level["TrafficJerkDanger"] else default.get_int("TrafficJerkDanger") / 100, toggle.aggressive_jerk_danger]
     toggle.traffic_mode_jerk_speed = [np.clip(params.get_int("TrafficJerkSpeed") / 100, 0.25, 2) if traffic_profile and tuning_level >= level["TrafficJerkSpeed"] else default.get_int("TrafficJerkSpeed") / 100, toggle.aggressive_jerk_speed]
     toggle.traffic_mode_jerk_speed_decrease = [np.clip(params.get_int("TrafficJerkSpeedDecrease") / 100, 0.25, 2) if traffic_profile and tuning_level >= level["TrafficJerkSpeedDecrease"] else default.get_int("TrafficJerkSpeedDecrease") / 100, toggle.aggressive_jerk_speed_decrease]
-    toggle.traffic_mode_follow = [np.clip(params.get_float("TrafficFollow"), 0.5, MAX_T_FOLLOW) if traffic_profile and tuning_level >= level["TrafficFollow"] else default.get_float("TrafficFollow"), toggle.aggressive_follow[0]]
+    toggle.traffic_mode_follow = [np.clip(params.get_float("TrafficFollow"), 0.5, MAX_T_FOLLOW) if traffic_profile and tuning_level >= level["TrafficFollow"] else default.get_float("TrafficFollow"), toggle.aggressive_follow]
 
     custom_ui = params.get_bool("CustomUI") if tuning_level >= level["CustomUI"] else default.get_bool("CustomUI")
     toggle.acceleration_path = toggle.openpilot_longitudinal and (custom_ui and (params.get_bool("AccelerationPath") if tuning_level >= level["AccelerationPath"] else default.get_bool("AccelerationPath")) or toggle.debug_mode)
@@ -837,11 +827,8 @@ class FrogPilotVariables:
     toggle.available_models = params.get("AvailableModels", encoding="utf-8") or ""
     toggle.available_model_names = params.get("AvailableModelNames", encoding="utf-8") or ""
     toggle.available_model_series = params.get("AvailableModelSeries", encoding="utf-8") or ""
-    toggle.community_favorites = params.get("CommunityFavorites", encoding="utf-8") or ""
-    toggle.model_released_dates = params.get("ModelReleasedDates", encoding="utf-8") or ""
     toggle.model_versions = params.get("ModelVersions", encoding="utf-8") or ""
-    toggle.sort_models_by_date = params.get_bool("SortModelsByDate") if tuning_level >= level["SortModelsByDate"] else default.get_bool("SortModelsByDate")
-    toggle.user_favorites = params.get("UserFavorites", encoding="utf-8") or ""
+    toggle.available_model_series = params.get("AvailableModelSeries", encoding="utf-8") or ""
     downloaded_models = [model for model in toggle.available_models.split(",") if any(MODELS_PATH.glob(f"{model}*"))]
     toggle.model_randomizer = downloaded_models and (params.get_bool("ModelRandomizer") if tuning_level >= level["ModelRandomizer"] else default.get_bool("ModelRandomizer"))
     if toggle.available_models and toggle.available_model_names and downloaded_models and toggle.model_versions:
@@ -986,8 +973,6 @@ class FrogPilotVariables:
     toggle.unlock_doors = toyota_doors and (params.get_bool("UnlockDoors") if tuning_level >= level["UnlockDoors"] else default.get_bool("UnlockDoors"))
 
     toggle.volt_sng = toggle.car_model == "CHEVROLET_VOLT" and (params.get_bool("VoltSNG") if tuning_level >= level["VoltSNG"] else default.get_bool("VoltSNG"))
-
-    toggle.gm_pedal_longitudinal = params.get_bool("GMPedalLongitudinal") if tuning_level >= level["GMPedalLongitudinal"] else default.get_bool("GMPedalLongitudinal")
 
     params_memory.put("FrogPilotToggles", json.dumps(toggle.__dict__))
     params_memory.remove("FrogPilotTogglesUpdated")
