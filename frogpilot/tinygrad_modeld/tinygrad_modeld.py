@@ -46,6 +46,7 @@ def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.
     plan = model_output['plan'][0]
     if 'planplus' in model_output:
       plan = plan + RECOVERY_POWER*model_output['planplus'][0]
+      cloudlog.error(f"planplus applied: shape {model_output['planplus'].shape}, RECOVERY_POWER {RECOVERY_POWER}")
     desired_accel, should_stop = get_accel_from_plan_tomb_raider(plan[:,Plan.VELOCITY][:,0],
                                                                  plan[:,Plan.ACCELERATION][:,0],
                                                                  ModelConstants.T_IDXS,
