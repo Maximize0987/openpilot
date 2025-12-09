@@ -118,11 +118,11 @@ class LatControlTorque(LatControl):
       fdla3 = 1
       fdla4 = 1
       fdla1 = round(future_desired_lateral_accel, 3)      
-      future_desired_lateral_accel *= KF
+      #future_desired_lateral_accel *= KF
       fdla2 = round(future_desired_lateral_accel, 3)
       if future_desired_lateral_accel > 0 and not kf_off:
         fdla = interp(lane_avg, LANE_IN, KF_RC)
-        future_desired_lateral_accel *= fdla
+        #future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
         if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 15:
           fdla4 = 1
@@ -138,7 +138,7 @@ class LatControlTorque(LatControl):
           self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
       elif future_desired_lateral_accel < 0 and not kf_off: 
         fdla = interp(lane_avg, LANE_IN, KF_LC)
-        future_desired_lateral_accel *= fdla
+        #future_desired_lateral_accel *= fdla
         fdla3 = round(future_desired_lateral_accel, 3)
         if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 15:
           fdla4 = 1
