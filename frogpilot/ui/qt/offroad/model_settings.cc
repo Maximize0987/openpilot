@@ -27,7 +27,7 @@ FrogPilotModelPanel::FrogPilotModelPanel(FrogPilotSettingsWindow *parent) : Frog
     {"DeleteModel", tr("Delete Driving Models"), tr("Delete driving models from the device."), ""},
     {"DownloadModel", tr("Download Driving Models"), tr("Download driving models to the device."), ""},
     {"ModelRandomizer", tr("Model Randomizer"), tr("Driving models are chosen at random each drive and feedback prompts are used to find the model that best suits your needs."), ""},
-    {"LatSmoothSec", tr("Base Lateral Delay"), tr("Total Lateral Delay = Base Lateral Delay + Live Delay or Actuator Delay (0 to 0.4)."), ""},
+    {"LatSmoothSec", tr("Base Lateral Delay"), tr("Total Delay = Base Lateral Delay + Live Delay or Actuator Delay (0 to 0.4)."), ""},
     {"RecoveryPower", tr("Recovery Power"), tr("Adjust the strength of planplus lane recovery corrections (0.5 to 2.0)."), ""},
     {"StopDistance", tr("Stop Distance"), tr("Adjust the model's stopping distance in meters (minimum 4 for safety). Most users prefer 6."), ""},
     {"ManageBlacklistedModels", tr("Manage Model Blacklist"), tr("Add or remove models from the <b>Model Randomizer</b>'s blacklist list."), ""},
