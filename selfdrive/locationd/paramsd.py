@@ -62,6 +62,7 @@ class ParamsLearner:
         roll_std = 2 * localizer_roll_std
       else:
         # This is done to bound the road roll estimate when localizer values are invalid
+        print(f"Localizer: {localizer_roll} STD: {localizer_roll_std} STD_MAX: {ROLL_STD_MAX} MIN: {ROLL_MIN} MAX: {ROLL_MAX}")
         roll = 0.0
         roll_std = np.radians(10.0)
       self.roll = clip(roll, self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA)
