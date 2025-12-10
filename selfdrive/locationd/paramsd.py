@@ -62,7 +62,10 @@ class ParamsLearner:
         roll_std = 2 * localizer_roll_std
       else:
         # This is done to bound the road roll estimate when localizer values are invalid
-        print(f"Localizer: {localizer_roll} STD: {localizer_roll_std} STD_MAX: {ROLL_STD_MAX} MIN: {ROLL_MIN} MAX: {ROLL_MAX}")
+        cloudlog.info("localizer_std_max allowed less than 0.02617")
+        print(f"STD_MAX: {localizer_roll_std}")
+        cloudlog.info("localizer allowed between -0.174 and +0.174")
+        print(f"Localizer: {localizer_roll}")
         roll = 0.0
         roll_std = np.radians(10.0)
       self.roll = clip(roll, self.roll - ROLL_MAX_DELTA, self.roll + ROLL_MAX_DELTA)
