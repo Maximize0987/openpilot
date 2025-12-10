@@ -23,16 +23,16 @@ FrogPilotModelPanel::FrogPilotModelPanel(FrogPilotSettingsWindow *parent) : Frog
   modelLayout->addWidget(modelLabelsPanel);
 
   const std::vector<std::tuple<QString, QString, QString, QString>> modelToggles {
+    {"SelectModel", tr("Select Driving Model"), tr("Select the active driving model."), ""},
     {"AutomaticallyDownloadModels", tr("Automatically Download New Models"), tr("Automatically download new driving models as they become available."), ""},
     {"DeleteModel", tr("Delete Driving Models"), tr("Delete driving models from the device."), ""},
     {"DownloadModel", tr("Download Driving Models"), tr("Download driving models to the device."), ""},
-    {"ModelRandomizer", tr("Model Randomizer"), tr("Driving models are chosen at random each drive and feedback prompts are used to find the model that best suits your needs."), ""},
     {"LatSmoothSec", tr("Base Lateral Delay"), tr("Total Delay = Base Lateral Delay + Live Delay or Actuator Delay (0 to 0.4)."), ""},
     {"RecoveryPower", tr("Recovery Power"), tr("Adjust the strength of planplus lane recovery corrections (0.5 to 2.0)."), ""},
     {"StopDistance", tr("Stop Distance"), tr("Adjust the model's stopping distance in meters (minimum 4 for safety). Most users prefer 6."), ""},
+    {"ModelRandomizer", tr("Model Randomizer"), tr("Driving models are chosen at random each drive and feedback prompts are used to find the model that best suits your needs."), ""},
     {"ManageBlacklistedModels", tr("Manage Model Blacklist"), tr("Add or remove models from the <b>Model Randomizer</b>'s blacklist list."), ""},
     {"ManageScores", tr("Manage Model Ratings"), tr("Reset or view the saved ratings for the driving models."), ""},
-    {"SelectModel", tr("Select Driving Model"), tr("Select the active driving model."), ""},
   };
 
   FrogPilotParamValueButtonControl *latSmoothToggle = nullptr;
