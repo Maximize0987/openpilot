@@ -27,7 +27,7 @@ MAX_YAW_RATE_FILTER = np.radians(2)  # per second
 MAX_HEIGHT_STD = np.exp(-3.5)
 
 # This is at model frequency, blocks needed for efficiency
-SMOOTH_CYCLES = 6   #   SMOOTH_CYCLES = 10
+SMOOTH_CYCLES = 10   #   SMOOTH_CYCLES = 10
 BLOCK_SIZE = 100
 INPUTS_NEEDED = 5   # Minimum blocks needed for valid calibration
 INPUTS_WANTED = 50   # We want a little bit more than we need for stability
