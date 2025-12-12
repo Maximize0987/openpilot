@@ -25,7 +25,7 @@ KF_LC = [1.06, 1, 0.95]
 KF_RC = [0.95, 1, 1.06]
 
 SPEED_MULT = [0, 3, 30]
-NUDGE_MULT = [1, 3, 1]
+NUDGE_MULT = [1, 2.5, 1]
 
 KP = 0.8
 KI = 0.15
