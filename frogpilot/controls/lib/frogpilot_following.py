@@ -80,7 +80,7 @@ class FrogPilotFollowing:
   def update_follow_values(self, lead_distance, v_ego, v_lead, frogpilot_toggles):
     # Offset by FrogAi for FrogPilot for a more natural approach to a faster lead
     if frogpilot_toggles.human_following and v_lead > v_ego:
-      distance_factor = max(lead_distance - (v_ego * self.t_follow), 1)
+      distance_factor = max(lead_distance - (v_ego * self.t_follow), 1.2)      #   1 changed to 1.2
       from frogpilot.common.frogpilot_variables import get_frogpilot_toggles
       fp_toggles = get_frogpilot_toggles()
       acceleration_offset = float(np.clip(fp_toggles.stop_distance - v_ego, 1, distance_factor))
