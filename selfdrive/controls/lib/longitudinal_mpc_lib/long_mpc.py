@@ -48,11 +48,11 @@ X_EGO_OBSTACLE_COSTS = [3.2, 3.1, 3.0, 2.8]   #  X_EGO_OBSTACLE_COSTS = [3.0, 3.
 
 # JERK CONTROL (Lower = More jerky/responsive, Higher = Smoother/conservative)
 # [City Emergency, Urban Hwy, Rural Hwy, High Speed]
-J_EGO_COSTS = [5.5, 5.2, 5.0, 5.0]   #  J_EGO_COSTS = [5.0, 4.75, 4.5, 4.0]  # Reverted to original 5.0 at low speeds
+J_EGO_COSTS = [5.5, 5.2, 5.0, 4.8]   #  J_EGO_COSTS = [5.0, 4.75, 4.5, 4.0]  # Reverted to original 5.0 at low speeds
 
 # ACCELERATION CHANGE PENALTIES (Lower = More responsive, Higher = Smoother)
 # [City Emergency, Urban Hwy, Rural Hwy, High Speed]
-A_CHANGE_COSTS = [210, 205, 200, 195]   #   A_CHANGE_COSTS = [200, 195, 180, 170]  # Reverted to original 200 at low speeds
+A_CHANGE_COSTS = [200, 196, 193, 190]   #   A_CHANGE_COSTS = [200, 195, 180, 170]  # Reverted to original 200 at low speeds
 
 # SMOOTHING FILTERS - Speed-adaptive for optimal responsiveness
 # Lower = More responsive, Higher = Smoother
