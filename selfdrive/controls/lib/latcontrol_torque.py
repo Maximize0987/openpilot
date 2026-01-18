@@ -1,24 +1,20 @@
 import math
+import capnp
+import time
+import os
 import numpy as np
 from collections import deque
 
 from cereal import log
-from opendbc.car.lateral import FRICTION_THRESHOLD, get_friction
-from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
+import cereal.messaging as messaging
+from openpilot.common.numpy_fast import interp      #
 from openpilot.common.filter_simple import FirstOrderFilter
+from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper, DT_CTRL      #
+from openpilot.selfdrive.car.interfaces import FRICTION_THRESHOLD
+from openpilot.selfdrive.controls.lib.drive_helpers import MIN_SPEED, get_friction
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
-from openpilot.common.pid import PIDController
-
-# At higher speeds (25+mph) we can assume:
-# Lateral acceleration achieved by a specific car correlates to
-# torque applied to the steering rack. It does not correlate to
-# wheel slip, or to speed.
-
-# This controller applies torque to achieve desired lateral
-# accelerations. To compensate for the low speed effects the
-# proportional gain is increased at low speeds by the PID controller.
-# Additionally, there is friction in the steering wheel that needs
-# to be overcome to move it at all, this is compensated for too.
+from openpilot.selfdrive.controls.lib.pid import PIDController
+from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
 
 KP = 1.0
 KI = 0.3
