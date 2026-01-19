@@ -84,7 +84,8 @@ class LatControlTorque(LatControl):
       ff -= self.torque_params.latAccelOffset
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
       ff += get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
-
+      # add kf multiplier limit oversteer
+      ff *= 0.96
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error,
                                        -measurement_rate,
