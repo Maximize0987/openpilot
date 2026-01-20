@@ -16,9 +16,22 @@ from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.pid import PIDController
 from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
 
+KF_BUCKET = 10000
+LL_CLOSE = 1.8
+
+LANE_IN = [-1.08, -0.08, 0.92]
+NUDGE_OUT = [-0.055, 0, 0.055]
+KF_LC = [1.06, 1, 0.95]
+KF_RC = [0.95, 1, 1.06]
+
+SPEED_MULT = [0, 3, 30]
+NUDGE_MULT = [1, 2.5, 1]
+
 KP = 0.8
 KI = 0.15
 KD = 0.0
+KF = 0.95    # default base for curvature corrrection
+
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
 
@@ -40,6 +53,19 @@ class LatControlTorque(LatControl):
     self.previous_measurement = 0.0
     self.measurement_rate_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents', 'frogpilotPlan'])
+  
+    self.last_nudge = 0
+    self.no_nudge = 0
+    self.no_kf = 0
+    self.leftcycles = 0
+    self.rightcycles = 0
+    self.kf_live = KF
+    self.avg_rkf = KF
+    self.avg_lkf = KF
+    self.total_lkf = 0
+    self.total_rkf = 0
+    
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
     self.torque_params.latAccelOffset = latAccelOffset
@@ -66,6 +92,79 @@ class LatControlTorque(LatControl):
       expected_lateral_accel = self.lat_accel_request_buffer[-delay_frames]
       # TODO factor out lateral jerk from error to later replace it with delay independent alternative
       future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
+
+      # lane line data receive for lane centering
+      #left_lane_valid = model_v2.laneLineProbs[1] > 0.5
+      #right_lane_valid = model_v2.laneLineProbs[2] > 0.5
+      left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+      right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+      lane_avg = left_lane + right_lane
+      lane_val = interp(lane_avg, LANE_IN, NUDGE_OUT)
+      #speed_multiplier = interp(CS.vEgo, SPEED_MULT, NUDGE_MULT)
+      #lane_val = speed_multiplier * lane_val
+      lane_avg = round(lane_avg, 2)
+      self.sm.update(0)
+      if CS.leftBlinker or CS.rightBlinker:
+        self.no_nudge = self.sm.frame
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.8 # cooldown after blinker
+      if CS.steeringPressed:
+        self.no_kf = self.sm.frame
+      kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.8 # cooldown after blinker
+      if right_lane > 2.5 or abs(left_lane) > 2.5:  
+        nudge_off = False
+        kf_off = False
+      fdla1 = 1
+      fdla2 = 1
+      fdla3 = 1
+      fdla4 = 1
+      fdla1 = round(future_desired_lateral_accel, 3)      
+      future_desired_lateral_accel *= KF
+      fdla2 = round(future_desired_lateral_accel, 3)
+      if future_desired_lateral_accel > 0 and not kf_off:
+        fdla = interp(lane_avg, LANE_IN, KF_RC)
+        future_desired_lateral_accel *= fdla
+        fdla3 = round(future_desired_lateral_accel, 3)
+        if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 15:
+          fdla4 = 1
+          fdla4 = fdla3 / fdla1
+          fdla4 = round(fdla4, 4)
+          self.rightcycles = self.rightcycles + 1
+          self.total_rkf = self.total_rkf + fdla4
+          avg_kf = self.total_rkf / self.rightcycles
+        if self.rightcycles == KF_BUCKET:
+          self.avg_rkf = avg_kf
+          self.rightcycles = 0
+          self.total_rkf = 0
+          self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
+      elif future_desired_lateral_accel < 0 and not kf_off: 
+        fdla = interp(lane_avg, LANE_IN, KF_LC)
+        future_desired_lateral_accel *= fdla
+        fdla3 = round(future_desired_lateral_accel, 3)
+        if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 15:
+          fdla4 = 1
+          fdla4 = fdla3 / fdla1
+          fdla4 = round(fdla4, 3)
+          self.leftcycles = self.leftcycles + 1
+          self.total_lkf = self.total_lkf + fdla4
+          avg_kf = self.total_lkf / self.leftcycles
+        if self.leftcycles == KF_BUCKET:
+          self.avg_lkf = avg_kf
+          self.leftcycles = 0
+          self.total_lkf = 0
+          self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
+      if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and not nudge_off:
+        future_desired_lateral_accel += lane_val
+        self.last_nudge = lane_val
+      if abs(fdla2) > 0.4 and CS.vEgo > 15 and not nudge_off and not kf_off:
+        fdla2 = round(future_desired_lateral_accel, 2)
+        lkf = round(self.avg_lkf, 3)
+        rkf = round(self.avg_rkf, 3)
+        avg = round(self.kf_live, 3)
+        lane_val = round(lane_val, 3)
+        roll_comp = round(roll_compensation, 4)
+        print(f"NUD: {lane_val} CV: {fdla4} AVG: {avg} Roll: {roll_comp}")
+      # end lane position data  
+      
       self.lat_accel_request_buffer.append(future_desired_lateral_accel)
       gravity_adjusted_future_lateral_accel = future_desired_lateral_accel - roll_compensation
       desired_lateral_jerk = (future_desired_lateral_accel - expected_lateral_accel) / lat_delay
@@ -85,7 +184,7 @@ class LatControlTorque(LatControl):
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
       ff += get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
       # add kf multiplier limit oversteer
-      ff *= 0.96
+      #ff *= 0.96
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error,
                                        -measurement_rate,
