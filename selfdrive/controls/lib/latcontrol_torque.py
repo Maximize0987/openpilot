@@ -27,8 +27,8 @@ KF_RC = [0.95, 1, 1.06]
 SPEED_MULT = [0, 3, 30]
 NUDGE_MULT = [1, 2.5, 1]
 
-KP = 0.8
-KI = 0.15
+KP = 0.75
+KI = 0.2
 KD = 0.0
 KF = 0.94    # default base for curvature corrrection
 
