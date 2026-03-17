@@ -182,7 +182,7 @@ class LatControlTorque(LatControl):
       # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
       ff -= self.torque_params.latAccelOffset
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
-      ff += get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
+      ff += (get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)) * KF
       # add kf multiplier limit oversteer
       #ff *= 0.96
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
