@@ -30,7 +30,7 @@ NUDGE_MULT = [1, 2.5, 1]
 KP = 0.8
 KI = 0.15
 KD = 0.0
-KF = 0.95   # default base for curvature corrrection
+KF = 0.945   # default base for curvature corrrection
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
@@ -182,7 +182,7 @@ class LatControlTorque(LatControl):
       # latAccelOffset corrects roll compensation bias from device roll misalignment relative to car roll
       ff -= self.torque_params.latAccelOffset
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
-      ff += (get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)) * 0.97
+      ff += (get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)) * 1
       # add kf multiplier limit oversteer
       #ff *= 0.96
       freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
