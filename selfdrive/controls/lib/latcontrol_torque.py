@@ -19,8 +19,8 @@ from openpilot.selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_G
 KF_BUCKET = 10000
 LL_CLOSE = 1.8
 
-LANE_IN = [-1.08, -0.08, 0.92]
-NUDGE_OUT = [-0.0635, 0, 0.0635]
+LANE_IN = [-1.11, -0.11, 0.89]
+NUDGE_OUT = [-0.062, 0, 0.062]
 KF_LC = [1.06, 1, 0.95]
 KF_RC = [0.95, 1, 1.06]
 
