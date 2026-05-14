@@ -89,8 +89,8 @@ class TorqueEstimator(ParameterEstimator):
     self.decay = MIN_FILTER_DECAY
     self.min_lataccel_factor = 2.29      #    self.min_lataccel_factor = (1.0 - self.factor_sanity) * self.offline_latAccelFactor
     self.max_lataccel_factor = 2.31      #    self.max_lataccel_factor = (1.0 + self.factor_sanity) * self.offline_latAccelFactor
-    self.min_friction = 0.09                 #    self.min_friction = (1.0 - self.friction_sanity) * self.offline_friction
-    self.max_friction = 0.11                 #    self.max_friction = (1.0 + self.friction_sanity) * self.offline_friction
+    self.min_friction = 0.08                 #    self.min_friction = (1.0 - self.friction_sanity) * self.offline_friction
+    self.max_friction = 0.13                 #    self.max_friction = (1.0 + self.friction_sanity) * self.offline_friction
 
     # try to restore cached params
     params = Params()
