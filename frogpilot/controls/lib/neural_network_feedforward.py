@@ -4,11 +4,14 @@ import json
 import math
 import numpy as np
 import os
+import capnp   #
+import time    #
 
 from collections import deque
 from difflib import SequenceMatcher
-
 from cereal import log
+import cereal.messaging as messaging    #
+from openpilot.common.numpy_fast import interp      #
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -37,6 +40,10 @@ LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [12, 3, 1, 0]
 
 LAT_PLAN_MIN_IDX = 5
+
+LL_CLOSE = 1.8
+LANE_IN = [-1.05, -0.05, 0.95]      #   LANE_IN = [-1.2, -0.2, 0.8]
+NUDGE_OUT = [-0.0621, 0, 0.0621]
 
 class FluxModel:
   def __init__(self, params_file):
@@ -177,6 +184,11 @@ class LatControlNNFF(LatControl):
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
 
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents', 'frogpilotPlan'])
+
+    self.last_nudge = 0
+    self.no_nudge = 0
+    
     # Instantaneous lateral jerk changes very rapidly, making it not useful on its own,
     # however, we can "look ahead" to the future planned lateral jerk in order to gauge
     # whether the current desired lateral jerk will persist into the future, i.e.
@@ -235,6 +247,78 @@ class LatControlNNFF(LatControl):
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
+      # Begin lane nudge
+      #left_lane_valid = model_v2.laneLineProbs[1] > 0.5
+      #right_lane_valid = model_v2.laneLineProbs[2] > 0.5
+      left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+      right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+      lane_avg = left_lane + right_lane
+      lane_val = interp(lane_avg, LANE_IN, NUDGE_OUT)
+      #speed_multiplier = interp(CS.vEgo, SPEED_MULT, NUDGE_MULT)
+      #lane_val = speed_multiplier * lane_val
+      lane_avg = round(lane_avg, 2)
+      self.sm.update(0)
+      if CS.leftBlinker or CS.rightBlinker:
+        self.no_nudge = self.sm.frame
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.8 # cooldown after blinker
+      #if CS.steeringPressed:
+      #  self.no_kf = self.sm.frame
+      #kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.8 # cooldown after blinker
+      if right_lane > 2.5 or abs(left_lane) > 2.5:  
+        nudge_off = False
+        #kf_off = False
+      #fdla1 = 1
+      #fdla2 = 1
+      #fdla3 = 1
+      #fdla4 = 1
+      #fdla1 = round(future_desired_lateral_accel, 3)      
+      #future_desired_lateral_accel *= KF
+      #fdla2 = round(future_desired_lateral_accel, 3)
+      #if future_desired_lateral_accel > 0 and not kf_off:
+      #  fdla = interp(lane_avg, LANE_IN, KF_RC)
+      #  future_desired_lateral_accel *= fdla
+      #  fdla3 = round(future_desired_lateral_accel, 3)
+      #  if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 15:
+      #    fdla4 = 1
+      #    fdla4 = fdla3 / fdla1
+      #    fdla4 = round(fdla4, 4)
+      #    self.rightcycles = self.rightcycles + 1
+      #    self.total_rkf = self.total_rkf + fdla4
+      #    avg_kf = self.total_rkf / self.rightcycles
+      #  if self.rightcycles == KF_BUCKET:
+      #    self.avg_rkf = avg_kf
+      #    self.rightcycles = 0
+      #    self.total_rkf = 0
+      #    self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
+      #elif future_desired_lateral_accel < 0 and not kf_off: 
+      #  fdla = interp(lane_avg, LANE_IN, KF_LC)
+      #  future_desired_lateral_accel *= fdla
+      #  fdla3 = round(future_desired_lateral_accel, 3)
+      #  if fdla3 != 0 and fdla1 != 0 and CS.vEgo > 15:
+      #    fdla4 = 1
+      #    fdla4 = fdla3 / fdla1
+      #    fdla4 = round(fdla4, 3)
+      #    self.leftcycles = self.leftcycles + 1
+      #    self.total_lkf = self.total_lkf + fdla4
+      #    avg_kf = self.total_lkf / self.leftcycles
+      #  if self.leftcycles == KF_BUCKET:
+      #    self.avg_lkf = avg_kf
+      #    self.leftcycles = 0
+      #    self.total_lkf = 0
+      #    self.kf_live = (self.avg_rkf + self.avg_lkf) / 2
+      if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and not nudge_off:
+        desired_lateral_accel += lane_val
+        self.last_nudge = lane_val
+      #if abs(fdla2) > 0.4 and CS.vEgo > 15 and not nudge_off and not kf_off:
+      #  fdla2 = round(future_desired_lateral_accel, 2)
+      #  lkf = round(self.avg_lkf, 3)
+      #  rkf = round(self.avg_rkf, 3)
+      #  avg = round(self.kf_live, 3)
+      #  lane_val = round(lane_val, 3)
+      #  roll_comp = round(roll_compensation, 4)
+      #  print(f"NUD: {lane_val} CV: {fdla4} AVG: {avg} Roll: {roll_comp}")
+      # end lane position data 
+      
       # desired rate is the desired rate of change in the setpoint, not the absolute desired curvature
       # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
