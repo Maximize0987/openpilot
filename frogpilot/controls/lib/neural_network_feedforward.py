@@ -258,9 +258,6 @@ class LatControlNNFF(LatControl):
       right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
       lane_avg = left_lane + right_lane
       lane_val = interp(lane_avg, LANE_IN, NUDGE_OUT)
-      #speed_multiplier = interp(CS.vEgo, SPEED_MULT, NUDGE_MULT)
-      #lane_val = speed_multiplier * lane_val
-      lane_avg = round(lane_avg, 2)
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker:
         self.no_nudge = self.sm.frame
@@ -284,18 +281,8 @@ class LatControlNNFF(LatControl):
       else:
         self.last_nudge = 0
         self.cycles = 0
-      #if abs(fdla2) > 0.4 and CS.vEgo > 15 and not nudge_off and not kf_off:
-      #  fdla2 = round(future_desired_lateral_accel, 2)
-      #  lkf = round(self.avg_lkf, 3)
-      #  rkf = round(self.avg_rkf, 3)
-      #  avg = round(self.kf_live, 3)
-      #  lane_val = round(lane_val, 3)
-      #  roll_comp = round(roll_compensation, 4)
-      #  print(f"NUD: {lane_val} CV: {fdla4} AVG: {avg} Roll: {roll_comp}")
-      # end lane position data 
+      # End lane nudge 
       
-      # desired rate is the desired rate of change in the setpoint, not the absolute desired curvature
-      # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
