@@ -260,7 +260,7 @@ class LatControlNNFF(LatControl):
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker:
         self.no_nudge = self.sm.frame
-      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.8 # cooldown after blinker
+      nudge_off = (self.sm.frame - self.no_nudge) * 0.01 < 3.8 # cooldown after blinker
       #if CS.steeringPressed:
       #  self.no_kf = self.sm.frame
       #kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.8 # cooldown after blinker
