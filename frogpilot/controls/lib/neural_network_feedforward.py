@@ -191,6 +191,7 @@ class LatControlNNFF(LatControl):
     self.last_nudge = 0
     self.no_nudge = 0
     self.cycles = 0
+    self.max_cycles = 0
     
     # Instantaneous lateral jerk changes very rapidly, making it not useful on its own,
     # however, we can "look ahead" to the future planned lateral jerk in order to gauge
@@ -268,13 +269,18 @@ class LatControlNNFF(LatControl):
         nudge_off = False
         self.last_nudge = 0
       if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and not nudge_off:
+        current_nud = lane_val
         max_nudge = self.last_nudge + NUDGE_INC
         self.cycles = self.cycles + 1
+        if self.cycles > self.max_cycles:
+          self.max_cycles = self.cycles
         if lane_val > max_nudge:
           lane_val = max_nudge
         desired_lateral_accel += lane_val
         self.last_nudge = lane_val
-        print(f"MAX: {max_nudge} VAL: {lane_val} CYC: {self.cycles}")
+        max_nud = round(max_nudge, 4)
+        cur_nud = round(current_nud, 4)
+        print(f"NUD: {max_nud} VAL: {cur_nud} CYC: {self.cycles} MAX_CYC: {self.max_cycles}")
       else:
         self.last_nudge = 0
         self.cycles = 0
