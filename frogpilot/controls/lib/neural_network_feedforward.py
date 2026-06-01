@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from cereal import log
 import cereal.messaging as messaging    #
 from openpilot.common.numpy_fast import interp      #
+from openpilot.common.realtime import DT_CTRL      #
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -260,7 +261,7 @@ class LatControlNNFF(LatControl):
       self.sm.update(0)
       if CS.leftBlinker or CS.rightBlinker:
         self.no_nudge = self.sm.frame
-      nudge_off = (self.sm.frame - self.no_nudge) * 0.01 < 3.8 # cooldown after blinker
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.8 # cooldown after blinker
       #if CS.steeringPressed:
       #  self.no_kf = self.sm.frame
       #kf_off = (self.sm.frame - self.no_kf) * DT_CTRL < 3.8 # cooldown after blinker
