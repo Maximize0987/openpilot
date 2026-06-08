@@ -189,6 +189,7 @@ class LatControlNNFF(LatControl):
 
     self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents'])
 
+    self.current_nud = 0
     self.last_nudge = 0
     self.no_nudge = 0
     self.cycles = 0
@@ -260,25 +261,34 @@ class LatControlNNFF(LatControl):
       lane_avg = left_lane + right_lane
       lane_val = interp(lane_avg, LANE_IN, NUDGE_OUT)
       self.sm.update(0)
-      if CS.leftBlinker or CS.rightBlinker:
+      if CS.leftBlinker or CS.rightBlinker or CS.steeringPressed:
         self.no_nudge = self.sm.frame
-      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.8 # cooldown after blinker
+        self.max_cycles = 0
+        self.cycles = 0
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.0 # cooldown after blinker
       if right_lane > 2.5 or abs(left_lane) > 2.5:  
         nudge_off = False
         self.last_nudge = 0
+        self.cycles = 0
+      if self.current_nud > 0 and lane_val < 0 or self.current_nud < 0 and lane_val > 0:
+        self.cycles = 0
+        self.last_nudge = 0
       if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and not nudge_off:
-        current_nud = lane_val
-        max_nudge = self.last_nudge + NUDGE_INC
+        self.current_nud = lane_val
+        if lane_val > 0 and lane_val > self.last_nudge:
+          self.last_nudge += NUDGE_UP
+        if lane_val < 0 and lane_val < self.last_nudge:
+          self.last_nudge += NUDGE_DOWN
         self.cycles = self.cycles + 1
         if self.cycles > self.max_cycles:
           self.max_cycles = self.cycles
-        if lane_val > max_nudge:
-          lane_val = max_nudge
+        if abs(lane_val) > abs(self.last_nudge):
+          lane_val = self.last_nudge
         desired_lateral_accel += lane_val
+        max_nud = round(self.last_nudge, 4)
+        cur_nud = round(self.current_nud, 4)
         self.last_nudge = lane_val
-        max_nud = round(max_nudge, 4)
-        cur_nud = round(current_nud, 4)
-        print(f"NUD: {max_nud} VAL: {cur_nud} CYC: {self.cycles} MAX_CYC: {self.max_cycles}")
+        print(f"NUD: {max_nud} / {cur_nud} / {self.cycles} / {self.max_cycles}")
       else:
         self.last_nudge = 0
         self.cycles = 0
