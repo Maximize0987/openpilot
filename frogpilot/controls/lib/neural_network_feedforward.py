@@ -45,7 +45,8 @@ LAT_PLAN_MIN_IDX = 5
 LL_CLOSE = 1.8
 LANE_IN = [-1.05, -0.05, 0.95]      #   LANE_IN = [-1.2, -0.2, 0.8]
 NUDGE_OUT = [-0.07, 0, 0.07]
-NUDGE_INC = 0.00117    # if 20 hz
+NUDGE_UP = 0.00117    # if 20 hz
+NUDGE_DOWN = 0.00117
 #NUDGE_INC = 0.000234   # if 100 hz
 
 class FluxModel:
@@ -288,7 +289,7 @@ class LatControlNNFF(LatControl):
         max_nud = round(self.last_nudge, 4)
         cur_nud = round(self.current_nud, 4)
         self.last_nudge = lane_val
-        print(f"NUD: {max_nud} / {cur_nud} / {self.cycles} / {self.max_cycles}")
+        #print(f"NUD: {max_nud} / {cur_nud} / {self.cycles} / {self.max_cycles}")
       else:
         self.last_nudge = 0
         self.cycles = 0
