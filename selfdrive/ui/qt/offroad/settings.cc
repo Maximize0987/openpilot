@@ -523,6 +523,7 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
   FrogPilotSettingsWindow *frogpilotSettingsWindow = new FrogPilotSettingsWindow(this);
   QObject::connect(frogpilotSettingsWindow, &FrogPilotSettingsWindow::openPanel, [this]() {panelOpen=true;});
   QObject::connect(frogpilotSettingsWindow, &FrogPilotSettingsWindow::openSubPanel, [this]() {subPanelOpen=true;});
+  QObject::connect(frogpilotSettingsWindow, &FrogPilotSettingsWindow::closeSubPanel, [this]() {subPanelOpen=false;});
   QObject::connect(frogpilotSettingsWindow, &FrogPilotSettingsWindow::openSubSubPanel, [this]() {subSubPanelOpen=true;});
   QObject::connect(frogpilotSettingsWindow, &FrogPilotSettingsWindow::openSubSubSubPanel, [this]() {subSubSubPanelOpen=true;});
   QObject::connect(frogpilotSettingsWindow, &FrogPilotSettingsWindow::tuningLevelChanged, this, &SettingsWindow::updateDeveloperToggle);

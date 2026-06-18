@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <filesystem>
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/file.h>
 #include <unistd.h>
 
 #include "common/swaglog.h"
@@ -27,11 +29,91 @@ const char *ENCODER_DEV = "/dev/v4l/by-path/platform-aa00000.qcom_vidc-video-ind
 
 constexpr int MUX_TIMEBASE = 90000;
 
+constexpr int BT601_625_COLOR_SPACE = 5;
+constexpr int BT601_625_MATRIX = 5;
+constexpr int BT601_625_TRANSFER = 6;
+
 constexpr uint64_t DRAIN_TIMEOUT_NS = 3ULL * 1000000000ULL;
 
 constexpr uint64_t DRAIN_INPUT_TIMEOUT_NS = 1ULL * 1000000000ULL;
 
 constexpr int ENQUEUE_TIMEOUT_MS = 250;
+
+bool has_suffix(const std::string &name, const std::string &suffix) {
+  return name.size() >= suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+std::string suffixed_path(const std::string &path, uint64_t suffix) {
+  if (suffix == 0) {
+    return path;
+  }
+  const size_t extension_pos = path.find_last_of('.');
+  const std::string stem = extension_pos == std::string::npos ? path : path.substr(0, extension_pos);
+  const std::string extension = extension_pos == std::string::npos ? "" : path.substr(extension_pos);
+  return stem + "-" + std::to_string(suffix) + extension;
+}
+
+bool publish_recording(const std::string &source, const std::string &destination) {
+  for (uint64_t suffix = 0; ; ++suffix) {
+    const std::string candidate = suffixed_path(destination, suffix);
+    if (::link(source.c_str(), candidate.c_str()) == 0) {
+      return true;
+    }
+    if (errno == EEXIST) {
+      std::error_code equivalent_error;
+      if (std::filesystem::equivalent(source, candidate, equivalent_error) && !equivalent_error) {
+        return true;
+      }
+      continue;
+    }
+    LOGE("screenrecorder: could not publish %s: %s", candidate.c_str(), strerror(errno));
+    return false;
+  }
+}
+
+bool recover_staged_recordings(const std::string &staging_path, const std::string &recordings_path) {
+  std::error_code ec;
+  for (const auto &entry : std::filesystem::directory_iterator(staging_path, ec)) {
+    const std::string name = entry.path().filename().string();
+    std::error_code status_error;
+    const auto status = entry.symlink_status(status_error);
+    if (status_error || std::filesystem::is_symlink(status) || !std::filesystem::is_regular_file(status)) {
+      LOGE("screenrecorder: unsafe recovery entry %s", entry.path().c_str());
+      return false;
+    }
+
+    if (has_suffix(name, ".partial")) {
+      if (::unlink(entry.path().c_str()) != 0) {
+        LOGE("screenrecorder: could not remove partial staging file %s: %s", entry.path().c_str(), strerror(errno));
+        return false;
+      }
+      continue;
+    }
+    if (!has_suffix(name, ".ready")) {
+      LOGE("screenrecorder: unexpected recovery entry %s", entry.path().c_str());
+      return false;
+    }
+
+    const std::string final_name = name.substr(0, name.size() - strlen(".ready"));
+    if (!has_suffix(final_name, ".mp4")) {
+      LOGE("screenrecorder: invalid recovery entry %s", entry.path().c_str());
+      return false;
+    }
+    const std::string destination = recordings_path + "/" + final_name;
+    if (!publish_recording(entry.path().string(), destination)) {
+      return false;
+    }
+    if (::unlink(entry.path().c_str()) != 0) {
+      LOGE("screenrecorder: could not remove recovered staging file %s: %s", entry.path().c_str(), strerror(errno));
+      return false;
+    }
+  }
+  if (ec) {
+    LOGE("screenrecorder: could not inspect staging directory %s: %s", staging_path.c_str(), ec.message().c_str());
+    return false;
+  }
+  return true;
+}
 
 unsigned int request_buffers(int fd, v4l2_buf_type buf_type, unsigned int count) {
   v4l2_requestbuffers reqbuf = {
@@ -115,6 +197,7 @@ bool ScreenEncoder::open(const std::string &path) {
   }
 
   base_set = false;
+  has_queued_frame = false;
   header_written = false;
   warned_no_header = false;
   stream_error = false;
@@ -148,7 +231,9 @@ void ScreenEncoder::close() {
 
   is_open = false;
 
-  if (fd >= 0 && !stream_error) {
+  if (!has_queued_frame) {
+    stream_error = true;
+  } else if (fd >= 0 && !stream_error) {
     uint64_t drain_budget_end = nanos_since_boot() + DRAIN_INPUT_TIMEOUT_NS;
     for (int i = 0; i < BUF_IN_COUNT; i++) {
       int remaining_ms = (int)(((int64_t)drain_budget_end - (int64_t)nanos_since_boot()) / 1000000);
@@ -160,7 +245,10 @@ void ScreenEncoder::close() {
     }
 
     v4l2_encoder_cmd cmd = { .cmd = V4L2_ENC_CMD_STOP };
-    util::safe_ioctl(fd, VIDIOC_ENCODER_CMD, &cmd);
+    if (util::safe_ioctl(fd, VIDIOC_ENCODER_CMD, &cmd) != 0) {
+      LOGE("screenrecorder: encoder STOP failed");
+      stream_error = true;
+    }
   }
 
   drain_deadline_ns = nanos_since_boot() + DRAIN_TIMEOUT_NS;
@@ -212,7 +300,10 @@ bool ScreenEncoder::setup_device() {
     .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
     .parm = { .output = { .timeperframe = { .numerator = 1, .denominator = (unsigned int)fps } } },
   };
-  util::safe_ioctl(fd, VIDIOC_S_PARM, &streamparm);
+  if (util::safe_ioctl(fd, VIDIOC_S_PARM, &streamparm) != 0) {
+    LOGE("screenrecorder: S_PARM failed");
+    return false;
+  }
 
   v4l2_format fmt_in = {
     .type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
@@ -232,31 +323,26 @@ bool ScreenEncoder::setup_device() {
   in_buf_size = std::max<int>(fmt_in.fmt.pix_mp.plane_fmt[0].sizeimage,
                               VENUS_BUFFER_SIZE(COLOR_FMT_NV12, width, height));
 
-  v4l2_control shared_ctrls[] = {
+  v4l2_control controls[] = {
     { .id = V4L2_CID_MPEG_VIDEO_HEADER_MODE, .value = V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE },
     { .id = V4L2_CID_MPEG_VIDEO_BITRATE, .value = bitrate },
     { .id = V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL, .value = V4L2_CID_MPEG_VIDC_VIDEO_RATE_CONTROL_VBR_CFR },
-    { .id = V4L2_CID_MPEG_VIDC_VIDEO_PRIORITY, .value = V4L2_MPEG_VIDC_VIDEO_PRIORITY_REALTIME_DISABLE },
     { .id = V4L2_CID_MPEG_VIDC_VIDEO_IDR_PERIOD, .value = 1 },
-  };
-  for (auto &c : shared_ctrls) {
-    util::safe_ioctl(fd, VIDIOC_S_CTRL, &c);
-  }
-
-  v4l2_control h264_ctrls[] = {
-    { .id = V4L2_CID_MPEG_VIDEO_H264_PROFILE, .value = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH },
-    { .id = V4L2_CID_MPEG_VIDEO_H264_LEVEL, .value = V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN },
     { .id = V4L2_CID_MPEG_VIDC_VIDEO_NUM_P_FRAMES, .value = fps * 2 - 1 },
     { .id = V4L2_CID_MPEG_VIDC_VIDEO_NUM_B_FRAMES, .value = 0 },
+    { .id = V4L2_CID_MPEG_VIDEO_H264_PROFILE, .value = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH },
     { .id = V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE, .value = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC },
-    { .id = V4L2_CID_MPEG_VIDC_VIDEO_H264_CABAC_MODEL, .value = V4L2_CID_MPEG_VIDC_VIDEO_H264_CABAC_MODEL_0 },
-    { .id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_MODE, .value = 0 },
-    { .id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_ALPHA, .value = 0 },
-    { .id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_BETA, .value = 0 },
-    { .id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE, .value = 0 },
+    { .id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_MODE, .value = V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_ENABLED },
+    { .id = V4L2_CID_MPEG_VIDC_VIDEO_COLOR_SPACE, .value = BT601_625_COLOR_SPACE },
+    { .id = V4L2_CID_MPEG_VIDC_VIDEO_FULL_RANGE, .value = V4L2_CID_MPEG_VIDC_VIDEO_FULL_RANGE_DISABLE },
+    { .id = V4L2_CID_MPEG_VIDC_VIDEO_MATRIX_COEFFS, .value = BT601_625_MATRIX },
+    { .id = V4L2_CID_MPEG_VIDC_VIDEO_TRANSFER_CHARS, .value = BT601_625_TRANSFER },
   };
-  for (auto &c : h264_ctrls) {
-    util::safe_ioctl(fd, VIDIOC_S_CTRL, &c);
+  for (auto &c : controls) {
+    if (util::safe_ioctl(fd, VIDIOC_S_CTRL, &c) != 0) {
+      LOGE("screenrecorder: required encoder control %u failed", c.id);
+      return false;
+    }
   }
 
   unsigned int n_capture = request_buffers(fd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, BUF_OUT_COUNT);
@@ -327,9 +413,13 @@ void ScreenEncoder::teardown_device() {
   while (free_buf_in.try_pop(idx, 0)) {}
 }
 
-void ScreenEncoder::encode_frame(const uint8_t *rgb32, int stride, uint64_t ts_ns) {
+bool ScreenEncoder::can_encode_pair() const {
+  return !stream_error && free_buf_in.size() >= 2;
+}
+
+bool ScreenEncoder::encode_frame(const uint8_t *nv12, int stride, uint64_t ts_ns) {
   if (!is_open || stream_error) {
-    return;
+    return false;
   }
 
   unsigned int idx;
@@ -340,13 +430,15 @@ void ScreenEncoder::encode_frame(const uint8_t *rgb32, int stride, uint64_t ts_n
       LOGW("screenrecorder: encoder backpressure, dropping frame");
       last_drop_warn_ns = now;
     }
-    return;
+    return false;
   }
 
   VisionBuf *buf = &buf_in[idx];
   uint8_t *dst_y = (uint8_t *)buf->addr;
   uint8_t *dst_uv = dst_y + (size_t)y_stride * y_scanlines;
-  libyuv::ARGBToNV12(rgb32, stride, dst_y, y_stride, dst_uv, uv_stride, width, height);
+  const uint8_t *src_uv = nv12 + (size_t)stride * height;
+  libyuv::CopyPlane(nv12, stride, dst_y, y_stride, width, height);
+  libyuv::CopyPlane(src_uv, stride, dst_uv, uv_stride, width, (height + 1) / 2);
   buf->sync(VISIONBUF_SYNC_TO_DEVICE);
 
   struct timeval ts = {
@@ -357,7 +449,10 @@ void ScreenEncoder::encode_frame(const uint8_t *rgb32, int stride, uint64_t ts_n
     LOGE("screenrecorder: failed to queue input frame");
     free_buf_in.push(idx);
     stream_error = true;
+    return false;
   }
+  has_queued_frame = true;
+  return true;
 }
 
 void ScreenEncoder::dequeue_loop() {
@@ -391,6 +486,12 @@ void ScreenEncoder::dequeue_loop() {
       continue;
     }
 
+    if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+      LOGE("screenrecorder: fatal encoder poll event (0x%x)", pfd.revents);
+      stream_error = true;
+      break;
+    }
+
     if (pfd.revents & POLLIN) {
       unsigned int index = 0, bytesused = 0, flags = 0, data_offset = 0;
       struct timeval ts = {};
@@ -407,15 +508,22 @@ void ScreenEncoder::dequeue_loop() {
       }
 
       buf_out[index].sync(VISIONBUF_SYNC_FROM_DEVICE);
+      if (data_offset > bytesused || bytesused > buf_out[index].len) {
+        LOGE("screenrecorder: invalid encoded payload bounds (%u/%u/%zu)", data_offset, bytesused, buf_out[index].len);
+        stream_error = true;
+        break;
+      }
+
       uint8_t *data = (uint8_t *)buf_out[index].addr + data_offset;
+      const unsigned int payload_size = bytesused - data_offset;
 
       if (flags & V4L2_QCOM_BUF_FLAG_EOS) {
         exit = true;
       } else if (flags & V4L2_QCOM_BUF_FLAG_CODECCONFIG) {
-        mux_write_header(data, bytesused);
-      } else if (bytesused > 0) {
+        mux_write_header(data, payload_size);
+      } else if (payload_size > 0) {
         uint64_t ts_us = (uint64_t)ts.tv_sec * 1000000 + ts.tv_usec;
-        mux_write_packet(data, bytesused, ts_us, flags & V4L2_BUF_FLAG_KEYFRAME);
+        mux_write_packet(data, payload_size, ts_us, flags & V4L2_BUF_FLAG_KEYFRAME);
       }
 
       if (!exit && !queue_buffer(fd, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, index, &buf_out[index])) {
@@ -427,23 +535,99 @@ void ScreenEncoder::dequeue_loop() {
 
     if (pfd.revents & POLLOUT) {
       unsigned int index = 0;
-      if (dequeue_buffer(fd, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, &index) && index < BUF_IN_COUNT) {
-        free_buf_in.push(index);
+      if (!dequeue_buffer(fd, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, &index)) {
+        LOGE("screenrecorder: output DQBUF failed");
+        stream_error = true;
+        break;
       }
+      if (index >= BUF_IN_COUNT) {
+        LOGE("screenrecorder: output DQBUF returned out-of-range index %u", index);
+        stream_error = true;
+        break;
+      }
+      free_buf_in.push(index);
     }
   }
 }
 
 bool ScreenEncoder::setup_muxer(const std::string &path) {
-  vid_path = path;
-  lock_path = path + ".lock";
+  const size_t extension_pos = path.find_last_of('.');
+  const std::string stem = extension_pos == std::string::npos ? path : path.substr(0, extension_pos);
+  const std::string extension = extension_pos == std::string::npos ? "" : path.substr(extension_pos);
+  const size_t separator_pos = path.find_last_of('/');
+  const std::string directory = separator_pos == std::string::npos ? "." : path.substr(0, separator_pos);
+  const std::string recordings_lock_path = directory + ".lock";
+  const std::string staging_directory = directory + ".in_progress";
 
-  int lock_fd = ::open(lock_path.c_str(), O_RDWR | O_CREAT, 0664);
-  if (lock_fd >= 0) {
-    ::close(lock_fd);
+  recordings_lock_fd = ::open(recordings_lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0664);
+  if (recordings_lock_fd < 0) {
+    LOGE("screenrecorder: could not coordinate %s: %s", recordings_lock_path.c_str(), strerror(errno));
+    return false;
   }
 
-  avformat_alloc_output_context2(&ofmt_ctx, NULL, NULL, vid_path.c_str());
+  bool exclusive = ::flock(recordings_lock_fd, LOCK_EX | LOCK_NB) == 0;
+  if (!exclusive && errno != EWOULDBLOCK && errno != EAGAIN) {
+    LOGE("screenrecorder: could not inspect %s: %s", recordings_lock_path.c_str(), strerror(errno));
+    return false;
+  }
+  if (!exclusive) {
+    if (::flock(recordings_lock_fd, LOCK_SH | LOCK_NB) != 0) {
+      LOGE("screenrecorder: another screen-recording mutation is in progress");
+      return false;
+    }
+  }
+
+  if (!util::create_directories(staging_directory, 0775)) {
+    LOGE("screenrecorder: could not create staging directory %s", staging_directory.c_str());
+    return false;
+  }
+  std::error_code staging_error;
+  const auto staging_status = std::filesystem::symlink_status(staging_directory, staging_error);
+  if (staging_error || std::filesystem::is_symlink(staging_status) || !std::filesystem::is_directory(staging_status)) {
+    LOGE("screenrecorder: unsafe staging directory %s", staging_directory.c_str());
+    return false;
+  }
+  if (exclusive) {
+    if (!recover_staged_recordings(staging_directory, directory)) {
+      return false;
+    }
+  }
+  if (exclusive) {
+    if (::flock(recordings_lock_fd, LOCK_SH) != 0) {
+      LOGE("screenrecorder: could not enter recording mode: %s", strerror(errno));
+      return false;
+    }
+  }
+
+  for (uint64_t suffix = 0; ; ++suffix) {
+    const std::string candidate = suffix == 0 ? path : stem + "-" + std::to_string(suffix) + extension;
+    const size_t candidate_separator = candidate.find_last_of('/');
+    const std::string candidate_name = candidate_separator == std::string::npos ? candidate : candidate.substr(candidate_separator + 1);
+    const std::string staging_path = staging_directory + "/" + candidate_name + ".partial";
+    std::error_code ready_error;
+    if (std::filesystem::exists(staging_directory + "/" + candidate_name + ".ready", ready_error)) {
+      continue;
+    }
+    if (ready_error) {
+      LOGE("screenrecorder: could not inspect recovery path for %s: %s", candidate.c_str(), ready_error.message().c_str());
+      return false;
+    }
+    int staging_fd = ::open(staging_path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0664);
+    if (staging_fd < 0) {
+      if (errno == EEXIST) {
+        continue;
+      }
+      LOGE("screenrecorder: could not reserve %s: %s", staging_path.c_str(), strerror(errno));
+      return false;
+    }
+    ::close(staging_fd);
+    vid_path = staging_path;
+    break;
+  }
+
+  final_path = path;
+  recordings_dir = directory;
+  avformat_alloc_output_context2(&ofmt_ctx, NULL, "mp4", vid_path.c_str());
   if (!ofmt_ctx) {
     LOGE("screenrecorder: avformat_alloc_output_context2 failed for %s", vid_path.c_str());
     return false;
@@ -481,14 +665,24 @@ bool ScreenEncoder::setup_muxer(const std::string &path) {
 }
 
 void ScreenEncoder::teardown_muxer() {
+  bool completed = false;
   if (ofmt_ctx) {
+    int trailer_result = -1;
     if (header_written) {
-      av_write_trailer(ofmt_ctx);
+      trailer_result = av_write_trailer(ofmt_ctx);
+      if (trailer_result < 0) {
+        LOGE("screenrecorder: av_write_trailer failed (%d)", trailer_result);
+      }
     }
 
+    int close_result = 0;
     if (ofmt_ctx->pb) {
-      avio_closep(&ofmt_ctx->pb);
+      close_result = avio_closep(&ofmt_ctx->pb);
+      if (close_result < 0) {
+        LOGE("screenrecorder: avio_closep failed (%d)", close_result);
+      }
     }
+    completed = header_written && !stream_error && trailer_result >= 0 && close_result >= 0;
 
     avformat_free_context(ofmt_ctx);
     ofmt_ctx = nullptr;
@@ -500,15 +694,50 @@ void ScreenEncoder::teardown_muxer() {
 
   out_stream = nullptr;
 
-  if (!header_written && !vid_path.empty()) {
-    unlink(vid_path.c_str());
+  bool ready = false;
+  if (completed && !vid_path.empty()) {
+    const std::string ready_path = vid_path.substr(0, vid_path.size() - std::string(".partial").size()) + ".ready";
+    if (::link(vid_path.c_str(), ready_path.c_str()) == 0) {
+      if (::unlink(vid_path.c_str()) != 0 && errno != ENOENT) {
+        LOGE("screenrecorder: could not remove completed partial file %s: %s", vid_path.c_str(), strerror(errno));
+      }
+      vid_path = ready_path;
+      ready = true;
+    } else {
+      const int link_error = errno;
+      std::error_code equivalent_error;
+      if (link_error == EEXIST && std::filesystem::equivalent(vid_path, ready_path, equivalent_error) && !equivalent_error) {
+        if (::unlink(vid_path.c_str()) != 0 && errno != ENOENT) {
+          LOGE("screenrecorder: could not remove completed partial file %s: %s", vid_path.c_str(), strerror(errno));
+        }
+        vid_path = ready_path;
+        ready = true;
+      } else {
+        LOGE("screenrecorder: could not mark completed staging file %s for recovery: %s", vid_path.c_str(), strerror(link_error));
+      }
+    }
   }
 
-  if (!lock_path.empty()) {
-    unlink(lock_path.c_str());
-    lock_path.clear();
+  bool published = false;
+  if (ready && util::create_directories(recordings_dir, 0775)) {
+    published = publish_recording(vid_path, final_path);
+  }
+  if ((!completed || published) && !vid_path.empty() && ::unlink(vid_path.c_str()) != 0 && errno != ENOENT) {
+    LOGE("screenrecorder: could not remove staging file %s: %s", vid_path.c_str(), strerror(errno));
+  }
+  if (ready && !published) {
+    LOGE("screenrecorder: completed recording retained in staging for recovery");
+  } else if (completed && !ready) {
+    LOGE("screenrecorder: completed recording could not be marked for recovery");
   }
 
+  if (recordings_lock_fd >= 0) {
+    ::close(recordings_lock_fd);
+    recordings_lock_fd = -1;
+  }
+
+  final_path.clear();
+  recordings_dir.clear();
   vid_path.clear();
   base_set = false;
   base_ts_us = 0;

@@ -13,28 +13,8 @@ void DrivingPersonalityButton::showEvent(QShowEvent *event) {
 }
 
 void DrivingPersonalityButton::updateTheme() {
-  for (QMap<int, QPair<QPixmap, QSharedPointer<QMovie>>>::iterator it = icon_map.begin(); it != icon_map.end(); ++it) {
-    QSharedPointer<QMovie> &movie = it.value().second;
-    if (!movie.isNull()) {
-      QObject::disconnect(movie.data(), nullptr, this, nullptr);
-      movie->stop();
-    }
-  }
-
-  icon_map.clear();
-
-  QPixmap traffic_img, aggressive_img, standard_img, relaxed_img;
-  QSharedPointer<QMovie> traffic_gif, aggressive_gif, standard_gif, relaxed_gif;
-
-  loadImage("../../frogpilot/assets/active_theme/distance_icons/traffic", traffic_img, traffic_gif, QSize(btn_size, btn_size), this);
-  loadImage("../../frogpilot/assets/active_theme/distance_icons/aggressive", aggressive_img, aggressive_gif, QSize(btn_size, btn_size), this);
-  loadImage("../../frogpilot/assets/active_theme/distance_icons/standard", standard_img, standard_gif, QSize(btn_size, btn_size), this);
-  loadImage("../../frogpilot/assets/active_theme/distance_icons/relaxed", relaxed_img, relaxed_gif, QSize(btn_size, btn_size), this);
-
-  icon_map.insert(0, qMakePair(traffic_img, traffic_gif));
-  icon_map.insert(1, qMakePair(aggressive_img, aggressive_gif));
-  icon_map.insert(2, qMakePair(standard_img, standard_gif));
-  icon_map.insert(3, qMakePair(relaxed_img, relaxed_gif));
+  currentGif.clear();
+  currentImg = QPixmap();
 
   theme_updated = true;
 }
@@ -63,9 +43,18 @@ void DrivingPersonalityButton::updateState(const UIState &s, const FrogPilotUISt
 
   theme_updated = false;
 
-  QPair<QPixmap, QSharedPointer<QMovie>> icon = icon_map.value(traffic_mode_active ? 0 : personality);
-  currentImg = icon.first;
-  currentGif = icon.second.data();
+  QString icon;
+  if (traffic_mode_active) {
+    icon = "traffic";
+  } else if (personality == 1) {
+    icon = "aggressive";
+  } else if (personality == 2) {
+    icon = "standard";
+  } else if (personality == 3) {
+    icon = "relaxed";
+  }
+
+  loadImage("../../frogpilot/assets/active_theme/distance_icons/" + icon, currentImg, currentGif, QSize(btn_size, btn_size), this);
 }
 
 void DrivingPersonalityButton::paintEvent(QPaintEvent *event) {

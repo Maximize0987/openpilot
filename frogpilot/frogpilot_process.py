@@ -30,13 +30,15 @@ def check_assets(now, theme_manager, thread_manager, params, params_memory, frog
 
   report_data = params_memory.get("IssueReported")
   if report_data:
-    capture_report(report_data["DiscordUser"], report_data["Issue"], params, vars(frogpilot_toggles))
+    thread_manager.run_with_lock(capture_report, (report_data["DiscordUser"], report_data["Issue"], params, dict(vars(frogpilot_toggles))))
     params_memory.remove("IssueReported")
 
   if params_memory.get_bool("DownloadMaps"):
     thread_manager.run_with_lock(update_maps, (now, params, params_memory, True))
 
 def transition_offroad(frogpilot_planner, theme_manager, thread_manager, time_validated, sm, params, frogpilot_toggles):
+  frogpilot_planner.frogpilot_vcruise.slc.close()
+
   params.put("LastGPSPosition", json.dumps(frogpilot_planner.gps_position))
 
   if frogpilot_toggles.lock_doors_timer != 0:
@@ -46,7 +48,7 @@ def transition_offroad(frogpilot_planner, theme_manager, thread_manager, time_va
     theme_manager.update_active_theme(time_validated, frogpilot_toggles, randomize_theme=True)
 
   if time_validated:
-    thread_manager.run_with_lock(send_stats, (frogpilot_planner.gps_position, params, frogpilot_toggles))
+    thread_manager.run_with_lock(send_stats, (params, frogpilot_toggles))
 
 def transition_onroad(error_log):
   if error_log.is_file():
@@ -90,7 +92,7 @@ def frogpilot_thread():
 
   pm = messaging.PubMaster(["frogpilotPlan"])
   sm = messaging.SubMaster(["carControl", "carState", "controlsState", "deviceState", "driverMonitoringState",
-                            "gpsLocation", "gpsLocationExternal", "liveParameters", "managerState", "modelV2",
+                            "gpsLocation", "gpsLocationExternal", "liveParameters", "liveTorqueParameters", "managerState", "modelV2",
                             "onroadEvents", "pandaStates", "radarState", "selfdriveState", "frogpilotCarState",
                             "frogpilotSelfdriveState", "frogpilotModelV2", "frogpilotOnroadEvents", "mapdOut"],
                             poll="modelV2")
@@ -130,6 +132,10 @@ def frogpilot_thread():
 
       transition_onroad(error_log)
 
+    if theme_manager.theme_updated:
+      frogpilot_variables.update(theme_manager.holiday_theme, started)
+      frogpilot_toggles = frogpilot_variables.frogpilot_toggles
+
     if started and sm.updated["modelV2"]:
       frogpilot_planner.update(now, time_validated, sm, frogpilot_toggles)
       frogpilot_planner.publish(theme_manager.theme_updated, sm, pm, frogpilot_toggles)
@@ -160,14 +166,13 @@ def frogpilot_thread():
       run_update_checks = False
     elif not time_validated:
       time_validated = system_time_valid()
-      if not time_validated:
-        continue
 
-      theme_manager.update_active_theme(time_validated, frogpilot_toggles)
+      if time_validated:
+        theme_manager.update_active_theme(time_validated, frogpilot_toggles)
 
-      thread_manager.run_with_lock(backup_toggles, (params, True))
-      thread_manager.run_with_lock(send_stats, (json.loads(params.get("LastGPSPosition") or "{}"), params, frogpilot_toggles))
-      thread_manager.run_with_lock(update_checks, (now, theme_manager, thread_manager, params, params_memory, frogpilot_toggles, True))
+        thread_manager.run_with_lock(backup_toggles, (params, True))
+        thread_manager.run_with_lock(send_stats, (params, frogpilot_toggles))
+        thread_manager.run_with_lock(update_checks, (now, theme_manager, thread_manager, params, params_memory, frogpilot_toggles, True))
 
     rate_keeper.keep_time()
 

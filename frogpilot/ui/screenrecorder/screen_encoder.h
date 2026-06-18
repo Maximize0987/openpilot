@@ -20,12 +20,11 @@ public:
 
   bool open(const std::string &path);
 
+  bool can_encode_pair() const;
   void close();
-  void encode_frame(const uint8_t *rgb32, int stride, uint64_t ts_ns);
+  bool encode_frame(const uint8_t *nv12, int stride, uint64_t ts_ns);
 
   bool ok() const { return is_open.load() && !stream_error.load(); }
-
-  std::atomic<bool> is_open{false};
 
 private:
   bool setup_device();
@@ -51,6 +50,7 @@ private:
 
   int fd = -1;
   int in_buf_size = 0;
+  int recordings_lock_fd = -1;
   int uv_stride = 0;
   int y_scanlines = 0;
   int y_stride = 0;
@@ -59,6 +59,8 @@ private:
 
   int64_t last_dts = -1;
 
+  bool has_queued_frame = false;
+  std::atomic<bool> is_open{false};
   std::atomic<bool> stream_error{false};
 
   std::atomic<uint64_t> drain_deadline_ns{0};
@@ -74,6 +76,7 @@ private:
   AVFormatContext *ofmt_ctx = nullptr;
   AVStream *out_stream = nullptr;
 
-  std::string lock_path;
+  std::string final_path;
+  std::string recordings_dir;
   std::string vid_path;
 };

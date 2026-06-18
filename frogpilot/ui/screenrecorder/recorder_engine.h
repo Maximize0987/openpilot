@@ -18,7 +18,10 @@ public:
   ~RecorderEngine();
 
   bool is_recording() const { return recording; }
+  bool stop_complete() const { return worker_finished; }
   bool start();
+  bool can_accept_frame() const;
+  void request_stop();
 
   void stop();
   void submit_frame(QImage &&frame, uint64_t ts_ns);
@@ -30,13 +33,15 @@ private:
     uint64_t ts_ns;
   };
 
+  bool acquire_recordings_lock();
   bool open_segment();
-
-  const QImage &blend_frames(const QImage &a, const QImage &b);
+  void release_recordings_lock();
 
   void worker_loop();
 
   static constexpr size_t MAX_QUEUE = 4;
+
+  static std::atomic<bool> engine_active;
 
   const int bitrate;
   const int fps;
@@ -45,16 +50,18 @@ private:
 
   uint64_t segment_start_ns = 0;
 
-  QImage blend_buf;
   bool size_warned = false;
 
   std::atomic<bool> recording{false};
+  std::atomic<bool> worker_finished{true};
 
   std::condition_variable q_cv;
 
   std::deque<CapturedFrame> queue;
 
-  std::mutex q_mutex;
+  mutable std::mutex q_mutex;
+
+  int recordings_lock_fd = -1;
 
   std::string segment_path() const;
 

@@ -12,8 +12,11 @@ public:
   explicit ScreenRecorder(QWidget *parent = nullptr);
   ~ScreenRecorder();
 
-  void startRecording();
+  bool startRecording();
   void stopRecording();
+
+signals:
+  void recordingStateChanged(bool recording);
 
 protected:
   void paintEvent(QPaintEvent *event) override;
@@ -29,6 +32,7 @@ private:
   QColor whiteColor(int alpha = 255) { return QColor(255, 255, 255, alpha); }
 
   bool recording = false;
+  bool stopping = false;
 
   int frameCount = 0;
 

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cmath>
-#include <iostream>
 #include <set>
+#include <utility>
 
 #include <QElapsedTimer>
 #include <QJsonObject>
@@ -11,6 +11,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QStyle>
+#include <QTimer>
 
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/widgets/controls.h"
@@ -18,10 +19,27 @@
 bool isFrogsGoMoo();
 bool useKonikServer();
 
-void loadGif(const QString &gifPath, QSharedPointer<QMovie> &movie, const QSize &size, QWidget *parent);
+void loadGif(const QString &gifPath, QSharedPointer<QMovie> &movie, const QSize &size, QWidget *parent, bool repaintOnFrame = true);
 void loadImage(const QString &basePath, QPixmap &pixmap, QSharedPointer<QMovie> &movie, const QSize &size, QWidget *parent);
-void openDescriptions(bool forceOpenDescriptions, std::map<QString, AbstractControl*> toggles);
 void updateFrogPilotToggles();
+
+template <typename T>
+void openDescriptions(bool forceOpenDescriptions, const std::map<QString, T> &toggles) {
+  if (!forceOpenDescriptions) {
+    return;
+  }
+
+  for (const auto &[key, toggle] : toggles) {
+    if (AbstractControl *control = qobject_cast<AbstractControl*>(toggle)) {
+      control->showDescription();
+    }
+  }
+}
+
+template <typename Function>
+void runOnUIThread(QObject *context, Function &&function) {
+  QTimer::singleShot(0, context, std::forward<Function>(function));
+}
 
 QString cleanModelName(QString modelName);
 
@@ -50,8 +68,6 @@ class FrogPilotConfirmationDialog : public ConfirmationDialog {
   Q_OBJECT
 
 public:
-  explicit FrogPilotConfirmationDialog(const QString &prompt_text, const QString &confirm_text,
-                                       const QString &cancel_text, const bool rich, QWidget *parent);
   static bool toggleReboot(QWidget *parent);
   static bool yesorno(const QString &prompt_text, QWidget *parent);
 };
@@ -103,7 +119,7 @@ private:
         }
       }
 
-      if (widget == nullptr || (widget->isVisible() && nextWidget->isVisible())) {
+      if (widget == nullptr || (widget->isVisible() && nextWidget != nullptr && nextWidget->isVisible())) {
         QRect r = inner_layout.itemAt(i)->geometry();
         int bottom = r.bottom() + inner_layout.spacing() / 2;
         p.drawLine(r.left() + 40, bottom, r.right() - 40, bottom);
@@ -133,10 +149,11 @@ public:
       button_group->addButton(button, i);
     }
 
+    hlayout->removeWidget(&toggle);
     hlayout->addWidget(&toggle);
 
-    QObject::connect(button_group, QOverload<int>::of(&QButtonGroup::buttonClicked), [=](int id) {
-      emit buttonClicked(id);
+    QObject::connect(button_group, QOverload<int>::of(&QButtonGroup::buttonClicked), [this](int id) {
+      onButtonClicked(id);
     });
 
     QObject::connect(this, &ToggleControl::toggleFlipped, this, &FrogPilotButtonControl::refresh);
@@ -189,6 +206,10 @@ signals:
   void buttonClicked(int id);
 
 protected:
+  virtual void onButtonClicked(int id) {
+    emit buttonClicked(id);
+  }
+
   std::string key;
 
   Params params;
@@ -206,7 +227,6 @@ public:
     button_group->setExclusive(exclusive);
     for (int i = 0; i < button_texts.size(); i++) {
       QPushButton *button = new QPushButton(button_texts[i], this);
-      button->installEventFilter(this);
       button->setCheckable(checkable);
       button->setStyleSheet(buttonStyle);
       button->setMinimumWidth(minimum_button_width);
@@ -237,7 +257,7 @@ public:
     }
   }
 
-  void setEnabled(bool enable) {
+  void setButtonsEnabled(bool enable) {
     for (QAbstractButton *button : button_group->buttons()) {
       button->setEnabled(enable);
     }
@@ -263,18 +283,6 @@ public:
 
 signals:
   void buttonClicked(int id);
-  void disabledButtonClicked(int id);
-
-protected:
-  bool eventFilter(QObject *obj, QEvent *event) override {
-    if (event->type() == QEvent::MouseButtonPress) {
-      QPushButton *button = qobject_cast<QPushButton *>(obj);
-      if (button && !button->isEnabled()) {
-        emit disabledButtonClicked(button_group->id(button));
-      }
-    }
-    return AbstractControl::eventFilter(obj, event);
-  }
 
 private:
   QButtonGroup *button_group;
@@ -291,11 +299,12 @@ public:
     for (int i = 0; i < button_texts.size(); i++) {
       button_group->buttons()[i]->setChecked(params.getBool(button_params[i].toStdString()));
     }
+  }
 
-    QObject::connect(button_group, QOverload<int>::of(&QButtonGroup::buttonClicked), [=](int id) {
-      params.putBool(button_params[id].toStdString(), button_group->button(id)->isChecked());
-      emit buttonClicked(id);
-    });
+  void onButtonClicked(int id) override {
+    params.putBool(button_params[id].toStdString(), button_group->button(id)->isChecked());
+
+    emit buttonClicked(id);
   }
 
   void refresh() override {
@@ -319,7 +328,7 @@ public:
 
     manageButton = new ButtonControl("", tr("MANAGE"), "", this);
 
-    hlayout->insertWidget(hlayout->indexOf(&toggle) - 1, manageButton);
+    hlayout->insertWidget(hlayout->indexOf(&toggle), manageButton);
 
     QObject::connect(manageButton, &ButtonControl::clicked, this, &FrogPilotManageControl::manageButtonClicked);
     QObject::connect(this, &ToggleControl::toggleFlipped, this, &FrogPilotManageControl::refresh);
@@ -327,10 +336,6 @@ public:
 
   void refresh() {
     manageButton->setEnabled(params.getBool(key));
-  }
-
-  void setManageVisibility(bool visible) {
-    manageButton->setVisible(visible);
   }
 
   void showEvent(QShowEvent *event) override {
@@ -381,7 +386,11 @@ public:
 
   void decrementPressed() {
     if (display_warning && !warning_shown) {
+      decrement_button.setDown(false);
+
       showWarning();
+
+      return;
     }
 
     if (last_action_timer.isValid() && last_action_timer.elapsed() > decrement_button.autoRepeatInterval() + 50) {
@@ -410,7 +419,11 @@ public:
 
   void incrementPressed() {
     if (display_warning && !warning_shown) {
+      increment_button.setDown(false);
+
       showWarning();
+
+      return;
     }
 
     if (last_action_timer.isValid() && last_action_timer.elapsed() > increment_button.autoRepeatInterval() + 50) {
@@ -429,16 +442,14 @@ public:
     last_action_timer.restart();
   }
 
-  void refresh() {
-    if (key_type == ParamKeyType::INT) {
-      value = std::clamp(std::round(params.getInt(key) * factor) / factor, min_value, max_value);
-    } else {
-      value = std::clamp(std::round(params.getFloat(key) * factor) / factor, min_value, max_value);
-    }
-    previous_value = value;
+  virtual void refresh() {
+    float stored = key_type == ParamKeyType::INT ? std::round(params.getInt(key) * factor) / factor
+                                                 : std::round(params.getFloat(key) * factor) / factor;
+
+    value = std::clamp(stored, min_value, max_value);
+    previous_value = stored;
 
     updateDisplay();
-    updateParam();
   }
 
   void setWarning(const QString &newWarning) {
@@ -464,9 +475,12 @@ public:
   }
 
   void showWarning() {
+    warning_shown = true;
+
     ConfirmationDialog::alert(warning, this);
 
-    warning_shown = true;
+    decrement_button.setDown(false);
+    increment_button.setDown(false);
   }
 
   void updateControl(const float &newMinValue, const float &newMaxValue, const std::map<float, QString> &newValueLabels = {}) {
@@ -507,7 +521,7 @@ public:
   }
 
   void updateValue() {
-    value = std::round(value * factor) / factor;
+    value = std::clamp(std::round(value * factor) / factor, min_value, max_value);
 
     emit valueChanged(value);
 
@@ -521,18 +535,18 @@ protected:
   QLabel *value_label;
 
 private:
-  bool decrement_repeating;
-  bool display_warning;
+  bool decrement_repeating = false;
+  bool display_warning = false;
   bool fast_increase;
-  bool increment_repeating;
-  bool warning_shown;
+  bool increment_repeating = false;
+  bool warning_shown = false;
 
   float interval;
   float factor;
   float max_value;
   float min_value;
-  float previous_value;
-  float value;
+  float previous_value = 0.0f;
+  float value = 0.0f;
 
   std::map<float, QString> value_labels;
 
@@ -584,7 +598,7 @@ public:
     });
   }
 
-  void refresh() {
+  void refresh() override {
     if (checkable) {
       for (int i = 0; i < button_group->buttons().size(); i++) {
         QAbstractButton *button = button_group->button(i);
@@ -592,11 +606,6 @@ public:
       }
     }
     FrogPilotParamValueControl::refresh();
-  }
-
-  void showEvent(QShowEvent *event) override {
-    refresh();
-    FrogPilotParamValueControl::showEvent(event);
   }
 
 public:

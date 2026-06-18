@@ -19,11 +19,11 @@ public:
   void updateState(const UIState &s, const FrogPilotUIState &fs);
 
   // FrogPilot variables
-  double fps;
+  double fps = 0;
 
   FrogPilotAnnotatedCameraWidget *frogpilot_nvg;
 
-  FrogPilotUIScene frogpilot_scene;
+  FrogPilotUIScene frogpilot_scene = {};
 
   QJsonObject frogpilot_toggles;
 

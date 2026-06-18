@@ -14,9 +14,11 @@ class FrogPilotSettingsWindow : public QFrame {
 public:
   explicit FrogPilotSettingsWindow(SettingsWindow *parent);
 
+  void updateTuningLevel();
   void updateVariables();
 
   bool canUsePedal = false;
+  bool carDetected = false;
   bool canUseSDSU = false;
   bool forceOpenDescriptions = false;
   bool hasAlphaLongitudinal = false;
@@ -32,7 +34,6 @@ public:
   bool hasSNG = false;
   bool hasZSS = false;
   bool isAngleCar = false;
-  bool isBolt = false;
   bool isFrogsGoMoo = false;
   bool isGM = true;
   bool isHKG = true;
@@ -79,19 +80,20 @@ private:
   void hideEvent(QHideEvent *event) override;
   void showEvent(QShowEvent *event) override;
   void updateState();
-  void updateTuningLevel();
 
   bool panelOpen;
 
   std::string carMake;
 
-  FrogPilotButtonsControl *drivingPanelButtons;
-  FrogPilotButtonsControl *navigationPanelButtons;
-  FrogPilotButtonsControl *soundPanelButtons;
-  FrogPilotButtonsControl *systemPanelButtons;
-  FrogPilotButtonsControl *themePanelButtons;
-  FrogPilotButtonsControl *togglePreset;
-  FrogPilotButtonsControl *vehiclePanelButtons;
+  FrogPilotButtonsControl *drivingPanelButtons = nullptr;
+  FrogPilotButtonsControl *navigationPanelButtons = nullptr;
+  FrogPilotButtonsControl *soundPanelButtons = nullptr;
+  FrogPilotButtonsControl *systemPanelButtons = nullptr;
+  FrogPilotButtonsControl *themePanelButtons = nullptr;
+  FrogPilotButtonsControl *togglePreset = nullptr;
+  FrogPilotButtonsControl *vehiclePanelButtons = nullptr;
+
+  ParamWatcher *carParamsWatcher = nullptr;
 
   Params params;
 

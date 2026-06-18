@@ -32,82 +32,67 @@ void clearMovie(QSharedPointer<QMovie> &movie, QWidget *parent) {
   movie.reset();
 }
 
-void loadGif(const QString &gifPath, QSharedPointer<QMovie> &movie, const QSize &size, QWidget *parent) {
-  if (!parent || gifPath.isEmpty()) {
+void loadGif(const QString &gifPath, QSharedPointer<QMovie> &movie, const QSize &size, QWidget *parent, bool repaintOnFrame) {
+  if (!parent) {
     return;
   }
 
-  if (movie && movie->fileName() == gifPath && movie->state() == QMovie::Running) {
+  if (gifPath.isEmpty()) {
+    clearMovie(movie, parent);
+    return;
+  }
+
+  QFileInfo gifInfo(gifPath);
+  if (!gifInfo.exists()) {
+    clearMovie(movie, parent);
+    return;
+  }
+
+  QString sourcePath = gifInfo.canonicalFilePath();
+  if (sourcePath.isEmpty()) {
+    sourcePath = gifInfo.absoluteFilePath();
+  }
+
+  if (movie && movie->property("sourcePath").toString() == sourcePath && movie->state() == QMovie::Running) {
     if (movie->scaledSize() != size) {
       movie->setScaledSize(size);
     }
     return;
   }
 
-  if (!QFileInfo::exists(gifPath)) {
-    clearMovie(movie, parent);
-    return;
-  }
-
   clearMovie(movie, parent);
 
   movie = QSharedPointer<QMovie>::create(gifPath);
+  movie->setProperty("sourcePath", sourcePath);
   movie->setCacheMode(QMovie::CacheAll);
   movie->setScaledSize(size);
 
-  QPointer<QWidget> safeParent(parent);
-  QObject::connect(movie.data(), &QMovie::frameChanged, parent, [safeParent]() {
-    if (safeParent && safeParent->isVisible()) {
-      safeParent->update();
-    }
-  }, Qt::UniqueConnection);
+  if (repaintOnFrame) {
+    QPointer<QWidget> safeParent(parent);
+    QObject::connect(movie.data(), &QMovie::frameChanged, parent, [safeParent]() {
+      if (safeParent && safeParent->isVisible()) {
+        safeParent->update();
+      }
+    });
+  }
 
   movie->start();
 }
 
 void loadImage(const QString &basePath, QPixmap &pixmap, QSharedPointer<QMovie> &movie, const QSize &size, QWidget *parent) {
-  if (!parent || basePath.isEmpty()) {
+  if (!parent) {
     return;
   }
 
-  static QHash<QString, QPixmap> pixmapCache;
-  QString cacheKey = basePath + QString("_%1x%2").arg(size.width()).arg(size.height());
-
-  QString gifPath = basePath + ".gif";
+  const QString gifPath = basePath + ".gif";
   if (QFileInfo::exists(gifPath)) {
-    loadGif(gifPath, movie, size, parent);
-    if (!pixmap.isNull()) {
-      pixmap = QPixmap();
-    }
-    return;
-  }
-
-  clearMovie(movie, parent);
-
-  if (pixmapCache.contains(cacheKey)) {
-    QPixmap &cached = pixmapCache[cacheKey];
-    if (pixmap.cacheKey() != cached.cacheKey()) {
-      pixmap = cached;
-      parent->update();
-    }
-    return;
-  }
-
-  QString pngPath = basePath + ".png";
-  if (!QFileInfo::exists(pngPath)) {
-    if (!pixmap.isNull()) {
-      pixmap = QPixmap();
-      parent->update();
-    }
-    return;
-  }
-
-  QPixmap loadedPixmap(pngPath);
-  if (!loadedPixmap.isNull()) {
-    pixmap = loadedPixmap.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    pixmapCache.insert(cacheKey, pixmap);
-  } else {
     pixmap = QPixmap();
+    loadGif(gifPath, movie, size, parent);
+  } else {
+    clearMovie(movie, parent);
+
+    QPixmap loadedPixmap(basePath + ".png");
+    pixmap = loadedPixmap.isNull() ? QPixmap() : loadedPixmap.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
   }
 
   parent->update();

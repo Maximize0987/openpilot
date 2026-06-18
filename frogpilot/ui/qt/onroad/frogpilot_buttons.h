@@ -15,16 +15,14 @@ private:
   void showEvent(QShowEvent *event) override;
   void updateTheme();
 
-  bool theme_updated;
-  bool traffic_mode_active;
+  bool theme_updated = true;
+  bool traffic_mode_active = false;
 
-  int personality;
+  int personality = 0;
 
   Params params_memory{"", true};
 
-  QMap<int, QPair<QPixmap, QSharedPointer<QMovie>>> icon_map;
-
-  QMovie *currentGif;
+  QSharedPointer<QMovie> currentGif;
 
   QPixmap currentImg;
 };
