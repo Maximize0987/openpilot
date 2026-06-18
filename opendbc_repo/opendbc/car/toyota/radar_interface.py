@@ -7,7 +7,7 @@ from opendbc.car.interfaces import RadarInterfaceBase
 import numpy as np
 
 xdistance = np.array([0, 230], dtype=np.float32)
-yoffset = np.array([0.0, 0.165], dtype=np.float32)
+yoffset = np.array([0.0, 0.18], dtype=np.float32)
 
 def _create_radar_can_parser(car_fingerprint):
   if car_fingerprint in TSS2_CAR:
