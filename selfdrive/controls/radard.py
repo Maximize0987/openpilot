@@ -215,8 +215,8 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
              model_v_ego: float, model_data: capnp._DynamicStructReader,
              frogpilot_plan: capnp._DynamicStructReader, frogpilot_toggles: SimpleNamespace,
              low_speed_override: bool = True) -> dict[str, Any]:
-  left_lane = interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[1].x, model_data.laneLines[1].y)
-  right_lane = interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[2].x, model_data.laneLines[2].y)
+  left_lane = np.interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[1].x, model_data.laneLines[1].y)
+  right_lane = np.interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[2].x, model_data.laneLines[2].y)
   # Determine leads, this is where the essential logic happens
   if len(tracks) > 0 and ready and lead_msg.prob > (frogpilot_toggles.lead_detection_probability * 1.5):
     track = match_vision_to_track(v_ego, lead_msg, model_data, tracks, frogpilot_toggles)
