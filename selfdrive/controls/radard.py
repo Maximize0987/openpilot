@@ -143,11 +143,11 @@ class Track:
     left_lane = np.interp(self.dRel, model_data.laneLines[1].x, model_data.laneLines[1].y)
     right_lane = np.interp(self.dRel, model_data.laneLines[2].x, model_data.laneLines[2].y)
 
-    if left_lane < -self.yRel < right_lane and self.dRel < model_data.position.x[-1] and self.vLeadK > 1:
-      self.radarfulFilter.update(1)
+    if left_lane < -self.yRel < right_lane and self.dRel < model_data.position.x[-1] and self.vLeadK > 1 and abs(self.dRel) > 105:  #  if left_lane < -self.yRel < right_lane and self.dRel < model_data.position.x[-1] and self.vLeadK > 1:
+      #self.radarfulFilter.update(1)
       return True
     else:
-      self.radarfulFilter.update(0)
+      #self.radarfulFilter.update(0)
       return False
 
 
@@ -215,8 +215,10 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
              model_v_ego: float, model_data: capnp._DynamicStructReader,
              frogpilot_plan: capnp._DynamicStructReader, frogpilot_toggles: SimpleNamespace,
              low_speed_override: bool = True) -> dict[str, Any]:
+  left_lane = interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[1].x, model_data.laneLines[1].y)
+  right_lane = interp(float(lead_msg.x[0] - RADAR_TO_CAMERA), model_data.laneLines[2].x, model_data.laneLines[2].y)
   # Determine leads, this is where the essential logic happens
-  if len(tracks) > 0 and ready and lead_msg.prob > frogpilot_toggles.lead_detection_probability:
+  if len(tracks) > 0 and ready and lead_msg.prob > (frogpilot_toggles.lead_detection_probability * 1.5):
     track = match_vision_to_track(v_ego, lead_msg, model_data, tracks, frogpilot_toggles)
   else:
     track = None
@@ -224,7 +226,7 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
   lead_dict = {'status': False}
   if track is not None:
     lead_dict = track.get_RadarState(lead_msg.prob)
-  elif (track is None) and ready and (lead_msg.prob > frogpilot_toggles.lead_detection_probability):
+  elif (track is None) and ready and (lead_msg.prob > (frogpilot_toggles.lead_detection_probability * 1.5)) and (left_lane < float(lead_msg.y[0]) < right_lane):
     lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)
 
   if low_speed_override:
@@ -237,7 +239,7 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
         lead_dict = closest_track.get_RadarState()
 
   if low_speed_override and not lead_dict['status'] and len(tracks) > 0:
-    far_lead_tracks = [c for c in tracks.values() if c.potential_far_lead(lead_msg, model_data) and c.radarfulFilter.x >= THRESHOLD]
+    far_lead_tracks = [c for c in tracks.values() if c.potential_far_lead(lead_msg, model_data)]  #   and c.radarfulFilter.x >= THRESHOLD]
     if len(far_lead_tracks) > 0:
       closest_track = min(far_lead_tracks, key=lambda c: c.dRel)
       lead_dict = closest_track.get_RadarState()
