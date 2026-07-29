@@ -254,7 +254,7 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
   };
 
   const int TOYOTA_LTA_MAX_MEAS_TORQUE = 1500;
-  const int TOYOTA_LTA_MAX_DRIVER_TORQUE = 150;
+  const int TOYOTA_LTA_MAX_DRIVER_TORQUE = 75; //const int TOYOTA_LTA_MAX_DRIVER_TORQUE = 150;
 
   // longitudinal limits
   const LongitudinalLimits TOYOTA_LONG_LIMITS = {
