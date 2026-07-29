@@ -49,15 +49,15 @@ SPEED_BREAKPOINTS = [0, 35, 55, 70]  # 4 ranges: 0-35, 35-55, 55-70, 70+
 
 # RESPONSIVENESS TO LEAD CARS (Lower = More responsive, Higher = More stable)
 # [City Emergency, Urban Hwy, Rural Hwy, High Speed]
-X_EGO_OBSTACLE_COSTS = [3.0, 3.0, 2.5, 2.0]  # Less aggressive at low speeds, closer to original
+X_EGO_OBSTACLE_COSTS = [3.0, 3.0, 3.5, 4.0]  # X_EGO_OBSTACLE_COSTS = [3.0, 3.0, 2.5, 2.0]  # Less aggressive at low speeds, closer to original
 
 # JERK CONTROL (Lower = More jerky/responsive, Higher = Smoother/conservative)
 # [City Emergency, Urban Hwy, Rural Hwy, High Speed]
-J_EGO_COSTS = [5.0, 4.75, 4.5, 4.0]  # Reverted to original 5.0 at low speeds
+J_EGO_COSTS = [5.5, 5.5, 6.0, 6.5] # J_EGO_COSTS = [5.0, 4.75, 4.5, 4.0]  # Reverted to original 5.0 at low speeds
 
 # ACCELERATION CHANGE PENALTIES (Lower = More responsive, Higher = Smoother)
 # [City Emergency, Urban Hwy, Rural Hwy, High Speed]
-A_CHANGE_COSTS = [200, 195, 180, 170]  # Reverted to original 200 at low speeds
+A_CHANGE_COSTS = [250, 250, 275, 300] # A_CHANGE_COSTS = [200, 195, 180, 170]  # Reverted to original 200 at low speeds
 
 # SMOOTHING FILTERS - Speed-adaptive for optimal responsiveness
 # Lower = More responsive, Higher = Smoother
@@ -195,16 +195,16 @@ def get_T_FOLLOW(aggressive_follow=1.25, standard_follow=1.45, relaxed_follow=1.
     elif personality==log.LongitudinalPersonality.standard:
       return standard_follow
     elif personality==log.LongitudinalPersonality.aggressive:
-      return aggressive_follow
+      return 0.4 # aggressive_follow
     else:
       raise NotImplementedError("Longitudinal personality not supported")
   else:
     if personality==log.LongitudinalPersonality.relaxed:
-      return 1.75
+      return 1.4
     elif personality==log.LongitudinalPersonality.standard:
-      return 1.45
+      return 1.1
     elif personality==log.LongitudinalPersonality.aggressive:
-      return 1.25
+      return 0.6
     else:
       raise NotImplementedError("Longitudinal personality not supported")
 
