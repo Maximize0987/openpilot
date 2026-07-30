@@ -334,6 +334,10 @@ class DriverMonitoring:
     self.alert_level = AlertLevel.none
     self.driver_interacting = driver_engaged
 
+    self.awareness = 1.
+    self.last_vision_awareness = 1.
+    self.last_wheeltouch_awareness = 1.
+    
     if self.alert_3_cnt >= self.settings._MAX_ALERT_3 or self.no_response_cnt >= self.settings._MAX_NO_RESPONSE:
       if not self.lockout_active:
         self.lockout_count += 1
