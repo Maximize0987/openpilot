@@ -8,7 +8,8 @@ from msgq.visionipc import VisionIpcClient, VisionStreamType, VisionBuf
 from openpilot.common.swaglog import cloudlog
 from openpilot.system.hardware import TICI
 from openpilot.system.ui.lib.application import gui_app
-from openpilot.system.ui.lib.egl import init_egl, create_egl_image, destroy_egl_image, bind_egl_image_to_texture, EGLImage
+from openpilot.system.ui.lib.egl import (init_egl, create_egl_image, destroy_egl_image, bind_egl_image_to_texture,
+                                        create_external_texture, destroy_external_texture, EGLImage)
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 
@@ -136,6 +137,7 @@ class CameraView(Widget):
     # EGL resources
     self.egl_images: dict[int, EGLImage] = {}
     self.egl_texture: rl.Texture | None = None
+    self._external_texture_id = 0
 
     self._placeholder_color: rl.Color | None = None
     self._closed = False
@@ -313,7 +315,7 @@ class CameraView(Widget):
 
   def _render_egl(self, src_rect: rl.Rectangle, dst_rect: rl.Rectangle) -> None:
     """Render using EGL for direct buffer access"""
-    if self.frame is None or self.egl_texture is None:
+    if self.frame is None or self.egl_texture is None or not self._external_texture_id:
       return
 
     idx = self.frame.idx
@@ -332,7 +334,7 @@ class CameraView(Widget):
     self.egl_texture.height = self.frame.height
 
     # Bind the EGL image to our texture
-    bind_egl_image_to_texture(self.egl_texture.id, egl_image)
+    bind_egl_image_to_texture(self._external_texture_id, egl_image)
 
     # Render with shader
     rl.begin_shader_mode(self.shader)
@@ -447,10 +449,12 @@ class CameraView(Widget):
         int(self.client.height // 2), 1, rl.PixelFormat.PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA))
 
   def _create_egl_texture(self):
-    # A fresh texture has no EGL image sibling from a previous camera client.
     temp_image = rl.gen_image_color(1, 1, rl.BLACK)
     self.egl_texture = rl.load_texture_from_image(temp_image)
     rl.unload_image(temp_image)
+    self._external_texture_id = create_external_texture()
+    if not self._external_texture_id:
+      raise RuntimeError("Failed to create external camera texture")
 
   def _clear_textures(self):
     if self.texture_y and self.texture_y.id:
@@ -461,9 +465,11 @@ class CameraView(Widget):
       rl.unload_texture(self.texture_uv)
       self.texture_uv = None
 
-    # Delete the texture first. eglDestroyImageKHR only destroys the EGLImage
-    # handle; the image storage stays alive while a GL texture sibling exists.
     if self._use_egl:
+      if self._external_texture_id:
+        destroy_external_texture(self._external_texture_id)
+      self._external_texture_id = 0
+
       if self.egl_texture and self.egl_texture.id:
         rl.unload_texture(self.egl_texture)
       self.egl_texture = None

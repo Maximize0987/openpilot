@@ -132,6 +132,7 @@ def test_egl_cleanup_deletes_texture_before_images(monkeypatch, module):
   view.texture_y = None
   view.texture_uv = None
   view.egl_texture = SimpleNamespace(id=7)
+  view._external_texture_id = 11
   view.egl_images = {0: object(), 1: object()}
   view._closed = True
 
@@ -141,10 +142,39 @@ def test_egl_cleanup_deletes_texture_before_images(monkeypatch, module):
     monkeypatch.setattr(module, "TICI", True)
 
   monkeypatch.setattr(module.rl, "unload_texture", lambda _texture: events.append("texture"))
+  monkeypatch.setattr(module, "destroy_external_texture", lambda _texture: events.append("external"))
   monkeypatch.setattr(module, "destroy_egl_image", lambda _image: events.append("image"))
 
   view._clear_textures()
 
-  assert events == ["texture", "image", "image"]
+  assert events == ["external", "texture", "image", "image"]
   assert view.egl_texture is None
+  assert view._external_texture_id == 0
   assert view.egl_images == {}
+
+
+@pytest.mark.parametrize("module", (mici_cameraview, big_cameraview))
+def test_egl_render_keeps_external_and_raylib_texture_targets_separate(monkeypatch, module):
+  frame = SimpleNamespace(idx=3, width=1928, height=1208, stride=2048, fd=9, uv_offset=2473984)
+  image = object()
+  view = module.CameraView.__new__(module.CameraView)
+  view.frame = frame
+  view.egl_texture = SimpleNamespace(id=7, width=1, height=1)
+  view._external_texture_id = 11
+  view.egl_images = {frame.idx: image}
+  view.shader = object()
+  view._closed = True
+  view._update_texture_color_filtering = lambda: None
+
+  bound = []
+  drawn = []
+  monkeypatch.setattr(module, "bind_egl_image_to_texture", lambda texture_id, egl_image: bound.append((texture_id, egl_image)))
+  monkeypatch.setattr(module.rl, "begin_shader_mode", lambda _shader: None)
+  monkeypatch.setattr(module.rl, "end_shader_mode", lambda: None)
+  monkeypatch.setattr(module.rl, "draw_texture_pro", lambda texture, *_args: drawn.append(texture.id))
+
+  rect = SimpleNamespace()
+  view._render_egl(rect, rect)
+
+  assert bound == [(11, image)]
+  assert drawn == [7]

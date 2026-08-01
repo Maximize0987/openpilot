@@ -18,6 +18,7 @@ EGL_DMA_BUF_PLANE1_PITCH_EXT = 0x3277
 EGL_NONE = 0x3038
 GL_TEXTURE0 = 0x84C0
 GL_TEXTURE_EXTERNAL_OES = 0x8D65
+GL_NO_ERROR = 0
 
 # DRM Format for NV12
 DRM_FORMAT_NV12 = 842094158
@@ -54,8 +55,11 @@ class EGLState:
   destroy_image_khr: Any = None
   image_target_texture: Any = None
   get_error: Any = None
+  get_gl_error: Any = None
   bind_texture: Any = None
   active_texture: Any = None
+  gen_textures: Any = None
+  delete_textures: Any = None
 
 
 # Create a single instance of the state
@@ -92,6 +96,9 @@ def init_egl() -> bool:
       void glEGLImageTargetTexture2DOES(GLenum target, GLeglImageOES image);
       void glBindTexture(GLenum target, unsigned int texture);
       void glActiveTexture(GLenum texture);
+      void glGenTextures(int n, unsigned int *textures);
+      void glDeleteTextures(int n, const unsigned int *textures);
+      GLenum glGetError(void);
     """)
 
     # Load libraries
@@ -109,8 +116,11 @@ def init_egl() -> bool:
     _egl.destroy_image_khr = _egl.egl_lib.eglDestroyImageKHR
     _egl.image_target_texture = _egl.gles_lib.glEGLImageTargetTexture2DOES
     _egl.get_error = _egl.egl_lib.eglGetError
+    _egl.get_gl_error = _egl.gles_lib.glGetError
     _egl.bind_texture = _egl.gles_lib.glBindTexture
     _egl.active_texture = _egl.gles_lib.glActiveTexture
+    _egl.gen_textures = _egl.gles_lib.glGenTextures
+    _egl.delete_textures = _egl.gles_lib.glDeleteTextures
 
     # Initialize EGL display once here
     _egl.display = _egl.get_current_display()
@@ -171,6 +181,40 @@ def destroy_egl_image(egl_image: EGLImage) -> None:
     os.close(egl_image.fd)
   except OSError:
     pass
+
+
+def create_external_texture() -> int:
+  """Create a texture name whose target is exclusively GL_TEXTURE_EXTERNAL_OES."""
+  assert _egl.initialized, "EGL not initialized"
+
+  while _egl.get_gl_error() != GL_NO_ERROR:
+    pass
+
+  texture = _egl.ffi.new("unsigned int[1]")
+  _egl.gen_textures(1, texture)
+  texture_id = int(texture[0])
+  if texture_id == 0:
+    cloudlog.error("Failed to generate external camera texture")
+    return 0
+
+  _egl.active_texture(GL_TEXTURE0)
+  _egl.bind_texture(GL_TEXTURE_EXTERNAL_OES, texture_id)
+  error = _egl.get_gl_error()
+  if error != GL_NO_ERROR:
+    cloudlog.error(f"Failed to bind external camera texture: GL error {error:#x}")
+    _egl.delete_textures(1, texture)
+    return 0
+
+  return texture_id
+
+
+def destroy_external_texture(texture_id: int) -> None:
+  if not texture_id:
+    return
+
+  assert _egl.initialized, "EGL not initialized"
+  texture = _egl.ffi.new("unsigned int[1]", [texture_id])
+  _egl.delete_textures(1, texture)
 
 
 def bind_egl_image_to_texture(texture_id: int, egl_image: EGLImage) -> None:
