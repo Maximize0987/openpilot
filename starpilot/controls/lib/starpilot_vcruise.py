@@ -37,9 +37,11 @@ NAV_TURN_TARGET_SPEEDS = {
 # Smaller values pull speed down earlier on approach.
 FORCE_STOP_MODEL_APPROACH_DECEL = 0.65
 FORCE_STOP_DASH_APPROACH_DECEL = 1.0
-ACTIVATION_M = 75.0       # m — CEM/model path activates when model_length < this.
-                          # Don't raise: forcing_stop latches until standstill, so a brief
-                          # red-light blip at longer range commits to a stop we can't release.
+ACTIVATION_M = 100.0      # m — CEM/model path activates when model_length < this. Buys
+                          # ~1.8 s more runway inside the position constraint, which is the
+                          # only part of the approach that tracks without lag. A false arm
+                          # off a brief red blip is driver-cancellable: gas suppresses force
+                          # stop for OVERRIDE_FORCE_STOP_TIMER seconds.
 ACTIVATION_HYSTERESIS_M = 8.0  # m — release margin; absorbs model_length jitter at the gate
 LEAD_VETO_M = 75.0        # m — lead proximity that vetoes Force Stop (kept off ACTIVATION_M
                           # so raising activation can't silently widen the veto)
