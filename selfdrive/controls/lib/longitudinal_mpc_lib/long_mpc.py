@@ -844,7 +844,8 @@ class LongitudinalMpc:
 
   def update(self, radarstate, v_cruise, x, v, a, j, danger_factor, t_follow,
              personality=log.LongitudinalPersonality.standard, tracking_lead=True,
-             optional_far_lead_comfort=True, smooth_duplicate_vision=False):
+             optional_far_lead_comfort=True, smooth_duplicate_vision=False,
+             stop_x=None):
     v_ego = self.x0[1]
     lead_one = radarstate.leadOne
     lead_two = radarstate.leadTwo
@@ -899,6 +900,11 @@ class LongitudinalMpc:
         lead_0_bias, lead_1_bias = self.get_near_duplicate_lead_source_hysteresis(prev_source, lead_one, lead_two, v_ego)
         lead_0_obstacle = lead_0_obstacle + lead_0_bias
         lead_1_obstacle = lead_1_obstacle + lead_1_bias
+      # A forced stop is a position constraint, not a speed one. Folded in here rather than
+      # as a 4th column so the SOURCES[argmin] below keeps working. Lets the solver plan the
+      # stop directly instead of chasing a descending speed ceiling with a persistent lag.
+      if stop_x is not None:
+        cruise_obstacle = np.minimum(cruise_obstacle, stop_x)
       x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle, cruise_obstacle])
       candidate_source = SOURCES[np.argmin(x_obstacles[0])]
       sticky_source = None
@@ -948,6 +954,8 @@ class LongitudinalMpc:
       xforward = ((v[1:] + v[:-1]) / 2) * (T_IDXS[1:] - T_IDXS[:-1])
       x = np.cumsum(np.insert(xforward, 0, x[0]))
 
+      if stop_x is not None:
+        cruise_target = np.minimum(cruise_target, stop_x)
       x_and_cruise = np.column_stack([x, cruise_target])
       x = np.min(x_and_cruise, axis=1)
 

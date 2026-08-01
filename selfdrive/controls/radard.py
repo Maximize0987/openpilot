@@ -27,6 +27,18 @@ V_EGO_STATIONARY = 4.   # no stationary object flag below this speed
 RADAR_TO_CENTER = 2.7   # (deprecated) RADAR is ~ 2.7m ahead from center of car
 RADAR_TO_CAMERA = 1.52  # RADAR is ~ 1.5m ahead from center of mesh frame
 
+# Adjacent-lane stopped-vehicle detector, used as a stop-line hint on red-light
+# approaches. The qualifier is the DECELERATION HISTORY, not the current speed: roadside
+# furniture and curb-parked cars never show a moving -> stopped transition, so testing
+# for "anything slow in the next lane" instead would brake us early for parked cars.
+ADJACENT_STOP_MOVING_V = 5.0      # m/s — must have genuinely been moving
+ADJACENT_STOP_REST_V = 1.5        # m/s — and then genuinely at rest
+ADJACENT_STOP_MOVING_FRAMES = 15  # 0.75 s at 20 Hz, both ways: rejects speed noise
+ADJACENT_STOP_REST_FRAMES = 15
+ADJACENT_STOP_MIN_Y = 1.8         # m — inside this is our own lane
+ADJACENT_STOP_MAX_Y = 7.5         # m — beyond this is roadside, not an adjacent lane
+ADJACENT_STOP_MAX_D = 110.0       # m
+
 
 class KalmanParams:
   def __init__(self, dt: float):
@@ -67,6 +79,10 @@ class Track:
     self.leadTrackID = 0
 
     self.radarfulFilter = FirstOrderFilter(0, 1, self.K_A[0][1])
+    # deceleration history for the adjacent-lane stopped-vehicle detector
+    self.moving_frames = 0
+    self.rest_frames = 0
+    self.seen_moving = False
 
   def update(self, d_rel: float, y_rel: float, v_rel: float, v_lead: float, measured: float):
     # relative values, copy
@@ -89,6 +105,21 @@ class Track:
     else:
       self.aLeadTau.update(0.0)
 
+    # Track the moving -> stopped transition. Only sustained runs count, so one noisy
+    # speed sample can neither arm nor trip the detector.
+    if self.vLead > ADJACENT_STOP_MOVING_V:
+      self.moving_frames += 1
+      self.rest_frames = 0
+      if self.moving_frames >= ADJACENT_STOP_MOVING_FRAMES:
+        self.seen_moving = True
+    elif abs(self.vLead) < ADJACENT_STOP_REST_V:
+      self.moving_frames = 0
+      self.rest_frames += 1
+    else:
+      # coasting between the two bands: hold state, restart both runs
+      self.moving_frames = 0
+      self.rest_frames = 0
+
     self.cnt += 1
 
   def get_RadarState(self, model_prob: float = 0.0):
@@ -106,6 +137,41 @@ class Track:
       "radar": True,
       "radarTrackId": self.identifier,
     }
+
+  def potential_adjacent_lead(self, left: bool, standstill: bool, model_data: capnp._DynamicStructReader):
+    if standstill or self.vLead < 1 or self.leadTrackID == self.identifier:
+      return False
+
+    if left:
+      left_lane = np.interp(self.dRel, model_data.laneLines[1].x, model_data.laneLines[1].y)
+      return -self.yRel < left_lane
+    right_lane = np.interp(self.dRel, model_data.laneLines[2].x, model_data.laneLines[2].y)
+    return -self.yRel > right_lane
+
+  def is_adjacent_stopped(self, model_data: capnp._DynamicStructReader):
+    """A neighbouring-lane vehicle that was seen moving and has now come to rest.
+
+    Deliberately not potential_adjacent_lead, which is moving-target-only and would have
+    to be loosened to "anything slow" to catch these. Lane geometry mirrors it (model
+    y == -yRel, laneLines[1] left boundary and [2] right), plus an outer bound so
+    roadside returns past the neighbouring lane don't qualify.
+    """
+    if not (self.seen_moving and self.rest_frames >= ADJACENT_STOP_REST_FRAMES):
+      return False
+
+    if self.leadTrackID == self.identifier:
+      return False
+
+    if not (ADJACENT_STOP_MIN_Y < abs(self.yRel) < ADJACENT_STOP_MAX_Y):
+      return False
+
+    if not (0.0 < self.dRel < ADJACENT_STOP_MAX_D):
+      return False
+
+    model_y = -self.yRel
+    left_lane = np.interp(self.dRel, model_data.laneLines[1].x, model_data.laneLines[1].y)
+    right_lane = np.interp(self.dRel, model_data.laneLines[2].x, model_data.laneLines[2].y)
+    return bool(model_y < left_lane or model_y > right_lane)
 
   def potential_low_speed_lead(self, v_ego: float):
     # stop for stuff in front of you and low speed, even without model confirmation
@@ -267,6 +333,29 @@ def get_adjacent_lead(tracks: dict[int, Track], model_data: capnp._DynamicStruct
   return lead_dict
 
 
+def get_adjacent_stopped(tracks: dict[int, Track], model_data: capnp._DynamicStructReader) -> dict[str, Any]:
+  """Stop-line hint: a vehicle that decelerated to a stop in a neighbouring lane.
+
+  Takes the FARTHEST qualifying vehicle: in a queue the front car sits at the bar and the
+  rest are closer to us, so the nearest one underestimates the distance. The consumer only
+  shortens with this, so underestimating is the harmful direction.
+  """
+  if len(model_data.laneLines) < 4:
+    return {'status': False}
+
+  candidates = [c for c in tracks.values() if c.is_adjacent_stopped(model_data)]
+  if not candidates:
+    return {'status': False}
+
+  furthest = max(candidates, key=lambda c: c.dRel)
+  return {
+    'status': True,
+    'dRel': float(furthest.dRel),
+    'yRel': float(furthest.yRel),
+    'radarTrackId': int(furthest.identifier),
+  }
+
+
 class RadarD:
   def __init__(self, delay: float = 0.0):
     self.current_time = 0.0
@@ -336,6 +425,12 @@ class RadarD:
     if self.ready and (self.starpilot_toggles.adjacent_lead_tracking or self.starpilot_toggles.human_lane_changes):
       self.starpilot_radar_state.leadLeft = get_adjacent_lead(self.tracks, sm['modelV2'], left=True)
       self.starpilot_radar_state.leadRight = get_adjacent_lead(self.tracks, sm['modelV2'], left=False)
+
+    # Not gated on the adjacent-lead toggles: this is a separate signal with a separate
+    # consumer (Force Stop), and leaving leadLeft/leadRight untouched keeps existing
+    # lane-change and UI behaviour unchanged.
+    if self.ready:
+      self.starpilot_radar_state.adjacentStopped = get_adjacent_stopped(self.tracks, sm['modelV2'])
 
     self.starpilot_toggles = get_starpilot_toggles(sm)
 
