@@ -212,7 +212,7 @@ class ScsiWriteOp: data:bytes; lba:int=0 # noqa: E702
 class CustomASM24Controller:
   def __init__(self, usb:USB3|None=None):
     if not usb:
-      devs = USB3.list_devices(0xADD1, 0x0001)
+      devs = USB3.list_devices(0xADD1, 0x0001) + USB3.list_devices(0x3801, 0x0001)
       assert len(devs), "no ASM24 controller found"
       self.usb = USB3(devs[0][0], 0x81, 0x83, 0x02, 0x04, use_bot=True)
     else: self.usb = usb
@@ -333,7 +333,7 @@ class CustomASM24Controller:
 class ASM24Controller:
   def __init__(self, usb:USB3|None=None):
     if not usb:
-      devs = USB3.list_devices(0xADD1, 0x0001)
+      devs = USB3.list_devices(0xADD1, 0x0001) + USB3.list_devices(0x3801, 0x0001)
       assert len(devs), "no ASM24 controller found"
       self.usb = USB3(devs[0][0], 0x81, 0x83, 0x02, 0x04, use_bot=bool(getenv("USE_BOT", 0)))
     else: self.usb = usb
