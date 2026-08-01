@@ -54,7 +54,7 @@ class USB3:
     self._bulk_out_buf, self._bulk_out_mv = alloc_cbuffer(4 << 20)
 
     bus_number = libusb.libusb_get_bus_number(dev)
-    self.handle = c.init_c_var(c.POINTER(libusb.struct_libusb_device_handle), lambda x: checked(libusb.libusb_open)(dev, x))
+    self.handle = c.init_c_var(ctypes.POINTER(libusb.struct_libusb_device_handle), lambda x: checked(libusb.libusb_open)(dev, x))
     libusb.libusb_unref_device(dev)
 
     # Read product string descriptor
