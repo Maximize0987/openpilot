@@ -162,6 +162,8 @@ class BaseDriverCameraDialog(Widget):
     driver_data = self.driver_state_renderer.get_driver_data()
     if not dm_state.visionPolicyState.faceDetected:
       return
+    if len(driver_data.facePosition) < 2 or len(driver_data.faceOrientationStd) < 2:
+      return
 
     # Get face position and orientation
     face_x, face_y = driver_data.facePosition

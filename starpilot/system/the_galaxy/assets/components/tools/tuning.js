@@ -1070,7 +1070,14 @@ export function Tuning() {
         ${() => state.status?.currentSegment ? html`
           <div class="longManeuverCurrent">
             <p><strong>Current Segment:</strong> ${state.status.currentSegment}</p>
+            ${state.status.segmentTimeoutSeconds ? html`
+              <p class="longManeuverMuted">Segments that take longer than ${safeCount(state.status.segmentTimeoutSeconds)} seconds are skipped automatically.</p>
+            ` : ""}
           </div>
+        ` : ""}
+
+        ${() => state.status?.lastSkippedSegment ? html`
+          <p class="longManeuverMuted">Skipped ${state.status.lastSkippedSegment} after it exceeded the read limit.</p>
         ` : ""}
 
         <div class="flmTwoColumn">

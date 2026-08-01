@@ -840,13 +840,14 @@ class AugmentedRoadView(CameraView):
         self.switch_stream(target)
       return
 
+    wide_available = WIDE_CAM in self.available_streams
     if camera_view == CAMERA_VIEW_DRIVER:
       target = DRIVER_CAM
     elif camera_view == CAMERA_VIEW_STANDARD:
       target = ROAD_CAM
     elif camera_view == CAMERA_VIEW_WIDE:
-      target = WIDE_CAM if WIDE_CAM in self.available_streams else ROAD_CAM
-    elif sm['selfdriveState'].experimentalMode and WIDE_CAM in self.available_streams:
+      target = WIDE_CAM if wide_available else ROAD_CAM
+    elif sm['selfdriveState'].experimentalMode and wide_available:
       v_ego = sm['carState'].vEgo
       if v_ego < WIDE_CAM_MAX_SPEED:
         target = WIDE_CAM
@@ -854,7 +855,7 @@ class AugmentedRoadView(CameraView):
         target = ROAD_CAM
       else:
         # Hysteresis zone - keep the current road camera selection.
-        target = WIDE_CAM if self.stream_type == WIDE_CAM else ROAD_CAM
+        target = WIDE_CAM if self.stream_type == WIDE_CAM and wide_available else ROAD_CAM
     else:
       target = ROAD_CAM
 

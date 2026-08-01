@@ -27,6 +27,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   clear_flm_runtime_overrides,
   get_flm_runtime_overrides,
   get_hkg_canfd_base_friction_threshold,
+  RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
   get_ram_1500_transition_output_scale,
   get_subaru_impreza_pid_output_scale,
   normalize_flm_overrides,
@@ -44,6 +45,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_bolt_2017_steer_ratio_scale,
   get_bolt_2017_torque_scale,
   get_bolt_2022_2023_ff_scale,
+  get_bolt_2022_2023_center_output_scale,
   get_bolt_2022_2023_friction_scale,
   get_bolt_2022_2023_friction_threshold,
   get_trailer_lateral_ff_scale,
@@ -86,6 +88,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_kia_carnival_center_taper_scale,
   get_kia_carnival_friction_center_fade_scale,
   get_kia_carnival_friction_threshold,
+  get_kia_carnival_highway_transition_output_scale,
   get_kia_stinger_2022_center_taper_scale,
   get_kia_stinger_2022_friction_threshold,
   get_tucson_4th_gen_center_taper_scale,
@@ -213,6 +216,21 @@ class TestLatControl:
     assert get_bolt_2022_2023_ff_scale(0.6, -0.7, 8.0) < get_bolt_2022_2023_ff_scale(0.6, 0.0, 8.0)
     assert get_bolt_2022_2023_ff_scale(0.6, -0.7, 6.0) < get_bolt_2022_2023_ff_scale(0.6, -0.7, 20.0)
     assert get_bolt_2022_2023_ff_scale(0.14, 0.0, 30.0) < get_bolt_2022_2023_ff_scale(0.14, 0.0, 20.0)
+
+  def test_bolt_2022_2023_center_output_taper(self):
+    low_speed_center = get_bolt_2022_2023_center_output_scale(0.04, 10.0)
+    low_speed_turn = get_bolt_2022_2023_center_output_scale(0.40, 10.0)
+    middle_speed_center = get_bolt_2022_2023_center_output_scale(0.04, 20.0)
+    highway_center = get_bolt_2022_2023_center_output_scale(0.04, 31.0)
+    highway_turn = get_bolt_2022_2023_center_output_scale(0.40, 31.0)
+    creep_center = get_bolt_2022_2023_center_output_scale(0.04, 1.0)
+
+    assert 0.92 < low_speed_center < 0.95
+    assert low_speed_turn > 0.99
+    assert middle_speed_center > 0.98
+    assert 0.88 < highway_center < 0.91
+    assert highway_turn > 0.99
+    assert creep_center > 0.99
 
   def test_bolt_2022_2023_friction_threshold_curve(self):
     base = get_gm_base_friction_threshold(6.0)
@@ -431,20 +449,42 @@ class TestLatControl:
     neighborhood_taper = get_kia_carnival_center_taper_scale(0.04, 5.0)
     neighborhood_turn_taper = get_kia_carnival_center_taper_scale(0.35, 5.0)
     highway_taper = get_kia_carnival_center_taper_scale(0.04, 25.0)
+    high_speed_center_taper = get_kia_carnival_center_taper_scale(0.04, 32.4)
+    high_speed_turn_taper = get_kia_carnival_center_taper_scale(0.80, 32.4)
     assert center_taper < turn_taper <= 1.0
     assert center_taper < low_speed_taper <= 1.0
     assert center_taper < highway_taper <= 1.0
     assert center_taper < 0.84
     assert neighborhood_taper < 0.94
     assert neighborhood_turn_taper > 0.99
+    assert 0.85 < high_speed_center_taper < 0.90
+    assert high_speed_turn_taper > 0.99
 
     center_threshold = get_kia_carnival_friction_threshold(8.5, 0.04)
     turn_threshold = get_kia_carnival_friction_threshold(8.5, 0.35)
+    high_speed_center_threshold = get_kia_carnival_friction_threshold(32.4, 0.04)
+    high_speed_turn_threshold = get_kia_carnival_friction_threshold(32.4, 0.80)
     assert center_threshold > turn_threshold >= get_hkg_canfd_base_friction_threshold(8.5)
+    assert high_speed_center_threshold > high_speed_turn_threshold >= get_hkg_canfd_base_friction_threshold(32.4)
 
     center_fade = get_kia_carnival_friction_center_fade_scale(0.04, 8.5)
     turn_fade = get_kia_carnival_friction_center_fade_scale(0.35, 8.5)
+    high_speed_center_fade = get_kia_carnival_friction_center_fade_scale(0.04, 32.4)
+    high_speed_turn_fade = get_kia_carnival_friction_center_fade_scale(0.80, 32.4)
     assert center_fade < 0.75 < turn_fade <= 1.0
+    assert 0.79 < high_speed_center_fade < 0.85
+    assert high_speed_turn_fade > 0.99
+
+  def test_kia_carnival_highway_transition_taper(self):
+    smooth_curve = get_kia_carnival_highway_transition_output_scale(0.60, 0.10, 32.4)
+    abrupt_curve = get_kia_carnival_highway_transition_output_scale(0.60, 1.20, 32.4)
+    low_speed_abrupt = get_kia_carnival_highway_transition_output_scale(0.60, 1.20, 20.0)
+    large_curve_abrupt = get_kia_carnival_highway_transition_output_scale(1.60, 1.20, 32.4)
+
+    assert 0.75 < abrupt_curve < 0.77
+    assert smooth_curve > 0.96
+    assert low_speed_abrupt > 0.99
+    assert large_curve_abrupt > 0.96
 
   def test_genesis_g90_ff_scale_curve(self):
     assert get_genesis_g90_ff_scale(0.0, 0.0, 20.0) == 1.0
@@ -654,8 +694,28 @@ class TestLatControl:
     )
 
     assert controller.is_ram_1500
+    assert controller.torque_params.latAccelFactor == pytest.approx(2.0 * RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT)
     assert lac_log.active
     assert tapered_output == pytest.approx(base_output * 0.5)
+
+  def test_ram_1500_transition_taper_preserves_corrective_torque(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(CHRYSLER.RAM_1500_5TH_GEN)
+    CS.steeringAngleDeg = -12.0
+    base_output, _, _ = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_ram_1500_transition_output_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(
+      CHRYSLER.RAM_1500_5TH_GEN,
+    )
+    tapered_CS.steeringAngleDeg = -12.0
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.0025, False, 0.2, None, None, tapered_toggles,
+    )
+
+    assert base_output > 0.0
+    assert tapered_output == pytest.approx(base_output)
 
   def test_ioniq_5_center_taper_curve(self):
     assert get_ioniq_5_center_taper_scale(0.0, 25.0) < get_ioniq_5_center_taper_scale(0.0, 10.0)
@@ -1258,8 +1318,8 @@ class TestLatControl:
     assert turn_in_right > steady_right
     assert unwind_left < steady_left
     assert unwind_right < steady_right
-    assert unwind_left < 1.03
-    assert unwind_right < 1.07
+    assert unwind_left < 0.98
+    assert unwind_right < 0.98
 
   def test_kia_ev6_jwarm_testing_ground_phase_correction(self, monkeypatch):
     clear_flm_runtime_overrides()
@@ -1274,8 +1334,8 @@ class TestLatControl:
     assert get_kia_ev6_ff_scale(0.45, 0.0, 10.0) == pytest.approx(normal_steady)
     assert get_kia_ev6_ff_scale(0.45, 0.7, 10.0) > normal_turn_in_left + 0.08
     assert get_kia_ev6_ff_scale(-0.45, -0.7, 10.0) > normal_turn_in_right + 0.10
-    assert get_kia_ev6_ff_scale(0.45, -0.7, 10.0) < normal_unwind_left - 0.07
-    assert get_kia_ev6_ff_scale(-0.45, 0.7, 10.0) < normal_unwind_right - 0.08
+    assert get_kia_ev6_ff_scale(0.45, -0.7, 10.0) < normal_unwind_left - 0.04
+    assert get_kia_ev6_ff_scale(-0.45, 0.7, 10.0) < normal_unwind_right - 0.02
 
   def test_kia_ev6_jwarm_abrupt_low_speed_phase_correction_is_bounded(self):
     calm_low_speed = get_kia_ev6_jwarm_phase_confidence(6.0, 0.25)

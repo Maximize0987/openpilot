@@ -310,8 +310,8 @@ class CameraView(Widget):
       y_data = self.frame.data[: self.frame.uv_offset]
       uv_data = self.frame.data[self.frame.uv_offset:]
 
-      rl.update_texture(self.texture_y, rl.ffi.cast("void *", y_data.ctypes.data))
-      rl.update_texture(self.texture_uv, rl.ffi.cast("void *", uv_data.ctypes.data))
+      rl.update_texture(self.texture_y, rl.ffi.cast("void *", rl.ffi.from_buffer(y_data)))
+      rl.update_texture(self.texture_uv, rl.ffi.cast("void *", rl.ffi.from_buffer(uv_data)))
       self._texture_needs_update = False
 
     # Render with shader
@@ -373,7 +373,8 @@ class CameraView(Widget):
     self.client = self._target_client
     self._stream_type = self._target_stream_type
     client_frame_id = getattr(self.client, "frame_id", -1) if hasattr(self, "client") and self.client is not None else -1
-    self._last_frame_id = int(getattr(self.frame, "frame_id", client_frame_id)) if self.frame is not None else -1
+    frame = getattr(self, "frame", None)
+    self._last_frame_id = int(getattr(frame, "frame_id", client_frame_id)) if frame is not None else -1
     self._texture_needs_update = True
 
     # Reset state

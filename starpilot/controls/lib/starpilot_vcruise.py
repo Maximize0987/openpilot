@@ -424,7 +424,13 @@ class StarPilotVCruise:
     v_ego_diff = v_ego_cluster - v_ego
 
     # FrogsGoMoo's Curve Speed Controller
-    csc_available = long_control_active and v_ego > CRUISING_SPEED and starpilot_toggles.curve_speed_controller
+    following_lead = bool(getattr(self.starpilot_planner.starpilot_following, "following_lead", False))
+    csc_available = (
+      long_control_active and
+      v_ego > CRUISING_SPEED and
+      starpilot_toggles.curve_speed_controller and
+      (not getattr(starpilot_toggles, "csc_no_lead", False) or not following_lead)
+    )
     csc_curve_detected = csc_available and self.starpilot_planner.road_curvature_detected
     if csc_curve_detected:
       self.csc.update_target(v_ego)

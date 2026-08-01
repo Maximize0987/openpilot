@@ -727,6 +727,15 @@
         "settings_tier": "simple"
       },
       {
+        "key": "CurveSpeedControllerNoLead",
+        "label": "Only Without Lead",
+        "description": "Only use Curve Speed Controller when not following a lead vehicle.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "CurveSpeedController",
+        "settings_tier": "simple"
+      },
+      {
         "key": "ResetCurveData",
         "label": "Reset Curve Data",
         "description": "Clear learned Curve Speed Controller data and begin training again from the default lateral acceleration.",

@@ -252,6 +252,8 @@ def test_segment_reader_timeout_interrupts_stalled_log(tmp_path, monkeypatch):
   with pytest.raises(module.FLMSegmentTimeout, match="segment 41"):
     module._segment_samples_with_timeout(source, module.Params(), timeout_seconds=0.02)
 
+  assert module.FLM_SEGMENT_TIMEOUT_SECONDS == 60.0
+
 
 def test_analysis_is_rejected_while_onroad(tmp_path):
   module, fake_params_cls = _load_flm_workspace_module(tmp_path)

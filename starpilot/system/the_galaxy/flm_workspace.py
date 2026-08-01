@@ -46,7 +46,7 @@ FLM_ANALYZER_PROCESS = None
 FLM_ANALYZER_LOCK = threading.Lock()
 FLM_PROGRESS_FILENAME = "progress.json"
 FLM_ONROAD_POLL_INTERVAL_SECONDS = 0.25
-FLM_SEGMENT_TIMEOUT_SECONDS = 180.0
+FLM_SEGMENT_TIMEOUT_SECONDS = 60.0
 
 
 class FLMAnalysisCancelled(RuntimeError):
@@ -2236,6 +2236,8 @@ def analyze_routes(route_names: list[str], footage_paths: list[str], feedback: d
   used_qlog = False
   processed_segments = 0
   skipped_segments = 0
+  last_skipped_segment = ""
+  last_skip_reason = ""
   for idx, source in enumerate(sources, start=1):
     _require_flm_offroad(params)
     _write_flm_status({
@@ -2248,6 +2250,10 @@ def analyze_routes(route_names: list[str], footage_paths: list[str], feedback: d
       "progress": idx - 1,
       "total": len(sources),
       "currentSegment": source.segment,
+      "segmentTimeoutSeconds": FLM_SEGMENT_TIMEOUT_SECONDS,
+      "skippedSegments": skipped_segments,
+      "lastSkippedSegment": last_skipped_segment,
+      "lastSkipReason": last_skip_reason,
     })
     try:
       segment_samples, segment_car_params, segment_init, segment_control_states = _segment_samples_with_timeout(source, params)
@@ -2256,11 +2262,28 @@ def analyze_routes(route_names: list[str], footage_paths: list[str], feedback: d
     except FLMSegmentTimeout as error:
       warnings.append(str(error) + " The segment was skipped.")
       skipped_segments += 1
+      last_skipped_segment = source.segment
+      last_skip_reason = str(error)
+      _write_flm_status({
+        "pid": os.getpid(),
+        "startedAt": time.time(),
+        "running": True,
+        "state": "analyzing",
+        "routes": route_names,
+        "segmentRanges": segment_ranges,
+        "progress": idx,
+        "total": len(sources),
+        "currentSegment": "",
+        "segmentTimeoutSeconds": FLM_SEGMENT_TIMEOUT_SECONDS,
+        "skippedSegments": skipped_segments,
+        "lastSkippedSegment": last_skipped_segment,
+        "lastSkipReason": last_skip_reason,
+      })
       continue
     except Exception as error:
-      warnings.append(
-        f"{source.route} segment {source.segment_num} could not be read ({type(error).__name__}). The segment was skipped."
-      )
+      last_skipped_segment = source.segment
+      last_skip_reason = f"Could not be read ({type(error).__name__})."
+      warnings.append(f"{source.route} segment {source.segment_num} {last_skip_reason} The segment was skipped.")
       skipped_segments += 1
       continue
     _require_flm_offroad(params)

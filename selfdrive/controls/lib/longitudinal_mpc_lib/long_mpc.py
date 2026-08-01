@@ -383,6 +383,7 @@ class LongitudinalMpc:
     self.current_filter_time = LEAD_FILTER_TIME_LOW
     self.lead_a_filter = FirstOrderFilter(0.0, self.current_filter_time, self.dt)
     self.lead_v_filter = FirstOrderFilter(0.0, self.current_filter_time, self.dt)
+    self.duplicate_lead_x_filters = [FirstOrderFilter(0.0, 0.0, self.dt, initialized=False) for _ in range(2)]
     self.duplicate_lead_a_filters = [FirstOrderFilter(0.0, 0.0, self.dt, initialized=False) for _ in range(2)]
     self.duplicate_lead_v_filters = [FirstOrderFilter(0.0, 0.0, self.dt, initialized=False) for _ in range(2)]
     # Slew-limited filter factor to avoid abrupt 0.50↔1.00 jumps
@@ -426,7 +427,7 @@ class LongitudinalMpc:
     self.time_linearization = 0.0
     self.time_integrator = 0.0
     self.x0 = np.zeros(X_DIM)
-    for lead_filter in (*self.duplicate_lead_a_filters, *self.duplicate_lead_v_filters):
+    for lead_filter in (*self.duplicate_lead_x_filters, *self.duplicate_lead_a_filters, *self.duplicate_lead_v_filters):
       lead_filter.x = 0.0
       lead_filter.initialized = False
     self.set_weights()
@@ -604,10 +605,17 @@ class LongitudinalMpc:
       filter_time = max(filter_time, DUPLICATE_VISION_LEAD_FILTER_TIME)
       filter_time *= self.filter_time_factor
 
+      x_filter = self.duplicate_lead_x_filters[lead_index]
       a_filter = self.duplicate_lead_a_filters[lead_index]
       v_filter = self.duplicate_lead_v_filters[lead_index]
+      x_filter.update_alpha(filter_time)
       a_filter.update_alpha(filter_time)
       v_filter.update_alpha(filter_time)
+      if x_filter.initialized and x_lead <= x_filter.x:
+        x_filter.x = x_lead
+      else:
+        x_filter.update(x_lead)
+      x_lead = x_filter.x
       a_lead = a_filter.update(a_lead)
       v_lead = v_filter.update(v_lead)
     else:
@@ -616,6 +624,7 @@ class LongitudinalMpc:
       self.lead_v_filter.update(v_lead)
       a_lead = self.lead_a_filter.x
       v_lead = self.lead_v_filter.x
+      self.duplicate_lead_x_filters[lead_index].initialized = False
       self.duplicate_lead_a_filters[lead_index].initialized = False
       self.duplicate_lead_v_filters[lead_index].initialized = False
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau, v_ego)

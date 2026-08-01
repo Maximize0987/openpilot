@@ -420,8 +420,12 @@ class CameraView(Widget):
     # Switch to target
     self.client = self._target_client
     self._stream_type = self._target_stream_type
+    enhance_driver_val = getattr(self, "_enhance_driver_val", None)
+    if enhance_driver_val is not None:
+      enhance_driver_val[0] = 1 if self._stream_type == VisionStreamType.VISION_STREAM_DRIVER else 0
     client_frame_id = getattr(self.client, "frame_id", -1) if hasattr(self, "client") and self.client is not None else -1
-    self._last_frame_id = int(getattr(self.frame, "frame_id", client_frame_id)) if self.frame is not None else -1
+    frame = getattr(self, "frame", None)
+    self._last_frame_id = int(getattr(frame, "frame_id", client_frame_id)) if frame is not None else -1
     self._texture_needs_update = True
 
     # Reset state

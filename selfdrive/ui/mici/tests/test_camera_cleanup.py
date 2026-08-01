@@ -98,6 +98,33 @@ def test_stream_switch_releases_graphics_before_old_client(module):
   assert events == ["graphics", "client", "initialize"]
 
 
+@pytest.mark.parametrize(("target_stream", "expected"), (
+  (mici_cameraview.VisionStreamType.VISION_STREAM_DRIVER, 1),
+  (mici_cameraview.VisionStreamType.VISION_STREAM_ROAD, 0),
+  (mici_cameraview.VisionStreamType.VISION_STREAM_WIDE_ROAD, 0),
+))
+def test_mici_stream_switch_updates_driver_enhancement(target_stream, expected):
+  class FakeClient:
+    frame_id = 42
+
+  view = mici_cameraview.CameraView.__new__(mici_cameraview.CameraView)
+  view.client = FakeClient()
+  view._target_client = FakeClient()
+  view._target_stream_type = target_stream
+  view._stream_type = mici_cameraview.VisionStreamType.VISION_STREAM_DRIVER
+  view._switching = True
+  view._texture_needs_update = False
+  view._enhance_driver_val = [-1]
+  view._closed = True
+  view._clear_textures = lambda: None
+  view._initialize_textures = lambda: None
+
+  view._complete_switch()
+
+  assert view._enhance_driver_val[0] == expected
+  assert view._last_frame_id == -1
+
+
 @pytest.mark.parametrize("module", (mici_cameraview, big_cameraview))
 def test_egl_cleanup_deletes_texture_before_images(monkeypatch, module):
   events = []
