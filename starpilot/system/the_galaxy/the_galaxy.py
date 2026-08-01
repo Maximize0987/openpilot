@@ -5350,13 +5350,20 @@ def setup(app):
   @app.route("/api/routes", methods=["GET"])
   def list_routes():
     def generate():
-      routes = [(path, name) for path in FOOTAGE_PATHS for name in utilities.get_routes_names(path)]
+      routes = [
+        (path, name, segment_count)
+        for path in FOOTAGE_PATHS
+        for name, segment_count in utilities.get_routes_with_segment_counts(path)
+      ]
       total = len(routes)
       connect_dongle_id = params.get("StockDongleId", encoding="utf-8") or params.get("DongleId", encoding="utf-8") or ""
       yield f"data: {json.dumps({'progress': 0, 'total': total, 'connectDongleId': connect_dongle_id})}\n\n"
 
       with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(utilities.process_route, path, name): (path, name) for path, name in routes}
+        futures = {
+          executor.submit(utilities.process_route, path, name, segment_count): (path, name)
+          for path, name, segment_count in routes
+        }
         for processed, future in enumerate(as_completed(futures), start=1):
           try:
             result = future.result()

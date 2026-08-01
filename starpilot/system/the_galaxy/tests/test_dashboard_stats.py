@@ -259,6 +259,21 @@ class FakeDashboardAnalyzerProcess:
     self.terminated = True
 
 
+def test_route_inventory_counts_segments_without_video_probing(monkeypatch):
+  segments = [
+    SimpleNamespace(route_name=SimpleNamespace(time_str="route-new")),
+    SimpleNamespace(route_name=SimpleNamespace(time_str="route-new")),
+    SimpleNamespace(route_name=SimpleNamespace(time_str="route-new")),
+    SimpleNamespace(route_name=SimpleNamespace(time_str="route-old")),
+  ]
+  monkeypatch.setattr(utilities, "get_all_segment_names", lambda _path: segments)
+
+  assert utilities.get_routes_with_segment_counts("/tmp/routes") == [
+    ("route-old", 1),
+    ("route-new", 3),
+  ]
+
+
 def test_dashboard_background_analysis_does_not_start_onroad(monkeypatch):
   def fail_if_started(*args, **kwargs):
     raise AssertionError("worker started onroad")

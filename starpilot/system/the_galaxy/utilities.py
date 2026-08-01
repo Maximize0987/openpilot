@@ -2895,6 +2895,13 @@ def get_routes_names(footage_path):
   route_times = {segment.route_name.time_str for segment in segments}
   return sorted(route_times, reverse=True)
 
+def get_routes_with_segment_counts(footage_path):
+  route_counts = {}
+  for segment in get_all_segment_names(footage_path):
+    route_name = segment.route_name.time_str
+    route_counts[route_name] = route_counts.get(route_name, 0) + 1
+  return sorted(route_counts.items(), reverse=True)
+
 def get_segments_in_route(route_time_str, footage_path):
   return [
     f"{segment.time_str}--{segment.segment_num}"
@@ -2930,7 +2937,7 @@ def normalize_theme_name(name, for_path=False):
     return f"{normalized_parts[0]} ({' '.join(normalized_parts[1:])})".replace(" Week", "")
   return ' '.join(normalized_parts).replace(" Week", "")
 
-def process_route(footage_path, route_name):
+def process_route(footage_path, route_name, segment_count=0):
   segment_path = f"{footage_path}{route_name}--0"
   qcamera_path = f"{segment_path}/qcamera.ts"
 
@@ -2954,7 +2961,9 @@ def process_route(footage_path, route_name):
     "name": route_name,
     "png": f"/thumbnails/{route_name}--0/preview.png",
     "timestamp": route_timestamp_str,
-    "is_preserved": has_preserve_attr(segment_path)
+    "is_preserved": has_preserve_attr(segment_path),
+    "segmentCount": max(0, int(segment_count)),
+    "approxDurationSeconds": max(0, int(segment_count)) * 60,
   }
 
 def process_screen_recording(mp4):

@@ -57,6 +57,16 @@ function safeCount(value) {
   return Number.isFinite(n) ? n : 0
 }
 
+function formatRouteLength(route) {
+  const segmentCount = Math.max(0, Math.round(safeCount(route?.segmentCount)))
+  if (!segmentCount) return "Length unavailable"
+  const approximateMinutes = Math.max(1, Math.round(safeCount(route?.approxDurationSeconds) / 60) || segmentCount)
+  const duration = approximateMinutes >= 60
+    ? `~${Math.floor(approximateMinutes / 60)}h ${approximateMinutes % 60}m`
+    : `~${approximateMinutes} min`
+  return `${segmentCount} segment${segmentCount === 1 ? "" : "s"} (${duration})`
+}
+
 function connectRouteUrl(routeName) {
   const dongleId = String(state.connectDongleId || "").trim()
   const routeId = String(routeName || "").trim()
@@ -1196,6 +1206,7 @@ export function Tuning() {
                       <span>
                         <strong>${route.timestampLabel}</strong>
                         <small>${route.name}</small>
+                        <small>${formatRouteLength(route)}</small>
                       </span>
                     </label>
                     ${() => connectRouteUrl(route.name) ? html`
