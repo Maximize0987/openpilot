@@ -5,6 +5,10 @@ from tinygrad.helpers import DEBUG, DEV, to_mv, round_up, OSX, getenv, ceildiv
 from tinygrad.runtime.support.hcq import MMIOInterface
 from tinygrad.runtime.support import c
 
+CUSTOM_ASM24_PRODUCT_PREFIXES = ("custom", "USB 3.2 PCIe TinyEnclosure")
+
+def is_custom_asm24_product(product:str) -> bool: return product.startswith(CUSTOM_ASM24_PRODUCT_PREFIXES)
+
 def alloc_cbuffer(sz:int) -> tuple[ctypes.Array, memoryview]: return (buf:=(ctypes.c_ubyte * sz)()), to_mv(ctypes.addressof(buf), sz)
 def checked(fn, msg=None):
   @functools.wraps(fn)
@@ -63,7 +67,7 @@ class USB3:
     checked(libusb.libusb_get_device_descriptor)(libusb.libusb_get_device(self.handle), ctypes.byref(_desc))
     _ret = checked(libusb.libusb_get_string_descriptor_ascii)(self.handle, _desc.iProduct, _buf, 256)
     self.product = bytes(_buf[:_ret]).decode("ascii", errors="replace")
-    self.is_custom = self.product.startswith("custom")
+    self.is_custom = is_custom_asm24_product(self.product)
     if self.is_custom: self.use_bot = use_bot = True
 
     # Detach kernel driver if needed
