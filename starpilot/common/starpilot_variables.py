@@ -1044,7 +1044,9 @@ class StarPilotVariables:
     toggle.lane_detection_width = self.get_value("LaneDetectionWidth", cast=float, condition=toggle.lane_changes, conversion=distance_conversion)
     toggle.minimum_lane_change_speed = self.get_value("MinimumLaneChangeSpeed", cast=float, condition=toggle.lane_changes, conversion=speed_conversion)
     toggle.lane_change_close_gap = self.get_value("LaneChangeCloseGap", condition=toggle.lane_changes)
-    toggle.lane_change_close_gap_seconds = self.get_value("LaneChangeCloseGapSeconds", cast=float, condition=toggle.lane_change_close_gap, min=0.5, max=3.0)
+    toggle.lane_change_close_gap_seconds = self.get_value(
+      "LaneChangeCloseGapSeconds", cast=float, condition=toggle.lane_change_close_gap, default=1.0, min=0.5, max=3.0,
+    )
     toggle.nudgeless = self.get_value("NudgelessLaneChange", condition=toggle.lane_changes)
     toggle.nudgeless_lane_change_only_when_engaged = self.get_value("NudgelessLaneChangeOnlyWhenEngaged", condition=toggle.lane_changes and toggle.nudgeless)
     toggle.one_lane_change = self.get_value("OneLaneChange", condition=toggle.lane_changes)
