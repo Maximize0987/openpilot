@@ -19,7 +19,7 @@ from openpilot.selfdrive.ui.mici.onroad.starpilot_status import (
   TRAFFIC_COLOR,
   get_border_color,
 )
-from openpilot.selfdrive.ui.mici.onroad.cameraview import CameraView
+from openpilot.selfdrive.ui.onroad.cameraview import CameraView
 from openpilot.selfdrive.ui.lib.starpilot_visuals import get_border_width
 from openpilot.starpilot.common.favorite_slots import is_favorite_action_key, load_favorite_slots, toggle_favorite_slot
 from openpilot.system.ui.lib.application import FontWeight, gui_app, MousePos, MouseEvent
@@ -507,7 +507,7 @@ class StandstillTimerOverlay:
     return minute_text, second_text
 
   def _draw_centered_text(self, rect: rl.Rectangle, text: str, y: float, font: rl.Font, font_size: int, color: rl.Color) -> None:
-    text_size = rl.measure_text_ex(font, text, font_size, 0)
+    text_size = measure_text_cached(font, text, font_size)
     text_pos = rl.Vector2(rect.x + rect.width / 2 - text_size.x / 2, rect.y + y - text_size.y / 2)
     shadow_pos = rl.Vector2(text_pos.x + 2, text_pos.y + 2)
     rl.draw_text_ex(font, text, shadow_pos, font_size, 0, rl.Color(0, 0, 0, 170))
@@ -516,7 +516,7 @@ class StandstillTimerOverlay:
   @staticmethod
   def _fit_font_size(font: rl.Font, text: str, initial_size: int, max_width: float, minimum_size: int) -> int:
     font_size = max(initial_size, minimum_size)
-    while font_size > minimum_size and rl.measure_text_ex(font, text, font_size, 0).x > max_width:
+    while font_size > minimum_size and measure_text_cached(font, text, font_size).x > max_width:
       font_size -= 2
     return font_size
 
@@ -830,14 +830,16 @@ class AugmentedRoadView(CameraView):
 
   def _switch_stream_if_needed(self, sm, camera_view: int):
     if camera_view == CAMERA_VIEW_NONE:
+      self._cancel_pending_switch()
       self._reverse_driver_camera_frames = 0
       self._reverse_driver_camera_active = False
       return
 
+    if getattr(self, "_onroad_reentry_pending", False):
+      self._refresh_available_streams()
+
     if self._update_reverse_driver_camera_state():
-      target = DRIVER_CAM
-      if self.stream_type != target:
-        self.switch_stream(target)
+      self.switch_stream(DRIVER_CAM)
       return
 
     wide_available = WIDE_CAM in self.available_streams
@@ -859,7 +861,8 @@ class AugmentedRoadView(CameraView):
     else:
       target = ROAD_CAM
 
-    if self.stream_type != target:
+    if (getattr(self, "_onroad_reentry_pending", False) or
+        self.stream_type != target or (self._switching and self._target_stream_type != target)):
       self.switch_stream(target)
 
   def _update_calibration(self):

@@ -208,7 +208,11 @@ class LatControlTorque(LatControl):
 
       roll_offset_fade = np.interp(CS.vEgo, FF_ROLL_OFFSET_FADE_BP, FF_ROLL_OFFSET_FADE_V)
       roll_compensation = params.roll * ACCELERATION_DUE_TO_GRAVITY * roll_offset_fade
-      curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
+      flm_center_deadband_deg = (
+        get_flm_full_surface_center_deadband_deg(self.flm_surface_profile_key, CS.vEgo) if flm_surface_active else 0.0
+      )
+      effective_deadband_deg = self.steering_angle_deadzone_deg + flm_center_deadband_deg
+      curvature_deadzone = abs(VM.calc_curvature(math.radians(effective_deadband_deg), CS.vEgo, 0.0))
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
       delay_frames = int(np.clip(lat_delay / self.dt, 1, self.request_buffer_len))

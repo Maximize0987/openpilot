@@ -323,6 +323,50 @@ class TestLatControl:
     assert get_flm_runtime_overrides() == {}
     assert get_standard_friction_threshold(10.0) == pytest.approx(base)
 
+  def test_flm_center_deadband_curve_interpolates_by_speed(self):
+    overrides = normalize_flm_overrides({
+      "vehicleKnobs": {
+        "torque_universal.center_deadband_crawl_deg": 0.0,
+        "torque_universal.center_deadband_low_deg": 0.04,
+        "torque_universal.center_deadband_mid_deg": 0.08,
+        "torque_universal.center_deadband_fast_deg": 0.04,
+        "torque_universal.center_deadband_highway_deg": 0.02,
+      },
+    })
+    try:
+      set_flm_runtime_overrides(overrides)
+      helper = latcontrol_vehicle_tunes.get_flm_full_surface_center_deadband_deg
+      assert helper("torque_universal", 0.0) == pytest.approx(0.0)
+      assert helper("torque_universal", 10.0) == pytest.approx(0.08)
+      assert helper("torque_universal", 12.5) == pytest.approx(0.06)
+      assert helper("torque_universal", 25.0) == pytest.approx(0.02)
+    finally:
+      clear_flm_runtime_overrides()
+
+  def test_flm_center_deadband_only_reaches_controller_with_active_trial(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.CHEVROLET_BOLT_ACC_2022_2023)
+    symbol = f"{controller.flm_surface_profile_key}.center_deadband_highway_deg"
+    recorded_deadzones = []
+
+    def record_deadzone(_error, deadzone, _threshold, _torque_params):
+      recorded_deadzones.append(deadzone)
+      return 0.0
+
+    monkeypatch.setattr(latcontrol_torque, "get_friction", record_deadzone)
+    starpilot_toggles.flm_active_overrides = {"vehicleKnobs": {symbol: 0.08}}
+    starpilot_toggles.flm_active_profile_id = ""
+    starpilot_toggles.flm_trial_applied = False
+    controller.update(True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles)
+    inactive_deadzone = recorded_deadzones[-1]
+
+    starpilot_toggles.flm_active_profile_id = "report:cleanup:recommended"
+    starpilot_toggles.flm_trial_applied = True
+    try:
+      controller.update(True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles)
+      assert recorded_deadzones[-1] > inactive_deadzone
+    finally:
+      clear_flm_runtime_overrides()
+
   def test_flm_vehicle_knob_override_ioniq6_center_taper(self):
     baseline = get_ioniq_6_center_taper_scale(0.0, 32.0)
     overrides = normalize_flm_overrides({

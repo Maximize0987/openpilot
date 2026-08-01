@@ -60,6 +60,7 @@ class EGLState:
   active_texture: Any = None
   gen_textures: Any = None
   delete_textures: Any = None
+  gl_finish: Any = None
 
 
 # Create a single instance of the state
@@ -99,6 +100,7 @@ def init_egl() -> bool:
       void glGenTextures(int n, unsigned int *textures);
       void glDeleteTextures(int n, const unsigned int *textures);
       GLenum glGetError(void);
+      void glFinish(void);
     """)
 
     # Load libraries
@@ -121,6 +123,7 @@ def init_egl() -> bool:
     _egl.active_texture = _egl.gles_lib.glActiveTexture
     _egl.gen_textures = _egl.gles_lib.glGenTextures
     _egl.delete_textures = _egl.gles_lib.glDeleteTextures
+    _egl.gl_finish = _egl.gles_lib.glFinish
 
     # Initialize EGL display once here
     _egl.display = _egl.get_current_display()
@@ -133,6 +136,15 @@ def init_egl() -> bool:
     cloudlog.exception(f"EGL initialization failed: {e}")
     _egl.initialized = False
     return False
+
+
+def is_egl_initialized() -> bool:
+  return _egl.initialized
+
+
+def finish_gl() -> None:
+  if _egl.initialized:
+    _egl.gl_finish()
 
 
 def create_egl_image(width: int, height: int, stride: int, fd: int, uv_offset: int) -> EGLImage | None:
@@ -170,10 +182,12 @@ def create_egl_image(width: int, height: int, stride: int, fd: int, uv_offset: i
   return EGLImage(egl_image=egl_image, fd=dup_fd)
 
 
-def destroy_egl_image(egl_image: EGLImage) -> None:
+def destroy_egl_image(egl_image: EGLImage) -> bool:
   assert _egl.initialized, "EGL not initialized"
 
-  _egl.destroy_image_khr(_egl.display, egl_image.egl_image)
+  destroyed = bool(_egl.destroy_image_khr(_egl.display, egl_image.egl_image))
+  if not destroyed:
+    cloudlog.error(f"Failed to destroy EGL image: {_egl.get_error()}")
 
   # Close the duplicated fd we created in create_egl_image()
   # We need to handle OSError since the fd might already be closed
@@ -181,6 +195,8 @@ def destroy_egl_image(egl_image: EGLImage) -> None:
     os.close(egl_image.fd)
   except OSError:
     pass
+
+  return destroyed
 
 
 def create_external_texture() -> int:

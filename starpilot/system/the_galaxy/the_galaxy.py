@@ -5935,6 +5935,7 @@ def setup(app):
       "status": flm_workspace.read_flm_status(),
       "activeTrial": workspace.get("activeTrial"),
       "reports": workspace.get("reports", [])[:10],
+      "savedTunes": workspace.get("savedTunes", []),
     }), 200
 
   @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/analyze", methods=["POST"])
@@ -6015,6 +6016,48 @@ def setup(app):
   def clear_flm_workspace():
     try:
       return jsonify(flm_workspace.clear_workspace()), 200
+    except RuntimeError as error:
+      return jsonify({"error": str(error)}), 409
+
+  @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/saved-tunes", methods=["POST"])
+  @app.route("/api/flm/saved-tunes", methods=["POST"])
+  def save_flm_tune():
+    data = request.get_json(silent=True) or {}
+    try:
+      return jsonify(flm_workspace.save_active_trial_as_tune(str(data.get("name") or ""))), 200
+    except ValueError as error:
+      return jsonify({"error": str(error)}), 400
+    except RuntimeError as error:
+      return jsonify({"error": str(error)}), 409
+
+  @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/saved-tunes/<tune_id>/apply", methods=["POST"])
+  @app.route("/api/flm/saved-tunes/<tune_id>/apply", methods=["POST"])
+  def apply_flm_saved_tune(tune_id):
+    try:
+      return jsonify(flm_workspace.apply_saved_tune(tune_id)), 200
+    except FileNotFoundError:
+      return jsonify({"error": "Saved FLM tune not found."}), 404
+    except RuntimeError as error:
+      return jsonify({"error": str(error)}), 409
+
+  @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/saved-tunes/<tune_id>", methods=["PATCH"])
+  @app.route("/api/flm/saved-tunes/<tune_id>", methods=["PATCH"])
+  def rename_flm_saved_tune(tune_id):
+    data = request.get_json(silent=True) or {}
+    try:
+      return jsonify(flm_workspace.rename_saved_tune(tune_id, str(data.get("name") or ""))), 200
+    except FileNotFoundError:
+      return jsonify({"error": "Saved FLM tune not found."}), 404
+    except ValueError as error:
+      return jsonify({"error": str(error)}), 400
+
+  @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/saved-tunes/<tune_id>", methods=["DELETE"])
+  @app.route("/api/flm/saved-tunes/<tune_id>", methods=["DELETE"])
+  def delete_flm_saved_tune(tune_id):
+    try:
+      return jsonify(flm_workspace.delete_saved_tune(tune_id)), 200
+    except FileNotFoundError:
+      return jsonify({"error": "Saved FLM tune not found."}), 404
     except RuntimeError as error:
       return jsonify({"error": str(error)}), 409
 

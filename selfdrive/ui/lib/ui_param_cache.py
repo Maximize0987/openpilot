@@ -1,6 +1,6 @@
 """Small, shared cache for read-mostly UI parameters.
 
-Parameter reads are file-backed.  The BIG UI asks for the same values from
+Parameter reads are file-backed.  The raylib UIs ask for the same values from
 multiple widgets during a frame, so a short cache avoids repeated open/read/
 close cycles without making settings changes sticky: every write invalidates
 the affected key immediately and the short TTL bounds visibility of writes
@@ -100,7 +100,7 @@ _SHARED_UI_PARAMS: UIParamCache | None = None
 
 
 def shared_ui_params() -> UIParamCache:
-  """Return the cache shared by BIG UI views and settings panels."""
+  """Return the cache shared by raylib UI views and settings panels."""
   global _SHARED_UI_PARAMS
   if _SHARED_UI_PARAMS is None:
     _SHARED_UI_PARAMS = UIParamCache()

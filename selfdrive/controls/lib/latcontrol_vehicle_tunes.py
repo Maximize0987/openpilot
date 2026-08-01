@@ -2709,6 +2709,11 @@ FLM_FULL_SURFACE_SUFFIX_METADATA = {
   "unwind_taper_right": {"min": 0.0, "max": 12.0, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True},
   "center_taper_max": {"min": 0.0, "max": 0.18, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True},
   "highway_center_taper_max": {"min": 0.0, "max": 0.18, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True},
+  "center_deadband_crawl_deg": {"min": 0.0, "max": 0.30, "precision": 0.005, "deltaType": "absolute", "safeLiveTrial": True},
+  "center_deadband_low_deg": {"min": 0.0, "max": 0.30, "precision": 0.005, "deltaType": "absolute", "safeLiveTrial": True},
+  "center_deadband_mid_deg": {"min": 0.0, "max": 0.20, "precision": 0.005, "deltaType": "absolute", "safeLiveTrial": True},
+  "center_deadband_fast_deg": {"min": 0.0, "max": 0.12, "precision": 0.005, "deltaType": "absolute", "safeLiveTrial": True},
+  "center_deadband_highway_deg": {"min": 0.0, "max": 0.08, "precision": 0.005, "deltaType": "absolute", "safeLiveTrial": True},
   "turn_in_threshold_reduction_left": {"min": 0.0, "max": 2.00, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True},
   "turn_in_threshold_reduction_right": {"min": 0.0, "max": 2.00, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True},
   "unwind_threshold_increase_left": {"min": 0.0, "max": 12.0, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True},
@@ -2737,6 +2742,11 @@ FLM_FULL_SURFACE_NEUTRAL_DEFAULTS = {
   "unwind_taper_right": 0.0,
   "center_taper_max": 0.0,
   "highway_center_taper_max": 0.0,
+  "center_deadband_crawl_deg": 0.0,
+  "center_deadband_low_deg": 0.0,
+  "center_deadband_mid_deg": 0.0,
+  "center_deadband_fast_deg": 0.0,
+  "center_deadband_highway_deg": 0.0,
   "turn_in_threshold_reduction_left": 0.0,
   "turn_in_threshold_reduction_right": 0.0,
   "unwind_threshold_increase_left": 0.0,
@@ -2821,6 +2831,24 @@ def get_flm_full_surface_center_taper_scale(profile_key: str | None, desired_lat
     reduction += _flm_vehicle_knob(_flm_profile_symbol(profile_key, "highway_center_taper_max"), 0.0) * speed_weight * center_weight
 
   return 1.0 - min(reduction, 0.20)
+
+
+def get_flm_full_surface_center_deadband_deg(profile_key: str | None, v_ego: float) -> float:
+  if not profile_key:
+    return 0.0
+
+  suffixes = (
+    "center_deadband_crawl_deg",
+    "center_deadband_low_deg",
+    "center_deadband_mid_deg",
+    "center_deadband_fast_deg",
+    "center_deadband_highway_deg",
+  )
+  values = [
+    _flm_vehicle_knob(_flm_profile_symbol(profile_key, suffix), 0.0)
+    for suffix in suffixes
+  ]
+  return float(np.interp(max(v_ego, 0.0), FLM_FRICTION_SPEED_KNOTS, values))
 
 
 def get_flm_full_surface_ff_scale(profile_key: str | None, desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float,
