@@ -6,7 +6,7 @@ import pyray as rl
 
 from msgq.visionipc import VisionIpcClient, VisionStreamType, VisionBuf
 from openpilot.common.swaglog import cloudlog
-from openpilot.system.hardware import TICI
+from openpilot.system.hardware import PC, TICI
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.egl import (
   init_egl, is_egl_initialized, finish_gl, create_egl_image, destroy_egl_image,
@@ -364,7 +364,9 @@ class CameraView(Widget):
         f"Dropping inconsistent {self._name} frame: content={content_frame_id}, packet={packet_frame_id}"
       )
       return False
-    if content_frame_id < self._last_frame_id:
+    # Device camera frame IDs are monotonic; reject older reusable ring-buffer
+    # slots there. Desktop replay intentionally lowers IDs when seeking backward.
+    if not PC and content_frame_id < self._last_frame_id:
       self._regressive_frame_count += 1
       if self._regressive_frame_count == 1 or self._regressive_frame_count % 100 == 0:
         message = f"Dropping regressive {self._name} frame: content={content_frame_id}, packet={packet_frame_id}, "

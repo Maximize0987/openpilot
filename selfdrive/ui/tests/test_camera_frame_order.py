@@ -106,6 +106,7 @@ def test_standalone_camera_reentry_selects_configured_stream():
 
 def test_reused_egl_slot_cannot_move_camera_backwards(monkeypatch):
   monkeypatch.setattr(big_cameraview.cloudlog, "warning", lambda *_args, **_kwargs: None)
+  monkeypatch.setattr(big_cameraview, "PC", False)
   view = _camera_view()
 
   displayed = FakeFrame(frame_id=10, idx=0)
@@ -120,6 +121,19 @@ def test_reused_egl_slot_cannot_move_camera_backwards(monkeypatch):
   assert view.frame is displayed
   assert view._last_frame_id == 30
   assert view._regressive_frame_count == 1
+
+
+def test_texture_camera_accepts_regressive_replay_frame(monkeypatch):
+  monkeypatch.setattr(big_cameraview, "PC", True)
+  view = _camera_view()
+
+  assert view._accept_frame(FakeFrame(frame_id=1140, idx=0), packet_frame_id=1140)
+  rewind = FakeFrame(frame_id=660, idx=1)
+
+  assert view._accept_frame(rewind, packet_frame_id=660)
+  assert view.frame is rewind
+  assert view._last_frame_id == 660
+  assert view._regressive_frame_count == 0
 
 
 def test_newer_camera_frame_is_accepted():
@@ -150,6 +164,7 @@ def test_shared_camera_has_upstream_shaders_and_driver_enhancement():
 
 def test_shared_camera_falls_back_after_repeated_regressive_frames(monkeypatch):
   monkeypatch.setattr(big_cameraview.cloudlog, "warning", lambda *_args, **_kwargs: None)
+  monkeypatch.setattr(big_cameraview, "PC", False)
   view = _camera_view()
   view._use_egl = True
   view.frame = FakeFrame(frame_id=30, idx=0)
