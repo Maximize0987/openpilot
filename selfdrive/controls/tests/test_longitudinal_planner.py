@@ -2513,7 +2513,7 @@ def test_modeld_action_uses_direct_action_head_for_v14(monkeypatch):
     starpilot_toggles=toggles,
   )
 
-  assert action.desiredCurvature == pytest.approx(0.12)
+  assert action.desiredCurvature == pytest.approx(modeld.smooth_value(0.12, prev_action.desiredCurvature, modeld.LAT_SMOOTH_SECONDS))
   assert action.desiredAcceleration < -0.2
   assert not action.shouldStop
 
@@ -2545,7 +2545,7 @@ def test_modeld_action_uses_current_action_head_scaling_for_v15(monkeypatch):
     starpilot_toggles=toggles,
   )
 
-  assert action.desiredCurvature == pytest.approx(0.48)
+  assert action.desiredCurvature == pytest.approx(modeld.smooth_value(0.48, prev_action.desiredCurvature, modeld.LAT_SMOOTH_SECONDS))
   assert action.desiredAcceleration < -0.2
   assert not action.shouldStop
 
