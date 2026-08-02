@@ -27,6 +27,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   clear_flm_runtime_overrides,
   get_flm_runtime_overrides,
   get_hkg_canfd_base_friction_threshold,
+  get_kona_non_scc_highway_transition_output_scale,
   KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
   get_ram_1500_transition_output_scale,
@@ -283,8 +284,8 @@ class TestLatControl:
     right_turn_in = get_volt_standard_friction_scale(6.0, -0.7, -0.8)
     left_unwind = get_volt_standard_friction_scale(6.0, 0.7, -0.8)
     right_unwind = get_volt_standard_friction_scale(6.0, -0.7, 0.8)
-    assert base < left_turn_in < right_turn_in
-    assert left_unwind < base and right_unwind < left_unwind
+    assert base == left_turn_in == right_turn_in
+    assert left_unwind == right_unwind < base
 
   def test_volt_standard_center_taper_curve(self):
     assert get_volt_standard_center_taper_scale(0.0, 10.0) > get_volt_standard_center_taper_scale(0.0, 25.0)
@@ -552,7 +553,7 @@ class TestLatControl:
     right_unwind = get_genesis_g90_friction_threshold(6.0, -0.7, 0.8)
     assert left_turn_in < base
     assert right_turn_in < base
-    assert left_turn_in < right_turn_in
+    assert left_turn_in == right_turn_in
     assert left_unwind > base
     assert right_unwind > left_unwind
 
@@ -621,7 +622,7 @@ class TestLatControl:
     left_unwind_threshold = get_prius_friction_threshold(6.0, 0.7, -0.8)
     right_unwind_threshold = get_prius_friction_threshold(6.0, -0.7, 0.8)
     assert left_turn_in_threshold < base_threshold
-    assert right_turn_in_threshold < left_turn_in_threshold
+    assert right_turn_in_threshold == left_turn_in_threshold
     assert left_unwind_threshold > base_threshold
     assert right_unwind_threshold >= left_unwind_threshold
 
@@ -630,8 +631,8 @@ class TestLatControl:
     right_turn_in_scale = get_prius_friction_scale(6.0, -0.7, -0.8)
     left_unwind_scale = get_prius_friction_scale(6.0, 0.7, -0.8)
     right_unwind_scale = get_prius_friction_scale(6.0, -0.7, 0.8)
-    assert right_turn_in_scale > left_turn_in_scale > base_scale
-    assert base_scale > left_unwind_scale > right_unwind_scale
+    assert right_turn_in_scale == left_turn_in_scale > base_scale
+    assert base_scale > left_unwind_scale == right_unwind_scale
 
   def test_generic_friction_threshold_floor(self):
     assert get_standard_friction_threshold(0.0) == 0.30
@@ -662,7 +663,7 @@ class TestLatControl:
     assert turn_in_left_threshold < base
     assert turn_in_left_threshold < turn_in_right_threshold < base
     assert unwind_left_threshold > base
-    assert unwind_right_threshold > unwind_left_threshold
+    assert unwind_right_threshold == unwind_left_threshold
 
     turn_in_left_scale = get_ioniq_5_friction_scale(12.0, 0.7, 0.8)
     turn_in_right_scale = get_ioniq_5_friction_scale(12.0, -0.7, -0.8)
@@ -673,14 +674,13 @@ class TestLatControl:
     assert unwind_right_scale <= unwind_left_scale
     assert get_ioniq_5_friction_threshold(25.0, 0.0, 0.0) >= get_hkg_canfd_base_friction_threshold(25.0)
 
-  def test_rav4_prime_unwind_relief_preserves_turn_in(self):
+  def test_rav4_prime_phase_shaping(self):
     left_turn_in = get_rav4_prime_ff_scale(1.0, 0.8, 13.0)
     right_turn_in = get_rav4_prime_ff_scale(-1.0, -0.8, 13.0)
     left_unwind = get_rav4_prime_ff_scale(1.0, -0.8, 13.0)
     right_unwind = get_rav4_prime_ff_scale(-1.0, 0.8, 13.0)
 
-    assert left_turn_in == pytest.approx(1.0)
-    assert right_turn_in == pytest.approx(1.0)
+    assert 1.0 < right_turn_in < left_turn_in < 1.06
     assert right_unwind < left_unwind < 1.0
     assert left_unwind < 0.86
     assert right_unwind < 0.86
@@ -691,7 +691,7 @@ class TestLatControl:
     center = get_rav4_prime_friction_threshold(13.0, 0.0)
     turn = get_rav4_prime_friction_threshold(13.0, 1.0)
 
-    assert center > base
+    assert center > base * 1.25
     assert turn == pytest.approx(base, rel=0.01)
     assert get_rav4_prime_friction_scale(13.0, 1.0, 0.8) == pytest.approx(1.0)
     assert get_rav4_prime_friction_scale(13.0, 1.0, -0.8) < 1.0
@@ -702,9 +702,13 @@ class TestLatControl:
 
     left_unwind = get_rav4_prime_output_taper_scale(1.0, -0.8, 13.0)
     right_unwind = get_rav4_prime_output_taper_scale(-1.0, 0.8, 13.0)
+    hard_left_unwind = get_rav4_prime_output_taper_scale(2.5, -0.8, 13.0)
+    hard_right_unwind = get_rav4_prime_output_taper_scale(-2.5, 0.8, 13.0)
     assert right_unwind < left_unwind < 1.0
     assert left_unwind < 0.87
     assert right_unwind < 0.84
+    assert hard_left_unwind < left_unwind - 0.02
+    assert hard_right_unwind < right_unwind - 0.01
     assert get_rav4_prime_output_taper_scale(-1.0, 0.8, 25.0) > right_unwind
 
   def test_rav4_prime_forced_torque_update_path(self, monkeypatch):
@@ -772,6 +776,57 @@ class TestLatControl:
     assert base_output > 0.0
     assert tapered_output == pytest.approx(base_output)
 
+  def test_kona_non_scc_highway_transition_taper_curve(self):
+    assert get_kona_non_scc_highway_transition_output_scale(0.4, 1.25, 20.0) == pytest.approx(1.0)
+    assert get_kona_non_scc_highway_transition_output_scale(0.4, 0.3, 30.0) == pytest.approx(1.0)
+
+    center_transition = get_kona_non_scc_highway_transition_output_scale(0.4, 1.25, 30.0)
+    medium_transition = get_kona_non_scc_highway_transition_output_scale(1.1, -1.25, 30.0)
+    assert center_transition == pytest.approx(0.72)
+    assert center_transition < medium_transition < 1.0
+    assert get_kona_non_scc_highway_transition_output_scale(1.65, 2.5, 30.0) == pytest.approx(1.0)
+
+  def test_kona_non_scc_highway_transition_taper_update_path(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_KONA_NON_SCC)
+    CS.vEgo = 30.0
+    base_output, _, lac_log = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.3, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_kona_non_scc_highway_transition_output_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(
+      HYUNDAI.HYUNDAI_KONA_NON_SCC,
+    )
+    tapered_CS.vEgo = 30.0
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.0025, False, 0.3, None, None, tapered_toggles,
+    )
+
+    assert controller.is_kona_non_scc
+    assert lac_log.active
+    assert tapered_output == pytest.approx(base_output * 0.5)
+
+  def test_kona_non_scc_highway_transition_taper_preserves_corrective_torque(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_KONA_NON_SCC)
+    CS.vEgo = 30.0
+    CS.steeringAngleDeg = -30.0
+    base_output, _, _ = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.3, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_kona_non_scc_highway_transition_output_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(
+      HYUNDAI.HYUNDAI_KONA_NON_SCC,
+    )
+    tapered_CS.vEgo = 30.0
+    tapered_CS.steeringAngleDeg = -30.0
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.0025, False, 0.3, None, None, tapered_toggles,
+    )
+
+    assert base_output > 0.0
+    assert tapered_output == pytest.approx(base_output)
+
   def test_ioniq_5_center_taper_curve(self):
     assert get_ioniq_5_center_taper_scale(0.0, 25.0) < get_ioniq_5_center_taper_scale(0.0, 10.0)
     assert get_ioniq_5_center_taper_scale(0.0, 25.0) < get_ioniq_5_center_taper_scale(0.20, 25.0) <= 1.0
@@ -805,11 +860,11 @@ class TestLatControl:
     unwind = get_ioniq_6_low_speed_angle_assist_torque(22.0, 30.0, base, 1.0)
     opposing = get_ioniq_6_low_speed_angle_assist_torque(-22.0, 0.0, 0.08, 1.0)
 
-    assert boosted > base
-    assert faded < boosted
+    assert boosted < 0.0
+    assert faded > boosted
     assert abs(faded - base) < 0.04
-    assert unwind == pytest.approx(base)
-    assert opposing < 0.0
+    assert unwind > base
+    assert opposing > 0.0
 
   def test_ioniq_6_directional_taper_curve(self):
     assert get_ioniq_6_directional_taper_scale(0.0, 0.0) == 1.0
@@ -892,7 +947,7 @@ class TestLatControl:
     right_turn_in = get_kia_ev6_friction_threshold(6.0, -0.5, -0.8)
     left_unwind = get_kia_ev6_friction_threshold(6.0, 0.5, -0.8)
     right_unwind = get_kia_ev6_friction_threshold(6.0, -0.5, 0.8)
-    assert right_turn_in < left_turn_in < base < right_unwind <= left_unwind
+    assert right_turn_in == left_turn_in < base < right_unwind == left_unwind
     assert get_kia_ev6_friction_threshold(25.0, 0.0, 0.0) >= get_hkg_canfd_base_friction_threshold(25.0)
 
   def test_kia_ev6_friction_scale_curve(self):
@@ -901,8 +956,8 @@ class TestLatControl:
     right_turn_in = get_kia_ev6_friction_scale(6.0, -0.5, -0.8)
     left_unwind = get_kia_ev6_friction_scale(6.0, 0.5, -0.8)
     right_unwind = get_kia_ev6_friction_scale(6.0, -0.5, 0.8)
-    assert right_turn_in > left_turn_in > base
-    assert base > left_unwind >= right_unwind
+    assert right_turn_in == left_turn_in > base
+    assert base > left_unwind == right_unwind
 
   def test_lexus_is_ff_scale_curve(self):
     steady_left = get_lexus_is_ff_scale(0.6, 0.0, 22.0)
@@ -921,7 +976,7 @@ class TestLatControl:
     right_turn_in = get_volt_plexy_friction_threshold(6.0, -0.7, -0.8)
     left_unwind = get_volt_plexy_friction_threshold(6.0, 0.7, -0.8)
     right_unwind = get_volt_plexy_friction_threshold(6.0, -0.7, 0.8)
-    assert left_turn_in < right_turn_in < base < left_unwind < right_unwind
+    assert right_turn_in < left_turn_in < right_unwind < base < left_unwind
 
   def test_volt_plexy_friction_scale_curve(self):
     base = get_volt_plexy_friction_scale(25.0, 0.7, 0.8)
@@ -929,7 +984,7 @@ class TestLatControl:
     right_turn_in = get_volt_plexy_friction_scale(6.0, -0.7, -0.8)
     left_unwind = get_volt_plexy_friction_scale(6.0, 0.7, -0.8)
     right_unwind = get_volt_plexy_friction_scale(6.0, -0.7, 0.8)
-    assert left_turn_in > right_turn_in > base
+    assert left_turn_in == right_turn_in == base
     assert base > left_unwind > right_unwind
 
   def test_trailer_lateral_assist_is_bounded(self):

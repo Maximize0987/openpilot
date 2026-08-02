@@ -133,6 +133,9 @@ KIA_FORTE_CARS = (
   HYUNDAI_CAR.KIA_FORTE_2019_NON_SCC,
   HYUNDAI_CAR.KIA_FORTE_2021_NON_SCC,
 )
+KONA_NON_SCC_CARS = (
+  HYUNDAI_CAR.HYUNDAI_KONA_NON_SCC,
+)
 PRIUS_CARS = (
   TOYOTA_CAR.TOYOTA_PRIUS,
 )
@@ -775,13 +778,19 @@ PRIUS_CENTER_TAPER_SPEED = 18.0
 PRIUS_CENTER_TAPER_SPEED_WIDTH = 2.2
 
 RAV4_PRIME_PHASE_SCALE = 0.12
+RAV4_PRIME_TURN_IN_FF_BOOST_LEFT = 0.055
+RAV4_PRIME_TURN_IN_FF_BOOST_RIGHT = 0.040
 RAV4_PRIME_UNWIND_FF_REDUCTION_LEFT = 0.18
 RAV4_PRIME_UNWIND_FF_REDUCTION_RIGHT = 0.19
 RAV4_PRIME_UNWIND_FRICTION_REDUCTION_LEFT = 0.19
 RAV4_PRIME_UNWIND_FRICTION_REDUCTION_RIGHT = 0.20
-RAV4_PRIME_UNWIND_OUTPUT_REDUCTION_LEFT = 0.17
-RAV4_PRIME_UNWIND_OUTPUT_REDUCTION_RIGHT = 0.21
-RAV4_PRIME_FRICTION_THRESHOLD_GAIN = 0.24
+RAV4_PRIME_UNWIND_OUTPUT_REDUCTION_LEFT = 0.185
+RAV4_PRIME_UNWIND_OUTPUT_REDUCTION_RIGHT = 0.225
+RAV4_PRIME_HARD_UNWIND_OUTPUT_REDUCTION_LEFT = 0.04
+RAV4_PRIME_HARD_UNWIND_OUTPUT_REDUCTION_RIGHT = 0.025
+RAV4_PRIME_HARD_UNWIND_LAT = 1.25
+RAV4_PRIME_HARD_UNWIND_LAT_WIDTH = 0.20
+RAV4_PRIME_FRICTION_THRESHOLD_GAIN = 0.30
 RAV4_PRIME_FRICTION_CENTER_LAT = 0.30
 RAV4_PRIME_FRICTION_CENTER_LAT_WIDTH = 0.07
 RAV4_PRIME_SPEED_ONSET = 5.0
@@ -808,6 +817,18 @@ RAM_1500_TRANSITION_JERK_ONSET = 0.35
 RAM_1500_TRANSITION_JERK_FULL = 1.10
 RAM_1500_TRANSITION_LAT_FADE_START = 0.65
 RAM_1500_TRANSITION_LAT_FADE_END = 1.85
+
+# The Kona route is exceptionally accurate below highway speed, but Pop V2
+# reverses the requested lateral acceleration roughly once per second at
+# 29-30 m/s. Fade only rapid, high-speed turn-building torque so the EPS has
+# less stored torque to unwind while leaving steady curves and counter-torque.
+KONA_NON_SCC_TRANSITION_TAPER_MAX = 0.28
+KONA_NON_SCC_TRANSITION_SPEED_ONSET = 23.0
+KONA_NON_SCC_TRANSITION_SPEED_FULL = 29.0
+KONA_NON_SCC_TRANSITION_JERK_ONSET = 0.45
+KONA_NON_SCC_TRANSITION_JERK_FULL = 1.25
+KONA_NON_SCC_TRANSITION_LAT_FADE_START = 0.55
+KONA_NON_SCC_TRANSITION_LAT_FADE_END = 1.65
 
 TRAILER_LOAD_FULL_ASSIST_KG = 15000.0 * CV.LB_TO_KG
 TRAILER_LATERAL_MIN_SPEED = 15.0 * CV.MPH_TO_MS
@@ -1074,12 +1095,22 @@ def _rav4_prime_unwind_weight(desired_lateral_accel: float, desired_lateral_jerk
   return max(-phase, 0.0) * lat_weight
 
 
+def _rav4_prime_turn_in_weight(desired_lateral_accel: float, desired_lateral_jerk: float) -> float:
+  phase = math.tanh((desired_lateral_accel * desired_lateral_jerk) / RAV4_PRIME_PHASE_SCALE)
+  lat_weight = _sigmoid((abs(desired_lateral_accel) - 0.20) / 0.07)
+  return max(phase, 0.0) * lat_weight
+
+
 def get_rav4_prime_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:
+  turn_in_boost = _rav4_prime_side_value(desired_lateral_accel,
+                                         RAV4_PRIME_TURN_IN_FF_BOOST_LEFT,
+                                         RAV4_PRIME_TURN_IN_FF_BOOST_RIGHT)
   reduction = _rav4_prime_side_value(desired_lateral_accel,
                                      RAV4_PRIME_UNWIND_FF_REDUCTION_LEFT,
                                      RAV4_PRIME_UNWIND_FF_REDUCTION_RIGHT)
-  return 1.0 - (reduction * _rav4_prime_unwind_weight(desired_lateral_accel, desired_lateral_jerk) *
-                _rav4_prime_speed_weight(v_ego))
+  speed_weight = _rav4_prime_speed_weight(v_ego)
+  return (1.0 + (turn_in_boost * _rav4_prime_turn_in_weight(desired_lateral_accel, desired_lateral_jerk) * speed_weight) -
+          (reduction * _rav4_prime_unwind_weight(desired_lateral_accel, desired_lateral_jerk) * speed_weight))
 
 
 def get_rav4_prime_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,
@@ -1103,6 +1134,12 @@ def get_rav4_prime_output_taper_scale(desired_lateral_accel: float, desired_late
   reduction = _rav4_prime_side_value(desired_lateral_accel,
                                      RAV4_PRIME_UNWIND_OUTPUT_REDUCTION_LEFT,
                                      RAV4_PRIME_UNWIND_OUTPUT_REDUCTION_RIGHT)
+  hard_reduction = _rav4_prime_side_value(desired_lateral_accel,
+                                          RAV4_PRIME_HARD_UNWIND_OUTPUT_REDUCTION_LEFT,
+                                          RAV4_PRIME_HARD_UNWIND_OUTPUT_REDUCTION_RIGHT)
+  hard_curve_weight = _sigmoid((abs(desired_lateral_accel) - RAV4_PRIME_HARD_UNWIND_LAT) /
+                               RAV4_PRIME_HARD_UNWIND_LAT_WIDTH)
+  reduction += hard_reduction * hard_curve_weight
   return 1.0 - (reduction * _rav4_prime_unwind_weight(desired_lateral_accel, desired_lateral_jerk) *
                 _rav4_prime_speed_weight(v_ego))
 
@@ -1132,6 +1169,16 @@ def get_ram_1500_transition_output_scale(desired_lateral_accel: float, desired_l
   lat_weight = 1.0 - float(np.interp(abs(desired_lateral_accel),
                                      [RAM_1500_TRANSITION_LAT_FADE_START, RAM_1500_TRANSITION_LAT_FADE_END], [0.0, 1.0]))
   return 1.0 - (RAM_1500_TRANSITION_TAPER_MAX * speed_weight * jerk_weight * lat_weight)
+
+
+def get_kona_non_scc_highway_transition_output_scale(desired_lateral_accel: float, desired_lateral_jerk: float,
+                                                       v_ego: float) -> float:
+  speed_weight = float(np.interp(v_ego, [KONA_NON_SCC_TRANSITION_SPEED_ONSET, KONA_NON_SCC_TRANSITION_SPEED_FULL], [0.0, 1.0]))
+  jerk_weight = float(np.interp(abs(desired_lateral_jerk),
+                                [KONA_NON_SCC_TRANSITION_JERK_ONSET, KONA_NON_SCC_TRANSITION_JERK_FULL], [0.0, 1.0]))
+  lat_weight = 1.0 - float(np.interp(abs(desired_lateral_accel),
+                                     [KONA_NON_SCC_TRANSITION_LAT_FADE_START, KONA_NON_SCC_TRANSITION_LAT_FADE_END], [0.0, 1.0]))
+  return 1.0 - (KONA_NON_SCC_TRANSITION_TAPER_MAX * speed_weight * jerk_weight * lat_weight)
 
 
 def civic_bosch_modified_lateral_testing_ground_active() -> bool:

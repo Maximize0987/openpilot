@@ -99,6 +99,7 @@ class LatControlTorque(LatControl):
     self.is_kia_niro_phev_2022 = CP.carFingerprint in KIA_NIRO_PHEV_2022_CARS
     self.is_kia_stinger_2022 = CP.carFingerprint in KIA_STINGER_2022_CARS
     self.is_kia_forte = CP.carFingerprint in KIA_FORTE_CARS
+    self.is_kona_non_scc = CP.carFingerprint in KONA_NON_SCC_CARS
     self.is_kia_ev6 = CP.carFingerprint in KIA_EV6_CARS
     self.is_kia_carnival = CP.carFingerprint in KIA_CARNIVAL_CARS
     self.is_tucson_4th_gen = CP.carFingerprint in TUCSON_4TH_GEN_CARS
@@ -433,6 +434,8 @@ class LatControlTorque(LatControl):
         output_torque *= get_ioniq_6_highway_transition_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif self.is_ram_1500 and output_torque * setpoint > 0.0:
         output_torque *= get_ram_1500_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+      elif self.is_kona_non_scc and output_torque * setpoint > 0.0:
+        output_torque *= get_kona_non_scc_highway_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif rav4_prime_active:
         output_torque *= get_rav4_prime_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif prius_active:
