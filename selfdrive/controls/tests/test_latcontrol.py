@@ -70,6 +70,9 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_rav4_prime_friction_scale,
   get_rav4_prime_friction_threshold,
   get_rav4_prime_output_taper_scale,
+  get_sienna_4th_gen_center_taper_scale,
+  get_sienna_4th_gen_ff_scale,
+  get_sienna_4th_gen_friction_threshold,
   get_lexus_is_ff_scale,
   get_ioniq_5_ff_scale,
   get_ioniq_5_friction_scale,
@@ -710,6 +713,24 @@ class TestLatControl:
     assert hard_left_unwind < left_unwind - 0.02
     assert hard_right_unwind < right_unwind - 0.01
     assert get_rav4_prime_output_taper_scale(-1.0, 0.8, 25.0) > right_unwind
+
+  def test_sienna_4th_gen_turn_in_and_center_shaping(self):
+    steady = get_sienna_4th_gen_ff_scale(0.8, 0.0, 9.0)
+    turn_in = get_sienna_4th_gen_ff_scale(0.8, 0.8, 9.0)
+    high_speed = get_sienna_4th_gen_ff_scale(0.8, 0.8, 25.0)
+    assert turn_in > steady >= 1.0
+    assert high_speed < turn_in
+
+    base = get_standard_friction_threshold(9.0)
+    center = get_sienna_4th_gen_friction_threshold(9.0, 0.0)
+    turn = get_sienna_4th_gen_friction_threshold(9.0, 0.8)
+    assert center > turn >= base
+
+    calm = get_sienna_4th_gen_center_taper_scale(0.0, 8.0)
+    turn_taper = get_sienna_4th_gen_center_taper_scale(0.8, 8.0)
+    fast = get_sienna_4th_gen_center_taper_scale(0.0, 25.0)
+    assert calm < turn_taper <= 1.0
+    assert fast > calm
 
   def test_rav4_prime_forced_torque_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(TOYOTA.TOYOTA_RAV4_PRIME, force_torque=True)

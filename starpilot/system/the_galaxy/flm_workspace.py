@@ -3008,7 +3008,7 @@ def _apply_param_bundle(params: Params, bundle: dict[str, Any]) -> None:
     elif kind == "float":
       params.put_float(key, float(value))
     elif kind == "json":
-      params.put(key, normalize_flm_overrides(value))
+      params.put(key, json.dumps(normalize_flm_overrides(value), separators=(",", ":")))
     elif kind == "string":
       params.put(key, str(value or ""))
 
