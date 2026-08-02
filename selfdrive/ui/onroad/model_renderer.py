@@ -711,21 +711,25 @@ class ModelRenderer(Widget):
     lane_width_left = float(plan.laneWidthLeft) if plan.laneWidthLeft > 0 else 0.0
     lane_width_right = float(plan.laneWidthRight) if plan.laneWidthRight > 0 else 0.0
 
-    if lane_width_left <= 0 or lane_width_right <= 0:
-      self._adjacent_path_vertices = [np.empty((0, 2), dtype=np.float32), np.empty((0, 2), dtype=np.float32)]
-      return
+    # Clear stale polygons, then build each available side independently.
+    self._adjacent_path_vertices = [
+      np.empty((0, 2), dtype=np.float32),
+      np.empty((0, 2), dtype=np.float32),
+    ]
 
     # Left adjacent: average of lane_lines[0] and lane_lines[1]
-    self._adjacent_path_vertices[0] = self._get_adjacent_path_polygon(
-      self._lane_lines[0].raw_points, self._lane_lines[1].raw_points,
-      lane_width_left / 2.0, max_idx, max_distance
-    )
+    if lane_width_left > 0:
+      self._adjacent_path_vertices[0] = self._get_adjacent_path_polygon(
+        self._lane_lines[0].raw_points, self._lane_lines[1].raw_points,
+        lane_width_left / 2.0, max_idx, max_distance
+      )
 
     # Right adjacent: average of lane_lines[2] and lane_lines[3]
-    self._adjacent_path_vertices[1] = self._get_adjacent_path_polygon(
-      self._lane_lines[2].raw_points, self._lane_lines[3].raw_points,
-      lane_width_right / 2.0, max_idx, max_distance
-    )
+    if lane_width_right > 0:
+      self._adjacent_path_vertices[1] = self._get_adjacent_path_polygon(
+        self._lane_lines[2].raw_points, self._lane_lines[3].raw_points,
+        lane_width_right / 2.0, max_idx, max_distance
+      )
 
   def _get_adjacent_path_polygon(self, line1: np.ndarray, line2: np.ndarray, y_off: float, max_idx: int, max_distance: float) -> np.ndarray:
     if line1.shape[0] == 0 or line2.shape[0] == 0:
