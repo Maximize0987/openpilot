@@ -180,7 +180,7 @@ void StarPilotAnnotatedCameraWidget::updateState(const UIState &s, const StarPil
 
     distanceConversion = 1.0f;
     speedConversion = scene.is_metric ? MS_TO_KPH : MS_TO_MPH;
-    speedConversionMetrics = cachedUseSiMetrics ? 1.0f : MS_TO_KPH;
+    speedConversionMetrics = MS_TO_MPH; // speedConversionMetrics = cachedUseSiMetrics ? 1.0f : MS_TO_KPH;
   } else {
     leadDistanceUnit = tr(" feet");
     leadSpeedUnit = tr(" mph");
