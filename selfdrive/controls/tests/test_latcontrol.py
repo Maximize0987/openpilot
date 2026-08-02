@@ -27,6 +27,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   clear_flm_runtime_overrides,
   get_flm_runtime_overrides,
   get_hkg_canfd_base_friction_threshold,
+  KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
   get_ram_1500_transition_output_scale,
   get_subaru_impreza_pid_output_scale,
@@ -168,10 +169,14 @@ class TestLatControl:
     assert get_bolt_2017_base_torque_scale(0.5) > get_bolt_2017_base_torque_scale(-0.5)
     assert 1.0 < get_bolt_2017_base_torque_scale(1.2) < get_bolt_2017_base_torque_scale(0.5)
     assert get_bolt_2017_base_torque_scale(-2.5) < 1.0
-    assert 1.0 < get_bolt_2017_steer_ratio_scale(10.0 * 0.44704) < get_bolt_2017_steer_ratio_scale(20.0 * 0.44704) < get_bolt_2017_steer_ratio_scale(30.0 * 0.44704)
+    assert (1.0 < get_bolt_2017_steer_ratio_scale(10.0 * 0.44704) <
+            get_bolt_2017_steer_ratio_scale(20.0 * 0.44704) <
+            get_bolt_2017_steer_ratio_scale(30.0 * 0.44704))
     assert get_bolt_2017_steer_ratio_scale(5.0 * 0.44704) < 1.01
     assert get_bolt_2017_steer_ratio_scale(35.0 * 0.44704) > 1.04
-    assert get_bolt_2017_center_taper_scale(0.0, 30.0 * 0.44704) < get_bolt_2017_center_taper_scale(0.10, 30.0 * 0.44704) < get_bolt_2017_center_taper_scale(0.20, 30.0 * 0.44704) <= 1.0
+    assert (get_bolt_2017_center_taper_scale(0.0, 30.0 * 0.44704) <
+            get_bolt_2017_center_taper_scale(0.10, 30.0 * 0.44704) <
+            get_bolt_2017_center_taper_scale(0.20, 30.0 * 0.44704) <= 1.0)
     assert get_bolt_2017_center_taper_scale(0.0, 30.0 * 0.44704) < get_bolt_2017_center_taper_scale(0.0, 10.0 * 0.44704)
     assert get_bolt_2017_torque_scale(0.0, 0.0, 30.0 * 0.44704) < 1.0
     assert get_bolt_2017_torque_scale(0.6, 0.6, 8.0) > get_bolt_2017_torque_scale(0.6, 0.0, 8.0) > get_bolt_2017_torque_scale(0.6, -0.6, 8.0)
@@ -283,7 +288,9 @@ class TestLatControl:
 
   def test_volt_standard_center_taper_curve(self):
     assert get_volt_standard_center_taper_scale(0.0, 10.0) > get_volt_standard_center_taper_scale(0.0, 25.0)
-    assert get_volt_standard_center_taper_scale(0.0, 25.0) < get_volt_standard_center_taper_scale(0.10, 25.0) < get_volt_standard_center_taper_scale(0.20, 25.0) <= 1.0
+    assert (get_volt_standard_center_taper_scale(0.0, 25.0) <
+            get_volt_standard_center_taper_scale(0.10, 25.0) <
+            get_volt_standard_center_taper_scale(0.20, 25.0) <= 1.0)
     assert get_volt_standard_center_taper_scale(0.0, 25.0) > 0.85
 
   def test_sonata_hybrid_ff_scale_curve(self):
@@ -674,7 +681,9 @@ class TestLatControl:
 
     assert left_turn_in == pytest.approx(1.0)
     assert right_turn_in == pytest.approx(1.0)
-    assert left_unwind < right_unwind < 1.0
+    assert right_unwind < left_unwind < 1.0
+    assert left_unwind < 0.86
+    assert right_unwind < 0.86
     assert get_rav4_prime_ff_scale(1.0, -0.8, 25.0) > left_unwind
 
   def test_rav4_prime_friction_targets_center_and_unwind(self):
@@ -694,6 +703,8 @@ class TestLatControl:
     left_unwind = get_rav4_prime_output_taper_scale(1.0, -0.8, 13.0)
     right_unwind = get_rav4_prime_output_taper_scale(-1.0, 0.8, 13.0)
     assert right_unwind < left_unwind < 1.0
+    assert left_unwind < 0.87
+    assert right_unwind < 0.84
     assert get_rav4_prime_output_taper_scale(-1.0, 0.8, 25.0) > right_unwind
 
   def test_rav4_prime_forced_torque_update_path(self, monkeypatch):
@@ -868,7 +879,7 @@ class TestLatControl:
     assert get_ioniq_6_center_taper_scale(0.24, 22.0) - get_ioniq_6_center_taper_scale(0.24, 27.0) < 1.0e-2
     assert abs(get_ioniq_6_center_taper_scale(0.2, 30.0) - 1.0) < 7.2e-2
 
-  def test_kia_ev6_ff_scale_curve(self):
+  def test_kia_ev6_base_ff_scale_curve(self):
     assert get_kia_ev6_ff_scale(0.0, 0.0, 20.0) == 1.0
     assert get_kia_ev6_ff_scale(-0.3, 0.0, 20.0) > get_kia_ev6_ff_scale(0.3, 0.0, 20.0)
     assert get_kia_ev6_ff_scale(-0.4, -0.7, 8.0) > get_kia_ev6_ff_scale(-0.4, 0.0, 8.0) > get_kia_ev6_ff_scale(-0.4, 0.7, 8.0)
@@ -1025,7 +1036,7 @@ class TestLatControl:
     _, _, lac_log = controller.update(True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles)
 
     assert lac_log.active
-    assert controller.torque_params.latAccelFactor == pytest.approx(CP.lateralTuning.torque.latAccelFactor * 1.10)
+    assert controller.torque_params.latAccelFactor == pytest.approx(CP.lateralTuning.torque.latAccelFactor * KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT)
 
   def test_kia_carnival_default_update_path(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.KIA_CARNIVAL_2025)
@@ -1253,14 +1264,13 @@ class TestLatControl:
     assert unwind_right < unwind_left
 
   def test_modified_civic_b_variant_extra_torque_shaping_curve(self, monkeypatch):
-    base_steady_left = get_civic_bosch_modified_b_ff_scale(0.5, 0.0, 12.0)
     base_steady_right = get_civic_bosch_modified_b_ff_scale(-0.5, 0.0, 12.0)
     base_turn_in_right = get_civic_bosch_modified_b_ff_scale(-0.5, -0.8, 12.0)
     base_unwind_right = get_civic_bosch_modified_b_ff_scale(-0.5, 0.8, 12.0)
     base_turn_in_right_friction = get_civic_bosch_modified_b_friction_scale(12.0, -0.5, -0.8)
     base_unwind_right_friction = get_civic_bosch_modified_b_friction_scale(12.0, -0.5, 0.8)
 
-    monkeypatch.setattr(latcontrol_torque, "civic_bosch_modified_lateral_testing_ground_active", lambda: True)
+    monkeypatch.setattr(latcontrol_vehicle_tunes, "civic_bosch_modified_lateral_testing_ground_active", lambda: True)
 
     variant_steady_left = get_civic_bosch_modified_b_ff_scale(0.5, 0.0, 12.0)
     variant_steady_right = get_civic_bosch_modified_b_ff_scale(-0.5, 0.0, 12.0)
@@ -1287,9 +1297,7 @@ class TestLatControl:
     base_unwind_right = get_civic_bosch_modified_b_ff_scale(-0.5, 0.8, 12.0)
     base_turn_in_right_friction = get_civic_bosch_modified_b_friction_scale(12.0, -0.5, -0.8)
     base_unwind_left_friction = get_civic_bosch_modified_b_friction_scale(12.0, 0.5, -0.8)
-    base_unwind_right_friction = get_civic_bosch_modified_b_friction_scale(12.0, -0.5, 0.8)
-
-    monkeypatch.setattr(latcontrol_torque, "civic_bosch_modified_a_lateral_testing_ground_active", lambda: True)
+    monkeypatch.setattr(latcontrol_vehicle_tunes, "civic_bosch_modified_a_lateral_testing_ground_active", lambda: True)
 
     a_variant_steady_left = get_civic_bosch_modified_b_ff_scale(0.5, 0.0, 12.0)
     a_variant_steady_right = get_civic_bosch_modified_b_ff_scale(-0.5, 0.0, 12.0)
