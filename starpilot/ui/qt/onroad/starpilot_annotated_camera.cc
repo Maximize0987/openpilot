@@ -176,7 +176,7 @@ void StarPilotAnnotatedCameraWidget::updateState(const UIState &s, const StarPil
   if (scene.is_metric || cachedUseSiMetrics) {
     leadDistanceUnit = tr(" meters");
     leadSpeedUnit = cachedUseSiMetrics ? tr(" m/s") : tr(" km/h");
-    speedUnit = scene.is_metric ? tr("km/h") : tr("mph");
+    speedUnit = tr("mph"); // speedUnit = scene.is_metric ? tr("km/h") : tr("mph");
 
     distanceConversion = 1.0f;
     speedConversion = scene.is_metric ? MS_TO_KPH : MS_TO_MPH;
