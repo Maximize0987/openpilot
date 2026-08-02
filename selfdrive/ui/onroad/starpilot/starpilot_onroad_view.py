@@ -90,8 +90,6 @@ class StarPilotOnroadView(AugmentedRoadView):
       self._render_slc()
       self._render_overlays()
       self._render_road_name()
-    if self._draw_road_overlays:
-      self._render_path_features(self._content_rect)
 
   def _draw_border(self, rect: rl.Rectangle):
     border_width = self._get_border_width()
@@ -102,8 +100,7 @@ class StarPilotOnroadView(AugmentedRoadView):
     render_overlay(border_rect, border_width)
 
   def _render_slc(self):
-    alert_showing, alert_size = self.alert_renderer.will_render()
-    if alert_showing is not None and alert_size == AlertSize.full:
+    if self._full_alert_showing():
       return
     if self._speed_limit_widget.is_visible:
       self._speed_limit_widget.render(self._speed_limit_widget.rect)
@@ -136,18 +133,13 @@ class StarPilotOnroadView(AugmentedRoadView):
     self._torque_bar.render(self._content_rect)
     rl.end_scissor_mode()
 
-  def _render_path_features(self, rect: rl.Rectangle):
-    """Render path-related features (adjacent paths, blind spot, path edges)."""
+  def _render_extra_road_overlays(self, rect: rl.Rectangle) -> None:
+    """Render path features in the parent's clipped road-overlay layer."""
     mr = self.model_renderer
 
     # Only render if we have path data
     if not mr._path.projected_points.size:
       return
-
-    rl.begin_scissor_mode(
-      int(rect.x), int(rect.y),
-      int(rect.width), int(rect.height),
-    )
 
     # Path edges (always rendered if track_edge_vertices exist)
     if mr._track_edge_vertices.size >= 4:
@@ -159,7 +151,9 @@ class StarPilotOnroadView(AugmentedRoadView):
     # Render stopping point atop the path
     render_stopping_point(mr, self._font_bold)
 
-    rl.end_scissor_mode()
+  def _full_alert_showing(self) -> bool:
+    alert_showing, _ = self.alert_renderer.will_render()
+    return alert_showing is not None and alert_showing.size == AlertSize.full
 
   def _render_standstill_timer(self):
     if not self._params.get_bool("stopped_timer"):
@@ -385,6 +379,9 @@ class StarPilotOnroadView(AugmentedRoadView):
       render_weather_icon(weather_rect)
 
   def _render_road_name(self):
+    if self._full_alert_showing():
+      return
+
     toggles = ui_state.starpilot_toggles
     road_name_on = bool(toggles.get("road_name_ui", self._params.get_bool("RoadNameUI")))
     if not road_name_on:
