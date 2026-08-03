@@ -966,6 +966,7 @@ _TROUBLESHOOT_ADVANCED_LATERAL_KEYS = [
   "ForceTorqueController",
   "CameraOffset",
   "LaneCentering",
+  "LaneCenteringPauseOnSignal",
   "LaneCenteringE2EAuthority",
   "LaneCenterOffset",
 ]

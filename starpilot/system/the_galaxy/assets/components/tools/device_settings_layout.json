@@ -4088,6 +4088,15 @@
         "settings_tier": "advanced"
       },
       {
+        "key": "LaneCenteringPauseOnSignal",
+        "label": "Pause Lane Centering On Turn Signal",
+        "description": "Fade lane-centering correction out when a turn signal is active so it does not fight a lane change or turn.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "LaneCentering",
+        "settings_tier": "advanced"
+      },
+      {
         "key": "LaneCenteringE2EAuthority",
         "label": "E2E Override Strength",
         "description": "How strongly a confident end-to-end path can override lane centering when it deliberately departs the lane target. 1.0 gives the model full authority; 0.0 disables break-in.",

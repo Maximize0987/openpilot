@@ -714,6 +714,9 @@ class StarPilotVariables:
 
     advanced_lateral_tuning = self.get_value("AdvancedLateralTune")
     toggle.lane_centering = self.get_value("LaneCentering")
+    toggle.lane_centering_pause_on_signal = self.get_value(
+      "LaneCenteringPauseOnSignal", condition=toggle.lane_centering, default=True,
+    )
     toggle.force_auto_tune = self.get_value("ForceAutoTune", condition=advanced_lateral_tuning and not has_auto_tune and is_torque_car and not is_angle_car)
     # Force-off is also meaningful on manually tuned torque cars: it locks the
     # vehicle-model parameters instead of allowing paramsd to learn over them.

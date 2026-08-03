@@ -36,6 +36,7 @@ SAFE_MODE_MANAGED_KEYS = (
   "SteerRatio",
   "CameraOffset",
   "LaneCentering",
+  "LaneCenteringPauseOnSignal",
   "LaneCenteringE2EAuthority",
   "LaneCenterOffset",
   "LaneChanges",
