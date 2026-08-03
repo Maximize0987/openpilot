@@ -271,6 +271,7 @@ class LongControl:
 
     else:  # LongCtrlState.pid
       a_target = self.vehicle_tuning.shape_gm_truck_accel_target(a_target, CS.vEgo, should_stop)
+      a_target = self.vehicle_tuning.shape_toyota_sienna_accel_target(a_target, CS.vEgo, should_stop)
       error = a_target - CS.aEgo
       self.update_mpc_mode(self.experimental_mode)
       self.vehicle_tuning.shape_volt_test_tune_integrator(self.pid, error, CS.vEgo)

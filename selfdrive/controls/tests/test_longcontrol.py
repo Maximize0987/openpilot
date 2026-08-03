@@ -6,6 +6,7 @@ import pytest
 import openpilot.selfdrive.controls.lib.longcontrol as longcontrol
 import openpilot.selfdrive.controls.lib.longcontrol_vehicle_tunes as vehicle_tunes
 from opendbc.car.gm.values import CAR, GMFlags
+from opendbc.car.toyota.values import CAR as TOYOTA_CAR
 from openpilot.selfdrive.controls.lib.longcontrol import (
   LongControl,
   LongCtrlState,
@@ -961,6 +962,32 @@ def test_gm_stock_truck_target_filter_bypasses_low_speed_and_other_cars():
 
   assert truck_tuning.shape_gm_truck_accel_target(-0.10, 10.0, False) == pytest.approx(-0.10)
   assert bolt_tuning.shape_gm_truck_accel_target(-0.10, 20.0, False) == pytest.approx(-0.10)
+
+
+def test_toyota_sienna_target_filter_smooths_mild_high_speed_handoffs():
+  CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+
+  assert tuning.shape_toyota_sienna_accel_target(0.30, 20.0, False) == pytest.approx(0.30)
+  filtered = tuning.shape_toyota_sienna_accel_target(-0.20, 20.0, False)
+
+  assert -0.20 < filtered < 0.30
+
+
+def test_toyota_sienna_target_filter_bypasses_stop_and_urgent_braking():
+  CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+
+  tuning.shape_toyota_sienna_accel_target(0.30, 20.0, False)
+  assert tuning.shape_toyota_sienna_accel_target(-0.80, 20.0, False) == pytest.approx(-0.80)
+  assert tuning.shape_toyota_sienna_accel_target(-0.20, 20.0, True) == pytest.approx(-0.20)
+
+
+def test_toyota_sienna_target_filter_does_not_change_other_vehicles():
+  CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_CAMRY)
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+
+  assert tuning.shape_toyota_sienna_accel_target(-0.20, 20.0, False) == pytest.approx(-0.20)
 
 
 def test_gm_stock_truck_positive_i_bleeds_during_light_highway_accel_request():

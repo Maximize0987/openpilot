@@ -1,6 +1,7 @@
 import numpy as np
 
 from opendbc.car.gm.values import CAR, GMFlags
+from opendbc.car.toyota.values import CAR as TOYOTA_CAR
 from openpilot.common.realtime import DT_CTRL
 from openpilot.starpilot.common.testing_grounds import testing_ground
 
@@ -22,6 +23,11 @@ GM_TRUCK_TARGET_FILTER_UP_TAU = 0.10
 GM_TRUCK_TARGET_FILTER_DOWN_TAU = 0.06
 GM_TRUCK_TARGET_FILTER_BRAKE_BYPASS = -0.65
 GM_TRUCK_TARGET_FILTER_DROP_BYPASS = 0.45
+TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED = 12.0
+TOYOTA_SIENNA_TARGET_FILTER_UP_TAU = 0.18
+TOYOTA_SIENNA_TARGET_FILTER_DOWN_TAU = 0.12
+TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS = -0.75
+TOYOTA_SIENNA_TARGET_FILTER_DROP_BYPASS = 0.65
 
 
 def get_bolt_acc_pedal_friction_bias(output_accel, a_target, v_ego):
@@ -86,6 +92,10 @@ class LongControlVehicleTuning:
       getattr(CP, "carFingerprint", None) in (CAR.CHEVROLET_SILVERADO, CAR.CHEVROLET_SILVERADO_CC) and
       not CP.enableGasInterceptorDEPRECATED
     )
+    self.is_toyota_sienna_4g = bool(
+      CP.brand == "toyota" and
+      getattr(CP, "carFingerprint", None) == TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN
+    )
     self.is_bolt_acc_pedal_friction_car = bool(
       CP.brand == "gm" and
       CP.enableGasInterceptorDEPRECATED and
@@ -99,6 +109,8 @@ class LongControlVehicleTuning:
     self.integrator_hold_frames = 0
     self.gm_truck_filtered_a_target = 0.0
     self.gm_truck_target_filter_initialized = False
+    self.toyota_sienna_filtered_a_target = 0.0
+    self.toyota_sienna_target_filter_initialized = False
     self.bolt_start_handoff_frames = 0
 
   def apply_bolt_start_handoff_floor(self, output_accel, last_output_accel, a_target, v_ego,
@@ -146,6 +158,29 @@ class LongControlVehicleTuning:
     alpha = DT_CTRL / (tau + DT_CTRL)
     self.gm_truck_filtered_a_target += alpha * (float(a_target) - self.gm_truck_filtered_a_target)
     return self.gm_truck_filtered_a_target
+
+  def shape_toyota_sienna_accel_target(self, a_target, v_ego, should_stop):
+    """Dampen ordinary high-speed lead handoffs without delaying safety braking."""
+    if not self.is_toyota_sienna_4g or v_ego < TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED or should_stop:
+      self.toyota_sienna_target_filter_initialized = False
+      return a_target
+
+    bypass_filter = (
+      a_target <= TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS or
+      (self.toyota_sienna_target_filter_initialized and
+       a_target < self.toyota_sienna_filtered_a_target - TOYOTA_SIENNA_TARGET_FILTER_DROP_BYPASS)
+    )
+    if not self.toyota_sienna_target_filter_initialized or bypass_filter:
+      self.toyota_sienna_filtered_a_target = float(a_target)
+      self.toyota_sienna_target_filter_initialized = True
+      return float(a_target)
+
+    tau = (TOYOTA_SIENNA_TARGET_FILTER_DOWN_TAU
+           if a_target < self.toyota_sienna_filtered_a_target
+           else TOYOTA_SIENNA_TARGET_FILTER_UP_TAU)
+    alpha = DT_CTRL / (tau + DT_CTRL)
+    self.toyota_sienna_filtered_a_target += alpha * (float(a_target) - self.toyota_sienna_filtered_a_target)
+    return self.toyota_sienna_filtered_a_target
 
   def get_integrator_freeze(self, last_output_accel, a_target, error, v_ego, accel_limits):
     volt_test_tune_handoff = self.is_volt and testing_ground.use_2
