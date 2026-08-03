@@ -76,6 +76,7 @@ class HudRenderer(Widget):
     self._navigation_card = NavigationCardRenderer()
 
     self.draw_set_speed = True
+    self.draw_current_speed = True
     self.draw_exp_button = True
 
   def _update_state(self) -> None:
@@ -136,7 +137,7 @@ class HudRenderer(Widget):
     if self.draw_set_speed and self.is_cruise_available and not ui_state.starpilot_toggles.get("hide_max_speed", False):
       self._draw_set_speed(rect)
 
-    if not ui_state.starpilot_toggles.get("hide_speed", False):
+    if self.draw_current_speed and not ui_state.starpilot_toggles.get("hide_speed", False):
       self._draw_current_speed(rect)
 
     self._navigation_card.render(rect)
