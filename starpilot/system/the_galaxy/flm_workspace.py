@@ -2897,7 +2897,7 @@ def clear_workspace() -> dict[str, Any]:
   if params.get_bool("FLMTrialApplied") or (isinstance(active_snapshot, dict) and active_snapshot.get("params")):
     params.put_bool("FLMTrialApplied", False)
     params.put("FLMActiveProfileId", "")
-    params.put("FLMActiveOverrides", json.dumps({}, separators=(",", ":")))
+    params.put("FLMActiveOverrides", {})
     _clear_persistent_trial_baseline(params)
     Params(memory=True).put_bool("StarPilotTogglesUpdated", True)
 
@@ -3012,7 +3012,7 @@ def _apply_param_bundle(params: Params, bundle: dict[str, Any]) -> None:
     elif kind == "float":
       params.put_float(key, float(value))
     elif kind == "json":
-      params.put(key, json.dumps(normalize_flm_overrides(value), separators=(",", ":")))
+      params.put(key, normalize_flm_overrides(value))
     elif kind == "string":
       params.put(key, str(value or ""))
 
@@ -3423,7 +3423,7 @@ def revert_trial_profile() -> dict[str, Any]:
   if revert_snapshot is None:
     params.put_bool("FLMTrialApplied", False)
     params.put("FLMActiveProfileId", "")
-    params.put("FLMActiveOverrides", json.dumps({}, separators=(",", ":")))
+    params.put("FLMActiveOverrides", {})
     _clear_persistent_trial_baseline(params)
     try:
       snapshot_path.unlink()
