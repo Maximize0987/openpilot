@@ -49,8 +49,8 @@ class Colors:
   BLACK_TRANSLUCENT = rl.Color(0, 0, 0, 166)
   WHITE_TRANSLUCENT = rl.Color(255, 255, 255, 200)
   BORDER_TRANSLUCENT = rl.Color(255, 255, 255, 75)
-  HEADER_GRADIENT_START = rl.Color(0, 0, 0, 114)
-  HEADER_GRADIENT_END = rl.BLANK
+  EDGE_GRADIENT_START = rl.Color(0, 0, 0, 114)
+  EDGE_GRADIENT_END = rl.BLANK
 
 
 UI_CONFIG = UIConfig()
@@ -121,8 +121,16 @@ class HudRenderer(Widget):
       int(rect.y),
       int(rect.width),
       UI_CONFIG.header_height,
-      COLORS.HEADER_GRADIENT_START,
-      COLORS.HEADER_GRADIENT_END,
+      COLORS.EDGE_GRADIENT_START,
+      COLORS.EDGE_GRADIENT_END,
+    )
+    rl.draw_rectangle_gradient_v(
+      int(rect.x),
+      int(rect.y + rect.height - UI_CONFIG.header_height),
+      int(rect.width),
+      UI_CONFIG.header_height,
+      COLORS.EDGE_GRADIENT_END,
+      COLORS.EDGE_GRADIENT_START,
     )
 
     if self.draw_set_speed and self.is_cruise_available and not ui_state.starpilot_toggles.get("hide_max_speed", False):
