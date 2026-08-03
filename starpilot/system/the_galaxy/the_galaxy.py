@@ -6093,6 +6093,8 @@ def setup(app):
       result = flm_workspace.revert_trial_profile()
     except FileNotFoundError:
       return jsonify({"error": "No active FLM trial snapshot was found."}), 404
+    except Exception as error:
+      return jsonify({"error": f"{type(error).__name__}: {error}"}), 500
 
     return jsonify(result), 200
 
