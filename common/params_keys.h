@@ -447,6 +447,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ModelDrivesAndScores", {PERSISTENT, JSON, "{}", "{}"}},
     {"ModelReleasedDates", {PERSISTENT, STRING, "", "", 1}},
     {"ModelRandomizer", {PERSISTENT, BOOL, "0", "0", 2}},
+    {"LatSmoothSeconds", {PERSISTENT, FLOAT, "0.1", "0.1", 3}},
+    {"LongSmoothSeconds", {PERSISTENT, FLOAT, "0.3", "0.3", 3}},
     {"ModelSortMode", {PERSISTENT, STRING, "alphabetical", "alphabetical", 1}},
     {"ModelToDownload", {CLEAR_ON_MANAGER_START, STRING, "", ""}},
     {"ModelUI", {PERSISTENT, BOOL, "1", "0", 2, SETTINGS_SIMPLE}},
