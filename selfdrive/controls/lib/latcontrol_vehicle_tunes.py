@@ -804,12 +804,12 @@ RAV4_PRIME_SPEED_MAX = 20.0
 RAV4_PRIME_SPEED_MAX_WIDTH = 2.5
 
 SIENNA_4TH_GEN_PHASE_SCALE = 0.12
-SIENNA_4TH_GEN_TURN_IN_FF_BOOST = 0.08
+SIENNA_4TH_GEN_TURN_IN_FF_BOOST = 0.12
 SIENNA_4TH_GEN_TURN_IN_LAT = 0.24
 SIENNA_4TH_GEN_TURN_IN_LAT_WIDTH = 0.08
 SIENNA_4TH_GEN_TURN_IN_SPEED_ONSET = 3.0
 SIENNA_4TH_GEN_TURN_IN_SPEED_WIDTH = 1.5
-SIENNA_4TH_GEN_TURN_IN_SPEED_MAX = 14.0
+SIENNA_4TH_GEN_TURN_IN_SPEED_MAX = 20.0
 SIENNA_4TH_GEN_TURN_IN_SPEED_MAX_WIDTH = 2.0
 SIENNA_4TH_GEN_FRICTION_THRESHOLD_GAIN = 0.30
 SIENNA_4TH_GEN_FRICTION_CENTER_LAT = 0.30
@@ -823,6 +823,11 @@ SIENNA_4TH_GEN_CENTER_TAPER_LAT = 0.20
 SIENNA_4TH_GEN_CENTER_TAPER_LAT_WIDTH = 0.06
 SIENNA_4TH_GEN_CENTER_TAPER_SPEED_MAX = 13.0
 SIENNA_4TH_GEN_CENTER_TAPER_SPEED_WIDTH = 2.0
+SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX = 0.08
+SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_ONSET = 15.0
+SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_ONSET_WIDTH = 2.0
+SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX_SPEED = 27.0
+SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX_SPEED_WIDTH = 3.0
 
 LEXUS_IS_PHASE_SCALE = 0.10
 LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.06
@@ -1173,9 +1178,15 @@ def get_rav4_prime_output_taper_scale(desired_lateral_accel: float, desired_late
                 _rav4_prime_speed_weight(v_ego))
 
 
-def _sienna_4th_gen_speed_weight(v_ego: float) -> float:
+def _sienna_4th_gen_turn_in_speed_weight(v_ego: float) -> float:
   onset = _sigmoid((v_ego - SIENNA_4TH_GEN_TURN_IN_SPEED_ONSET) / SIENNA_4TH_GEN_TURN_IN_SPEED_WIDTH)
   cutoff = _sigmoid((SIENNA_4TH_GEN_TURN_IN_SPEED_MAX - v_ego) / SIENNA_4TH_GEN_TURN_IN_SPEED_MAX_WIDTH)
+  return onset * cutoff
+
+
+def _sienna_4th_gen_friction_speed_weight(v_ego: float) -> float:
+  onset = _sigmoid((v_ego - SIENNA_4TH_GEN_FRICTION_SPEED_ONSET) / SIENNA_4TH_GEN_FRICTION_SPEED_WIDTH)
+  cutoff = _sigmoid((SIENNA_4TH_GEN_FRICTION_SPEED_MAX - v_ego) / SIENNA_4TH_GEN_FRICTION_SPEED_MAX_WIDTH)
   return onset * cutoff
 
 
@@ -1191,7 +1202,7 @@ def get_sienna_4th_gen_ff_scale(desired_lateral_accel: float, desired_lateral_je
     return 1.0
   return 1.0 + (SIENNA_4TH_GEN_TURN_IN_FF_BOOST *
                 _sienna_4th_gen_turn_in_weight(desired_lateral_accel, desired_lateral_jerk) *
-                _sienna_4th_gen_speed_weight(v_ego))
+                _sienna_4th_gen_turn_in_speed_weight(v_ego))
 
 
 def get_sienna_4th_gen_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,
@@ -1199,19 +1210,23 @@ def get_sienna_4th_gen_friction_threshold(v_ego: float, desired_lateral_accel: f
   del desired_lateral_jerk
   center_weight = _sigmoid((SIENNA_4TH_GEN_FRICTION_CENTER_LAT - abs(desired_lateral_accel)) /
                            SIENNA_4TH_GEN_FRICTION_CENTER_LAT_WIDTH)
-  onset = _sigmoid((v_ego - SIENNA_4TH_GEN_FRICTION_SPEED_ONSET) / SIENNA_4TH_GEN_FRICTION_SPEED_WIDTH)
-  cutoff = _sigmoid((SIENNA_4TH_GEN_FRICTION_SPEED_MAX - v_ego) / SIENNA_4TH_GEN_FRICTION_SPEED_MAX_WIDTH)
   return get_standard_friction_threshold(v_ego) * (
-    1.0 + SIENNA_4TH_GEN_FRICTION_THRESHOLD_GAIN * center_weight * onset * cutoff
+    1.0 + SIENNA_4TH_GEN_FRICTION_THRESHOLD_GAIN * center_weight * _sienna_4th_gen_friction_speed_weight(v_ego)
   )
 
 
 def get_sienna_4th_gen_center_taper_scale(desired_lateral_accel: float, v_ego: float) -> float:
-  speed_weight = _sigmoid((SIENNA_4TH_GEN_CENTER_TAPER_SPEED_MAX - v_ego) /
-                          SIENNA_4TH_GEN_CENTER_TAPER_SPEED_WIDTH)
   center_weight = _sigmoid((SIENNA_4TH_GEN_CENTER_TAPER_LAT - abs(desired_lateral_accel)) /
                            SIENNA_4TH_GEN_CENTER_TAPER_LAT_WIDTH)
-  return 1.0 - (SIENNA_4TH_GEN_CENTER_TAPER_MAX * speed_weight * center_weight)
+  low_speed_weight = _sigmoid((SIENNA_4TH_GEN_CENTER_TAPER_SPEED_MAX - v_ego) /
+                              SIENNA_4TH_GEN_CENTER_TAPER_SPEED_WIDTH)
+  high_speed_onset = _sigmoid((v_ego - SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_ONSET) /
+                              SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_ONSET_WIDTH)
+  high_speed_cutoff = _sigmoid((SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX_SPEED - v_ego) /
+                               SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX_SPEED_WIDTH)
+  reduction = (SIENNA_4TH_GEN_CENTER_TAPER_MAX * low_speed_weight +
+               SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX * high_speed_onset * high_speed_cutoff)
+  return 1.0 - (reduction * center_weight)
 
 
 def get_lexus_is_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:

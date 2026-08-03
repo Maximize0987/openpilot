@@ -717,7 +717,7 @@ class TestLatControl:
   def test_sienna_4th_gen_turn_in_and_center_shaping(self):
     steady = get_sienna_4th_gen_ff_scale(0.8, 0.0, 9.0)
     turn_in = get_sienna_4th_gen_ff_scale(0.8, 0.8, 9.0)
-    high_speed = get_sienna_4th_gen_ff_scale(0.8, 0.8, 25.0)
+    high_speed = get_sienna_4th_gen_ff_scale(0.8, 0.8, 30.0)
     assert turn_in > steady >= 1.0
     assert high_speed < turn_in
 
@@ -728,8 +728,10 @@ class TestLatControl:
 
     calm = get_sienna_4th_gen_center_taper_scale(0.0, 8.0)
     turn_taper = get_sienna_4th_gen_center_taper_scale(0.8, 8.0)
+    highway_calm = get_sienna_4th_gen_center_taper_scale(0.0, 20.0)
     fast = get_sienna_4th_gen_center_taper_scale(0.0, 25.0)
     assert calm < turn_taper <= 1.0
+    assert calm < highway_calm < 1.0
     assert fast > calm
 
   def test_rav4_prime_forced_torque_update_path(self, monkeypatch):
