@@ -27,6 +27,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   clear_flm_runtime_overrides,
   get_flm_runtime_overrides,
   get_hkg_canfd_base_friction_threshold,
+  get_kona_non_scc_center_taper_scale,
   get_kona_non_scc_highway_transition_output_scale,
   KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
@@ -73,6 +74,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_sienna_4th_gen_center_taper_scale,
   get_sienna_4th_gen_ff_scale,
   get_sienna_4th_gen_friction_threshold,
+  get_sienna_4th_gen_high_speed_output_taper_scale,
   get_lexus_is_ff_scale,
   get_ioniq_5_ff_scale,
   get_ioniq_5_friction_scale,
@@ -733,6 +735,8 @@ class TestLatControl:
     assert calm < turn_taper <= 1.0
     assert calm < highway_calm < 1.0
     assert fast > calm
+    assert get_sienna_4th_gen_high_speed_output_taper_scale(10.0) == pytest.approx(1.0)
+    assert get_sienna_4th_gen_high_speed_output_taper_scale(22.0) < 1.0
 
   def test_rav4_prime_forced_torque_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(TOYOTA.TOYOTA_RAV4_PRIME, force_torque=True)
@@ -808,6 +812,12 @@ class TestLatControl:
     assert center_transition == pytest.approx(0.72)
     assert center_transition < medium_transition < 1.0
     assert get_kona_non_scc_highway_transition_output_scale(1.65, 2.5, 30.0) == pytest.approx(1.0)
+
+  def test_kona_non_scc_center_taper_curve(self):
+    assert get_kona_non_scc_center_taper_scale(0.0, 10.0) == pytest.approx(1.0)
+    assert get_kona_non_scc_center_taper_scale(0.0, 25.0) == pytest.approx(0.86)
+    assert get_kona_non_scc_center_taper_scale(0.28, 25.0) == pytest.approx(1.0)
+    assert get_kona_non_scc_center_taper_scale(0.10, 25.0) < get_kona_non_scc_center_taper_scale(0.10, 15.0)
 
   def test_kona_non_scc_highway_transition_taper_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_KONA_NON_SCC)

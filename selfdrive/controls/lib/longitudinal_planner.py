@@ -16,7 +16,11 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import shoul
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
 from openpilot.selfdrive.controls.lib.lead_behavior import is_radarless_matched_follow_window
-from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import get_far_follow_output_slew_rates, get_untracked_slow_lead_decel_scale
+from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
+  get_far_follow_output_slew_rates,
+  get_toyota_sienna_post_departure_restop_cap,
+  get_untracked_slow_lead_decel_scale,
+)
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
 from openpilot.selfdrive.car.cruise import V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
@@ -3854,6 +3858,24 @@ class LongitudinalPlanner:
     if radar_gap_settle_active:
       output_a_target = RADAR_STANDSTILL_GAP_SETTLE_ACCEL
       output_should_stop = False
+
+    sienna_restop_caps = [
+      cap for cap in (
+        get_toyota_sienna_post_departure_restop_cap(
+          self.CP, self.lead_one, scene_v_ego, output_accel_min,
+          standstill_nudge_gap, now_t, self.post_departure_follow_settle_until,
+        ),
+        get_toyota_sienna_post_departure_restop_cap(
+          self.CP, self.lead_two, scene_v_ego, output_accel_min,
+          standstill_nudge_gap, now_t, self.post_departure_follow_settle_until,
+        ),
+      ) if cap is not None
+    ]
+    if sienna_restop_caps:
+      sienna_restop_cap = min(sienna_restop_caps)
+      self.a_desired = min(self.a_desired, sienna_restop_cap)
+      output_a_target = min(output_a_target, sienna_restop_cap)
+      output_should_stop = True
 
     self.output_a_target = output_a_target
     self.output_should_stop = bool(output_should_stop or vision_low_speed_stop_active)

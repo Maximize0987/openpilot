@@ -804,7 +804,7 @@ RAV4_PRIME_SPEED_MAX = 20.0
 RAV4_PRIME_SPEED_MAX_WIDTH = 2.5
 
 SIENNA_4TH_GEN_PHASE_SCALE = 0.12
-SIENNA_4TH_GEN_TURN_IN_FF_BOOST = 0.12
+SIENNA_4TH_GEN_TURN_IN_FF_BOOST = 0.06
 SIENNA_4TH_GEN_TURN_IN_LAT = 0.24
 SIENNA_4TH_GEN_TURN_IN_LAT_WIDTH = 0.08
 SIENNA_4TH_GEN_TURN_IN_SPEED_ONSET = 3.0
@@ -823,11 +823,16 @@ SIENNA_4TH_GEN_CENTER_TAPER_LAT = 0.20
 SIENNA_4TH_GEN_CENTER_TAPER_LAT_WIDTH = 0.06
 SIENNA_4TH_GEN_CENTER_TAPER_SPEED_MAX = 13.0
 SIENNA_4TH_GEN_CENTER_TAPER_SPEED_WIDTH = 2.0
-SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX = 0.08
+SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX = 0.16
 SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_ONSET = 15.0
 SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_ONSET_WIDTH = 2.0
 SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX_SPEED = 27.0
 SIENNA_4TH_GEN_HIGH_SPEED_CENTER_TAPER_MAX_SPEED_WIDTH = 3.0
+SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX = 0.10
+SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_ONSET = 18.0
+SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_ONSET_WIDTH = 2.0
+SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED = 27.0
+SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED_WIDTH = 3.0
 
 LEXUS_IS_PHASE_SCALE = 0.10
 LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.06
@@ -860,6 +865,10 @@ KONA_NON_SCC_TRANSITION_JERK_ONSET = 0.45
 KONA_NON_SCC_TRANSITION_JERK_FULL = 1.25
 KONA_NON_SCC_TRANSITION_LAT_FADE_START = 0.55
 KONA_NON_SCC_TRANSITION_LAT_FADE_END = 1.65
+KONA_NON_SCC_CENTER_TAPER_MAX = 0.14
+KONA_NON_SCC_CENTER_TAPER_LAT = 0.28
+KONA_NON_SCC_CENTER_TAPER_SPEED_ONSET = 12.0
+KONA_NON_SCC_CENTER_TAPER_SPEED_FULL = 24.0
 
 TRAILER_LOAD_FULL_ASSIST_KG = 15000.0 * CV.LB_TO_KG
 TRAILER_LATERAL_MIN_SPEED = 15.0 * CV.MPH_TO_MS
@@ -1229,6 +1238,14 @@ def get_sienna_4th_gen_center_taper_scale(desired_lateral_accel: float, v_ego: f
   return 1.0 - (reduction * center_weight)
 
 
+def get_sienna_4th_gen_high_speed_output_taper_scale(v_ego: float) -> float:
+  onset = _sigmoid((v_ego - SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_ONSET) /
+                   SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_ONSET_WIDTH)
+  cutoff = _sigmoid((SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED - v_ego) /
+                    SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED_WIDTH)
+  return 1.0 - SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX * onset * cutoff
+
+
 def get_lexus_is_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:
   if desired_lateral_accel == 0.0:
     return 1.0
@@ -1264,6 +1281,12 @@ def get_kona_non_scc_highway_transition_output_scale(desired_lateral_accel: floa
   lat_weight = 1.0 - float(np.interp(abs(desired_lateral_accel),
                                      [KONA_NON_SCC_TRANSITION_LAT_FADE_START, KONA_NON_SCC_TRANSITION_LAT_FADE_END], [0.0, 1.0]))
   return 1.0 - (KONA_NON_SCC_TRANSITION_TAPER_MAX * speed_weight * jerk_weight * lat_weight)
+
+
+def get_kona_non_scc_center_taper_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  speed_weight = float(np.interp(v_ego, [KONA_NON_SCC_CENTER_TAPER_SPEED_ONSET, KONA_NON_SCC_CENTER_TAPER_SPEED_FULL], [0.0, 1.0]))
+  center_weight = float(np.interp(abs(desired_lateral_accel), [0.0, KONA_NON_SCC_CENTER_TAPER_LAT], [1.0, 0.0]))
+  return 1.0 - (KONA_NON_SCC_CENTER_TAPER_MAX * speed_weight * center_weight)
 
 
 def civic_bosch_modified_lateral_testing_ground_active() -> bool:

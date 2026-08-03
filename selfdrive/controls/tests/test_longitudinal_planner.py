@@ -10,12 +10,15 @@ from cereal import log
 from opendbc.car.honda.interface import CarInterface
 from opendbc.car.honda.values import CAR
 from opendbc.car.gm.values import CAR as GM_CAR, GMFlags
+from opendbc.car.toyota.interface import CarInterface as ToyotaCarInterface
+from opendbc.car.toyota.values import CAR as TOYOTA_CAR
 import openpilot.selfdrive.controls.lib.longitudinal_planner as longitudinal_planner_module
 from openpilot.selfdrive.controls.lib.longcontrol import LongCtrlState
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
 from openpilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlanner, get_coast_accel, get_vehicle_min_accel, should_publish_planner_fcw
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import LongitudinalMpc, soften_far_radar_lead_accel, should_trigger_planner_fcw
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
+from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import get_toyota_sienna_post_departure_restop_cap
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 from openpilot.selfdrive.modeld import modeld
 
@@ -2076,6 +2079,52 @@ def test_standstill_stopped_lead_guard_blocks_false_release_during_creep_frame(m
 
   assert planner.output_should_stop
   assert planner.output_a_target <= 0.0
+
+
+def test_toyota_sienna_post_departure_restop_blocks_lead_that_stops_again():
+  CP = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  now_t = time.monotonic()
+  lead = make_lead(status=True, d_rel=5.0, v_lead=0.10, a_lead=0.0, model_prob=0.99)
+
+  cap = get_toyota_sienna_post_departure_restop_cap(
+    CP, lead, v_ego=1.2, accel_min=-1.0, stop_distance=4.0,
+    now_t=now_t, departure_latch_until=now_t + 5.0,
+  )
+
+  assert cap is not None
+  assert cap < -0.18
+
+
+def test_toyota_sienna_post_departure_restop_allows_confirmed_departure():
+  CP = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  now_t = time.monotonic()
+  lead = make_lead(status=True, d_rel=6.5, v_lead=1.0, a_lead=0.45, model_prob=0.99)
+
+  cap = get_toyota_sienna_post_departure_restop_cap(
+    CP, lead, v_ego=0.6, accel_min=-1.0, stop_distance=4.0,
+    now_t=now_t, departure_latch_until=now_t + 5.0,
+  )
+
+  assert cap is None
+
+
+def test_toyota_sienna_post_departure_restop_reasserts_should_stop_in_planner():
+  CP = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  planner = LongitudinalPlanner(CP, init_v=1.2)
+  sm = make_sm(
+    1.2,
+    desired_accel=1.0,
+    min_accel=-1.0,
+    experimental_mode=False,
+    tracking_lead=True,
+    lead_one=make_lead(status=True, d_rel=5.0, v_lead=0.10, a_lead=0.0, model_prob=0.99),
+  )
+  planner.post_departure_follow_settle_until = time.monotonic() + 5.0
+
+  planner.update(sm, make_toggles())
+
+  assert planner.output_should_stop
+  assert planner.output_a_target < 0.0
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])

@@ -439,12 +439,15 @@ class LatControlTorque(LatControl):
         output_torque *= get_ioniq_6_highway_transition_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif self.is_ram_1500 and output_torque * setpoint > 0.0:
         output_torque *= get_ram_1500_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
-      elif self.is_kona_non_scc and output_torque * setpoint > 0.0:
-        output_torque *= get_kona_non_scc_highway_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+      elif self.is_kona_non_scc:
+        output_torque *= get_kona_non_scc_center_taper_scale(setpoint, CS.vEgo)
+        if output_torque * setpoint > 0.0:
+          output_torque *= get_kona_non_scc_highway_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif rav4_prime_active:
         output_torque *= get_rav4_prime_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif sienna_4th_gen_active:
         output_torque *= get_sienna_4th_gen_center_taper_scale(setpoint, CS.vEgo)
+        output_torque *= get_sienna_4th_gen_high_speed_output_taper_scale(CS.vEgo)
       elif prius_active:
         output_torque *= prius_center_taper
       elif volt_standard_test_active:
