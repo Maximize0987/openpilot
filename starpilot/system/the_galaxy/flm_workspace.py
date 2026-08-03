@@ -2895,7 +2895,11 @@ def clear_workspace() -> dict[str, Any]:
   params = Params(return_defaults=True)
   active_snapshot = _read_json(paths["snapshots"] / "active.json", {})
   if params.get_bool("FLMTrialApplied") or (isinstance(active_snapshot, dict) and active_snapshot.get("params")):
-    raise RuntimeError("Revert or keep the active FLM trial before clearing the workspace.")
+    params.put_bool("FLMTrialApplied", False)
+    params.put("FLMActiveProfileId", "")
+    params.put("FLMActiveOverrides", json.dumps({}, separators=(",", ":")))
+    _clear_persistent_trial_baseline(params)
+    Params(memory=True).put_bool("StarPilotTogglesUpdated", True)
 
   removed = []
   for key in ("reports", "profiles", "feedback", "snapshots"):
