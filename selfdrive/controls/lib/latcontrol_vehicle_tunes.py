@@ -1,3 +1,4 @@
+import ast
 import json
 import math
 import numpy as np
@@ -905,7 +906,10 @@ def normalize_flm_overrides(overrides) -> dict:
     try:
       overrides = json.loads(stripped)
     except Exception:
-      return {}
+      try:
+        overrides = ast.literal_eval(stripped)
+      except (SyntaxError, ValueError):
+        return {}
 
   if not isinstance(overrides, dict):
     return {}
