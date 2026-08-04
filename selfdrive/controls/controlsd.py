@@ -135,6 +135,8 @@ CURVATURE_HOLD_ONSET_HEADING = 10.0    # deg of plan heading change that marks t
 CURVATURE_HOLD_ONSET_NEAR = 1.5        # m; corner this close -> full pre-wind
 CURVATURE_HOLD_ONSET_FAR_GATE = 5.0    # m; corner past this -> no pre-wind yet
 CURVATURE_HOLD_ONSET_FAR = 100.0       # m; sentinel "no corner found"
+CURVATURE_HOLD_REACH_MIN = 7.0
+CURVATURE_HOLD_REACH_FULL = 12.0
 # The model counter-steers at every turn exit; an opposite-direction command is the
 # "turn is over" signal at any speed. Without this the floor converted the exit unwind
 # (-0.076) into a stuck +0.012 for 1.4 s and the driver had to unwind by hand
@@ -206,6 +208,11 @@ def get_plan_turn_onset_dist(model_v2) -> float:
     if abs(math.degrees(math.atan2(dy, dx))) > CURVATURE_HOLD_ONSET_HEADING:
       return math.hypot(xs[i], ys[i])
   return CURVATURE_HOLD_ONSET_FAR
+
+
+def get_plan_reach(model_v2) -> float:
+  xs = model_v2.position.x
+  return xs[-1] if len(xs) else 0.0
 
 
 # Turn-initiation lead. The model's action and the fixed 4/7 m probes are anchored in
@@ -531,7 +538,10 @@ class Controls:
           onset = get_plan_turn_onset_dist(model_v2)
           onset_w = min(max((CURVATURE_HOLD_ONSET_FAR_GATE - onset) /
                             (CURVATURE_HOLD_ONSET_FAR_GATE - CURVATURE_HOLD_ONSET_NEAR), 0.0), 1.0)
-          plan_curvature *= onset_w
+          reach = get_plan_reach(model_v2)
+          reach_w = min(max((reach - CURVATURE_HOLD_REACH_MIN) /
+                            (CURVATURE_HOLD_REACH_FULL - CURVATURE_HOLD_REACH_MIN), 0.0), 1.0)
+          plan_curvature *= onset_w * reach_w
           if plan_curvature * blinker_dir > turn_candidate * blinker_dir:
             turn_candidate = plan_curvature
         # Nudge-to-commit (see CURVATURE_HOLD_CONFIRM_*): the driver actively pushing in
