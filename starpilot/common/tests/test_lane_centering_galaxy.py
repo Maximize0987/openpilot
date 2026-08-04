@@ -48,3 +48,5 @@ def test_lane_centering_galaxy_controls():
   assert e2e_authority["min"] == 0.0
   assert e2e_authority["max"] == 1.0
   assert e2e_authority["step"] == 0.05
+  assert e2e_authority["control"] == "slider"
+  assert len(e2e_authority["description_steps"]) == 5

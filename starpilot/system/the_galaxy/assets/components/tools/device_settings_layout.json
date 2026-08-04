@@ -4108,15 +4108,38 @@
       {
         "key": "LaneCenteringE2EAuthority",
         "label": "E2E Override Strength",
-        "description": "How strongly a confident end-to-end path can override lane centering when it deliberately departs the lane target. 1.0 gives the model full authority; 0.0 disables break-in.",
+        "description": "Choose how strongly the vision model may override lane centering when it sees a hazard.",
         "data_type": "float",
         "ui_type": "numeric",
+        "control": "slider",
         "min": 0.0,
         "max": 1.0,
         "step": 0.05,
         "precision": 2,
         "parent_key": "LaneCentering",
-        "settings_tier": "advanced"
+        "settings_tier": "advanced",
+        "description_steps": [
+          {
+            "max": 0.2,
+            "description": "Vehicle rigidly tries to center itself rather than avoiding hazards, potholes, or road debris."
+          },
+          {
+            "max": 0.4,
+            "description": "Vehicle tries to center itself and slowly adjusts away from hazards, but may react too slowly."
+          },
+          {
+            "max": 0.6,
+            "description": "Vehicle provides additional space around hazards like cyclists and vehicles crossing into the lane."
+          },
+          {
+            "max": 0.8,
+            "description": "Vehicle smooths out hazard avoidance, making less rapid adjustments."
+          },
+          {
+            "max": 1.0,
+            "description": "Vehicle reacts to hazards recognized by the vision model as quickly as possible."
+          }
+        ]
       },
       {
         "key": "HondaLateralPidKpScale",
