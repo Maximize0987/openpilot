@@ -6059,6 +6059,19 @@ def setup(app):
     except RuntimeError as error:
       return jsonify({"error": str(error)}), 409
 
+  @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/saved-tunes/<tune_id>/submit", methods=["POST"])
+  @app.route("/api/flm/saved-tunes/<tune_id>/submit", methods=["POST"])
+  def submit_flm_saved_tune(tune_id):
+    data = request.get_json(silent=True) or {}
+    try:
+      return jsonify(flm_workspace.submit_saved_tune(tune_id, str(data.get("discordUsername") or ""))), 200
+    except FileNotFoundError:
+      return jsonify({"error": "Saved FLM tune not found."}), 404
+    except ValueError as error:
+      return jsonify({"error": str(error)}), 400
+    except RuntimeError as error:
+      return jsonify({"error": str(error)}), 409
+
   @app.route(f"{LEGACY_LATERAL_METHOD_API_PREFIX}/saved-tunes/<tune_id>", methods=["PATCH"])
   @app.route("/api/flm/saved-tunes/<tune_id>", methods=["PATCH"])
   def rename_flm_saved_tune(tune_id):

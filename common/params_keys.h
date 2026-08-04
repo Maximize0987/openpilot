@@ -331,6 +331,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ForceTorqueController", {PERSISTENT, BOOL, "0", "0", 3}},
     {"FLMActiveOverrides", {PERSISTENT, JSON, "{}", "{}", 2}},
     {"FLMActiveProfileId", {PERSISTENT, STRING, "", "", 2}},
+    {"FLMSubmittedTune", {CLEAR_ON_MANAGER_START, JSON, "{}", "{}"}},
     {"FLMTrialBaseline", {PERSISTENT | DONT_LOG, JSON, "{}", "{}"}},
     {"FLMTrialApplied", {PERSISTENT, BOOL, "0", "0", 2}},
     {"FPSCounter", {PERSISTENT, BOOL, "0", "0", 3}},
