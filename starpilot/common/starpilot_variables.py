@@ -1074,6 +1074,7 @@ class StarPilotVariables:
     toggle.nnff = self.get_value("NNFF", condition=lateral_tuning and has_nnff and not is_angle_car)
     toggle.nnff_lite = self.get_value("NNFFLite", condition=not toggle.nnff and lateral_tuning and not is_angle_car)
     toggle.nav_desires_allowed = self.get_value("NavDesiresAllowed")
+    toggle.nav_lane_positioning_allowed = self.get_value("NavLanePositioningAllowed")
     toggle.use_turn_desires = self.get_value("TurnDesires", condition=lateral_tuning)
 
     lkas_button_control = self.get_button_function("LKASButtonControl", condition=toggle.car_make != "subaru")

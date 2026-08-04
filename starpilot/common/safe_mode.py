@@ -50,6 +50,7 @@ SAFE_MODE_MANAGED_KEYS = (
   "NNFFLite",
   "TurnDesires",
   "NavDesiresAllowed",
+  "NavLanePositioningAllowed",
   "NavLongitudinalAllowed",
   "QOLLateral",
   "PauseLateralSpeed",

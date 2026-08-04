@@ -269,8 +269,17 @@
       },
       {
         "key": "NavDesiresAllowed",
-        "label": "Use Route Desires",
-        "description": "Allow an active navigation route to request keep-left, keep-right, and low-speed turn desires.",
+        "label": "Use Route Desires for Turns",
+        "description": "Allow an active navigation route to request low-speed turn desires.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "LateralTune",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "NavLanePositioningAllowed",
+        "label": "Use Route Desires for Lane Positioning",
+        "description": "Allow route lane bias only after steering torque confirms the requested direction. It never initiates a lane change by itself.",
         "data_type": "bool",
         "ui_type": "toggle",
         "parent_key": "LateralTune",

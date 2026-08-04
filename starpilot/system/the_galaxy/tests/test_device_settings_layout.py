@@ -90,7 +90,7 @@ def test_requested_simple_and_advanced_settings_tiers():
 
   for key in ("AlwaysOnLateral", "LaneChanges", "QOLLateral"):
     assert lateral[key]["settings_tier"] == "simple"
-  for key in ("AdvancedLateralTune", "LateralTune", "NavDesiresAllowed"):
+  for key in ("AdvancedLateralTune", "LateralTune", "NavDesiresAllowed", "NavLanePositioningAllowed"):
     assert lateral[key]["settings_tier"] == "advanced"
 
   for key in (
@@ -122,6 +122,7 @@ def test_requested_simple_and_advanced_settings_tiers():
 def test_hidden_feature_defaults_remain_enabled():
   assert _declared_default("GalaxyDeveloperMode") == "0"
   assert _declared_default("NavDesiresAllowed") == "1"
+  assert _declared_default("NavLanePositioningAllowed") == "0"
   assert _declared_default("NavLongitudinalAllowed") == "1"
 
   for key in (
