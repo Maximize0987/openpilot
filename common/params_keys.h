@@ -381,7 +381,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LaneCenterOffset", {PERSISTENT, FLOAT, "0.0", "0.0", 3}},
     {"LaneChanges", {PERSISTENT, BOOL, "1", "1", 0, SETTINGS_SIMPLE}},
     {"LaneChangeCloseGap", {PERSISTENT, BOOL, "0", "0", 1, SETTINGS_SIMPLE}},
-    {"LaneChangeCloseGapSeconds", {PERSISTENT, FLOAT, "1.0", "1.0", 1, SETTINGS_SIMPLE}},
+    {"LaneChangeCloseGapSeconds", {PERSISTENT, FLOAT, "0.6", "0.6", 1, SETTINGS_SIMPLE}},
     {"LaneChangeSmoothing", {PERSISTENT, INT, "5", "10", 1, SETTINGS_SIMPLE}},
     {"LaneChangeTime", {PERSISTENT, FLOAT, "1.0", "0.0", 1, SETTINGS_SIMPLE}},
     {"LaneDetectionWidth", {PERSISTENT, FLOAT, "0.0", "0.0", 1, SETTINGS_SIMPLE}},

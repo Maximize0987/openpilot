@@ -24,6 +24,25 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
 from openpilot.selfdrive.car.cruise import V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
+from cereal import log
+
+LaneChangeState = log.LaneChangeState
+LaneChangeDirection = log.LaneChangeDirection
+
+# Lane-change merge assist: cap braking for a lead we're leaving and add a mild push.
+LC_MERGE_STATES = (
+  LaneChangeState.preLaneChange,
+  LaneChangeState.laneChangeStarting,
+  LaneChangeState.laneChangeFinishing,
+)
+LC_MERGE_CLOSING_MIN = 0.5
+LC_MERGE_TTC_MIN = 4.0
+LC_MERGE_MIN_DIST = 30.0
+LC_MERGE_BRAKE_FLOOR = -0.4
+LC_MERGE_TTC_ACCEL = 6.0
+LC_MERGE_ACCEL_MIN_DIST = 30.0
+LC_MERGE_HEADROOM_MIN = 2.0
+LC_MERGE_ACCEL_BIAS = 0.55
 
 LON_MPC_STEP = 0.2  # first step is 0.2s
 A_CRUISE_MIN = -1.0
@@ -2797,6 +2816,45 @@ class LongitudinalPlanner:
     ttc = d_rel / max(closing_speed, 0.1) if closing_speed > 0.1 else float("inf")
     return d_rel < dynamic_distance and (ttc < RAW_LEAD_SAFETY_TTC or lead_braking)
 
+  def get_lane_change_merge_accel_floor(self, sm, starpilot_toggles, scene_v_ego, v_cruise, action_t, blocked):
+    # Accel floor (m/s^2) to apply as max(output_a_target, floor) while merging out, else None.
+    if blocked or not getattr(starpilot_toggles, "lane_change_close_gap", False):
+      return None
+
+    meta = sm['modelV2'].meta
+    if meta.laneChangeState not in LC_MERGE_STATES:
+      return None
+
+    CS = sm['carState']
+    if CS.standstill or bool(getattr(CS, "brakePressed", False)):
+      return None
+    if scene_v_ego < float(getattr(starpilot_toggles, "minimum_lane_change_speed", 0.0)):
+      return None
+
+    direction = meta.laneChangeDirection
+    if (direction == LaneChangeDirection.left and CS.leftBlindspot) or \
+       (direction == LaneChangeDirection.right and CS.rightBlindspot):
+      return None
+
+    # Only intervene when there's a lead we're merging around; leave curve/open-road braking alone.
+    lead = self.lead_one
+    if not lead.status:
+      return None
+
+    d_rel = float(lead.dRel)
+    closing = scene_v_ego - float(lead.vLead)
+    ttc = d_rel / closing if closing > LC_MERGE_CLOSING_MIN else float('inf')
+    # A close lead (small gap or short time-to-reach) keeps full braking authority.
+    if ttc < LC_MERGE_TTC_MIN or d_rel < LC_MERGE_MIN_DIST:
+      return None
+
+    floor = LC_MERGE_BRAKE_FLOOR
+    if (self.allow_throttle and ttc >= LC_MERGE_TTC_ACCEL and d_rel >= LC_MERGE_ACCEL_MIN_DIST and
+        np.isfinite(v_cruise) and (v_cruise - scene_v_ego) >= LC_MERGE_HEADROOM_MIN):
+      cruise_cap = max(0.0, (v_cruise - scene_v_ego) / max(action_t, self.dt))
+      floor = min(LC_MERGE_ACCEL_BIAS, cruise_cap)
+    return floor
+
   def update(self, sm, starpilot_toggles):
     if self.is_preap:
       self._preap_param_frame += 1
@@ -3876,6 +3934,18 @@ class LongitudinalPlanner:
       self.a_desired = min(self.a_desired, sienna_restop_cap)
       output_a_target = min(output_a_target, sienna_restop_cap)
       output_should_stop = True
+
+    lc_merge_floor = self.get_lane_change_merge_accel_floor(
+      sm, starpilot_toggles, scene_v_ego, v_cruise, action_t,
+      blocked=bool(
+        output_should_stop or vision_low_speed_stop_active or depart_safety_veto or
+        getattr(sm['starpilotPlan'], 'forcingStop', False) or
+        getattr(sm['starpilotPlan'], 'redLight', False)
+      ),
+    )
+    if lc_merge_floor is not None:
+      output_a_target = float(min(max(output_a_target, lc_merge_floor), output_accel_max))
+      self.a_desired = max(self.a_desired, min(lc_merge_floor, output_accel_max))
 
     self.output_a_target = output_a_target
     self.output_should_stop = bool(output_should_stop or vision_low_speed_stop_active)
