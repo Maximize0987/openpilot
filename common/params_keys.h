@@ -388,6 +388,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LaneLinesColor", {PERSISTENT, STRING, "", "", 2, SETTINGS_SIMPLE}},
     {"LaneLinesWidth", {PERSISTENT, FLOAT, "4.0", "2.0", 2, SETTINGS_SIMPLE}},
     {"LastMapsUpdate", {PERSISTENT, STRING, "", ""}},
+    {"MapsDownloadProgress", {CLEAR_ON_MANAGER_START, STRING, "", ""}},
+    {"MapsDownloadSizeCache", {PERSISTENT, STRING, "{}", "{}"}},
     {"LateralTune", {PERSISTENT, BOOL, "1", "0", 1}},
     {"LeadDepartingAlert", {PERSISTENT, BOOL, "0", "0", 0, SETTINGS_SIMPLE}},
     {"LeadDetectionThreshold", {PERSISTENT, INT, "35", "50", 3}},

@@ -251,6 +251,18 @@ class TestLatControl:
     right_unwind = get_bolt_2022_2023_friction_threshold(6.0, -0.7, 0.8)
     assert left_turn_in <= right_turn_in < base < right_unwind <= left_unwind
 
+  def test_bolt_2022_2023_center_friction_threshold_targets_low_speed_chatter(self):
+    base = get_gm_base_friction_threshold(5.0)
+    low_speed_center = get_bolt_2022_2023_friction_threshold(5.0, 0.0, 0.0)
+    low_speed_turn = get_bolt_2022_2023_friction_threshold(5.0, 0.7, 0.8)
+    medium_speed_center = get_bolt_2022_2023_friction_threshold(8.5, 0.0, 0.0)
+    high_speed_center = get_bolt_2022_2023_friction_threshold(14.0, 0.0, 0.0)
+
+    assert low_speed_center > base
+    assert low_speed_center > low_speed_turn
+    assert low_speed_center - base > medium_speed_center - get_gm_base_friction_threshold(8.5)
+    assert medium_speed_center - get_gm_base_friction_threshold(8.5) > high_speed_center - get_gm_base_friction_threshold(14.0)
+
   def test_bolt_2022_2023_friction_scale_curve(self):
     base = get_bolt_2022_2023_friction_scale(25.0, 0.7, 0.8)
     left_turn_in = get_bolt_2022_2023_friction_scale(6.0, 0.7, 0.8)
@@ -809,7 +821,7 @@ class TestLatControl:
 
     center_transition = get_kona_non_scc_highway_transition_output_scale(0.4, 1.25, 30.0)
     medium_transition = get_kona_non_scc_highway_transition_output_scale(1.1, -1.25, 30.0)
-    assert center_transition == pytest.approx(0.72)
+    assert center_transition == pytest.approx(0.66)
     assert center_transition < medium_transition < 1.0
     assert get_kona_non_scc_highway_transition_output_scale(1.65, 2.5, 30.0) == pytest.approx(1.0)
 

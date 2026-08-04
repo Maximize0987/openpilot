@@ -18,6 +18,8 @@ MOVING_STOP_FOLLOW_MIN_GAP = 0.25
 NEGATIVE_TARGET_CREEP_GUARD_SPEED = 0.35
 NEGATIVE_TARGET_CREEP_GUARD_DECEL = 0.40
 MODE_TRANSITION_MAX_DECEL = 4.0
+TESLA_PEDAL_RELEASE_GUARD_TIME = 0.15
+TESLA_PEDAL_RELEASE_GUARD_MAX_DECEL = 0.35
 
 LongCtrlState = car.CarControl.Actuators.LongControlState
 
@@ -125,6 +127,8 @@ class LongControl:
     self._mode_setup()
     self.last_output_accel = 0.0
     self.stop_release_counter = 0
+    self.pedal_override_active = False
+    self.pedal_override_release_frames = 0
     self.vehicle_tuning = LongControlVehicleTuning(CP)
 
   def update_mpc_mode(self, experimental_mode):
@@ -229,10 +233,21 @@ class LongControl:
     return min(output_accel, float(positive_cap))
 
   def update(self, active, CS, a_target, should_stop, accel_limits, starpilot_toggles, has_lead=False,
-             traffic_mode_enabled=False, profile_max_accel=0.0):
+             traffic_mode_enabled=False, profile_max_accel=0.0, pedal_override=False):
     """Update longitudinal control. This updates the state machine and runs a PID loop"""
     self.pid.neg_limit = accel_limits[0]
     self.pid.pos_limit = accel_limits[1]
+
+    if pedal_override:
+      self.pedal_override_active = True
+      self.pedal_override_release_frames = 0
+      return 0.0
+
+    if self.pedal_override_active:
+      self.pedal_override_active = False
+      self.pedal_override_release_frames = max(
+        1, int(round(TESLA_PEDAL_RELEASE_GUARD_TIME / DT_CTRL)),
+      )
 
     previous_long_control_state = self.long_control_state
     allow_stopping_release = self._stop_release_ready(CS, a_target, should_stop, has_lead, starpilot_toggles)
@@ -315,6 +330,11 @@ class LongControl:
           output_accel = raw_output_accel
       else:
         output_accel = raw_output_accel
+
+    if self.pedal_override_release_frames > 0:
+      self.pedal_override_release_frames -= 1
+      if not should_stop and -TESLA_PEDAL_RELEASE_GUARD_MAX_DECEL < output_accel < 0.0:
+        output_accel = 0.0
 
     self.last_output_accel = clip(output_accel, accel_limits[0], accel_limits[1])
     return self.last_output_accel

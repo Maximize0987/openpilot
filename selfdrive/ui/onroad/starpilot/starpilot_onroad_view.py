@@ -130,8 +130,6 @@ class StarPilotOnroadView(AugmentedRoadView):
     """Draw the curved torque-utilization indicator at the bottom of the screen."""
     if not self._params.get_bool("EnableTorqueBarWidget", default=True):
       return
-    if ui_state.sm['controlsState'].lateralControlState.which() == 'angleState':
-      return
     rl.begin_scissor_mode(
       int(self._content_rect.x), int(self._content_rect.y),
       int(self._content_rect.width), int(self._content_rect.height),

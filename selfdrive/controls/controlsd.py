@@ -422,7 +422,8 @@ class Controls:
     if not CC.latActive:
       self.LaC.reset()
       self.lane_centering.reset()
-    if not CC.longActive:
+    tesla_pedal_override = self.CP.brand == "tesla" and bool(CS.gasPressed)
+    if not CC.longActive and not tesla_pedal_override:
       self.LoC.reset()
 
     # accel PID loop
@@ -431,7 +432,8 @@ class Controls:
     actuators.accel = float(min(self.LoC.update(CC.longActive, CS, long_plan.aTarget, long_plan.shouldStop, pid_accel_limits,
                                                 self.starpilot_toggles, has_lead=long_plan.hasLead,
                                                 traffic_mode_enabled=self.sm['starpilotCarState'].trafficModeEnabled,
-                                                profile_max_accel=self.sm['starpilotPlan'].maxAcceleration),
+                                                profile_max_accel=self.sm['starpilotPlan'].maxAcceleration,
+                                                pedal_override=tesla_pedal_override),
                                 self.starpilot_toggles.max_desired_acceleration))
 
     # Steering PID loop and lateral MPC

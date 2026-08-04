@@ -338,6 +338,65 @@ def test_bolt_acc_pedal_starting_handoff_keeps_small_positive_command():
   assert output_accel == pytest.approx(0.188, abs=0.01)
 
 
+def test_tesla_pedal_override_keeps_longitudinal_state_warm_for_release():
+  CP = make_longcontrol_cp(
+    brand="tesla",
+    carFingerprint="TESLA_MODEL_3",
+    startingState=True,
+    vEgoStarting=0.35,
+  )
+  lc = LongControl(CP)
+  lc.long_control_state = LongCtrlState.pid
+  lc.last_output_accel = 0.8
+
+  CS = car.CarState.new_message(vEgo=12.0, aEgo=0.8, brakePressed=False, gasPressed=True)
+  CS.cruiseState.standstill = False
+  override_output = lc.update(
+    active=False,
+    CS=CS,
+    a_target=0.6,
+    should_stop=False,
+    accel_limits=(-3.0, 2.0),
+    starpilot_toggles=make_toggles(),
+    pedal_override=True,
+  )
+
+  assert override_output == 0.0
+  assert lc.long_control_state == LongCtrlState.pid
+  assert lc.last_output_accel == pytest.approx(0.8)
+
+  CS.gasPressed = False
+  release_output = lc.update(
+    active=True,
+    CS=CS,
+    a_target=0.6,
+    should_stop=False,
+    accel_limits=(-3.0, 2.0),
+    starpilot_toggles=make_toggles(),
+  )
+
+  assert release_output >= 0.6
+
+
+def test_tesla_pedal_release_guard_blocks_mild_regen_pulse():
+  CP = make_longcontrol_cp(
+    brand="tesla",
+    carFingerprint="TESLA_MODEL_3",
+    startingState=True,
+    vEgoStarting=0.35,
+  )
+  lc = LongControl(CP)
+  lc.long_control_state = LongCtrlState.pid
+  CS = car.CarState.new_message(vEgo=12.0, aEgo=0.8, brakePressed=False, gasPressed=True)
+  CS.cruiseState.standstill = False
+  lc.update(False, CS, -0.2, False, (-3.0, 2.0), make_toggles(), pedal_override=True)
+
+  CS.gasPressed = False
+  release_output = lc.update(True, CS, -0.2, False, (-3.0, 2.0), make_toggles())
+
+  assert release_output == 0.0
+
+
 @pytest.mark.parametrize(("a_target", "should_stop"), ((-0.2, False), (0.55, True)))
 def test_bolt_acc_pedal_starting_handoff_never_overrides_stop_request(a_target, should_stop):
   CP = make_longcontrol_cp(

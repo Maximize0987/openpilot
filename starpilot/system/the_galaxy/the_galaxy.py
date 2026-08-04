@@ -64,6 +64,7 @@ from openpilot.starpilot.common.maps_catalog import (
   schedule_label,
   schedule_param_value,
 )
+from openpilot.starpilot.common.maps_download_progress import load_size_cache, nonnegative_int, selection_key
 from openpilot.starpilot.common.experimental_state import sync_persist_chill_state, sync_persist_experimental_state
 from openpilot.starpilot.common.favorite_slots import (
   FAVORITE_ACTION_OPTIONS,
@@ -638,6 +639,8 @@ MODEL_SORT_MODE_PARAM = "ModelSortMode"
 MODEL_USER_FAVORITES_PARAM = "UserFavorites"
 MAPS_DOWNLOAD_PARAM = "DownloadMaps"
 MAPS_CANCEL_DOWNLOAD_PARAM = "CancelDownloadMaps"
+MAPS_DOWNLOAD_PROGRESS_PARAM = "MapsDownloadProgress"
+MAPS_DOWNLOAD_SIZE_CACHE_PARAM = "MapsDownloadSizeCache"
 
 
 def _get_galaxy_dir():
@@ -5141,6 +5144,60 @@ def setup(app):
       except Exception:
         storage_bytes = 0
 
+    selected_key = selection_key(selected_locations)
+    raw_progress = params_memory.get(MAPS_DOWNLOAD_PROGRESS_PARAM, encoding="utf-8") or ""
+    try:
+      download_progress = json.loads(raw_progress) if raw_progress else {}
+    except (TypeError, ValueError):
+      download_progress = {}
+    if not isinstance(download_progress, dict):
+      download_progress = {}
+
+    if not params_memory.get_bool(MAPS_DOWNLOAD_PARAM) and selected_key and download_progress.get("selectedKey") != selected_key:
+      size_cache = load_size_cache(params.get(MAPS_DOWNLOAD_SIZE_CACHE_PARAM, encoding="utf-8") or "")
+      cached_entry = size_cache.get(selected_key, {})
+      cached_bytes = nonnegative_int(cached_entry.get("downloadBytes", 0)) if isinstance(cached_entry, dict) else 0
+      if cached_bytes > 0:
+        download_progress = {
+          "active": False,
+          "cancelled": False,
+          "completed": False,
+          "downloadedBytes": 0,
+          "downloadedFiles": 0,
+          "estimatedDownloadBytes": cached_bytes,
+          "estimateSource": "previous_download",
+          "etaSeconds": 0,
+          "percent": 0,
+          "phase": "idle",
+          "primaryLocation": "",
+          "selectedKey": selected_key,
+          "selectedLocations": selected_locations,
+          "storageBytes": storage_bytes,
+          "totalFiles": nonnegative_int(cached_entry.get("totalFiles", 0)),
+          "updatedAt": cached_entry.get("updatedAt", ""),
+          "bytesPerSecond": 0,
+        }
+      else:
+        download_progress = {
+          "active": False,
+          "cancelled": False,
+          "completed": False,
+          "downloadedBytes": 0,
+          "downloadedFiles": 0,
+          "estimatedDownloadBytes": 0,
+          "estimateSource": "",
+          "etaSeconds": 0,
+          "percent": 0,
+          "phase": "idle",
+          "primaryLocation": "",
+          "selectedKey": selected_key,
+          "selectedLocations": selected_locations,
+          "storageBytes": storage_bytes,
+          "totalFiles": 0,
+          "updatedAt": "",
+          "bytesPerSecond": 0,
+        }
+
     return {
       "selectedLocations": selected_locations,
       "selectedEntries": selected_entries,
@@ -5155,6 +5212,7 @@ def setup(app):
       "scheduleOptions": MAP_SCHEDULE_OPTIONS,
       "scheduleValue": schedule_param_value(params.get("PreferredSchedule")),
       "storageBytes": storage_bytes,
+      "downloadProgress": download_progress,
     }
 
   @app.route("/api/maps/catalog", methods=["GET"])
