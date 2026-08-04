@@ -301,6 +301,57 @@ def sha256_file(path: Path) -> str:
   return digest.hexdigest()
 
 
+def _read_protobuf_varint(source) -> int:
+  value = 0
+  for shift in range(0, 70, 7):
+    byte = source.read(1)
+    if not byte:
+      raise ValueError("unexpected end of file while reading protobuf varint")
+    value |= (byte[0] & 0x7F) << shift
+    if not byte[0] & 0x80:
+      return value
+  raise ValueError("protobuf varint is too long")
+
+
+def validate_onnx_source(path: Path) -> None:
+  """Validate the top-level ONNX protobuf without materializing model weights."""
+  size = path.stat().st_size
+  if size == 0:
+    raise ValueError(f"ONNX source is empty: {path}")
+
+  with open(path, "rb") as source:
+    if source.read(128).startswith(b"version https://git-lfs.github.com/spec/v1"):
+      raise ValueError(f"ONNX source is a Git LFS pointer, not model data: {path}")
+    source.seek(0)
+
+    while source.tell() < size:
+      tag = _read_protobuf_varint(source)
+      field, wire_type = tag >> 3, tag & 0x07
+      if field == 7:  # ModelProto.graph
+        if wire_type != 2:
+          raise ValueError(f"ONNX graph has invalid protobuf wire type {wire_type}: {path}")
+        graph_size = _read_protobuf_varint(source)
+        remaining = size - source.tell()
+        if graph_size <= 0:
+          raise ValueError(f"ONNX graph is empty: {path}")
+        if graph_size > remaining:
+          raise ValueError(f"ONNX source is truncated: graph needs {graph_size} bytes but only {remaining} remain: {path}")
+        return
+
+      if wire_type == 0:
+        _read_protobuf_varint(source)
+      elif wire_type == 1:
+        source.seek(8, os.SEEK_CUR)
+      elif wire_type == 2:
+        source.seek(_read_protobuf_varint(source), os.SEEK_CUR)
+      elif wire_type == 5:
+        source.seek(4, os.SEEK_CUR)
+      else:
+        raise ValueError(f"ONNX source has invalid protobuf wire type {wire_type}: {path}")
+
+  raise ValueError(f"ONNX ModelProto has no graph: {path}")
+
+
 def multipart_output_paths(artifact: Path, output_dir: Path | None = None) -> list[Path]:
   output_dir = output_dir or artifact.parent
   return [
@@ -552,6 +603,11 @@ def main() -> int:
     raise SystemExit(f"No staged ONNX files found for {model_key} in {args.input_dir}")
 
   input_format = select_input_format(args.input_format, files)
+  _, source_args = driving_compile_args(files, input_format)
+  for option, source in zip(source_args[::2], source_args[1::2], strict=True):
+    source_path = Path(source)
+    validate_onnx_source(source_path)
+    print(f"  source {option.removeprefix('--')}: {source_path} ({source_path.stat().st_size} bytes)")
   version = infer_model_version(model_key, args.version)
   if not version and input_format == "supercombo":
     version = "v15"
