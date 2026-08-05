@@ -68,7 +68,7 @@ DUPLICATE_VISION_LEAD_FILTER_TIME = 0.15
 
 # DISTANCE ADAPTATION STRENGTH (How much penalties increase when close to lead)
 # [City, Urban Hwy, Rural Hwy, High Speed]
-DIST_ADAPTS = [0.04, 0.06, 0.06, 0.05]  # Balanced across speeds
+DIST_ADAPTS = [0.04, 0.06, 0.07, 0.08] #DIST_ADAPTS = [0.04, 0.06, 0.06, 0.05]  # Balanced across speeds
 
 # ===== END TUNING PARAMETERS =====
 
