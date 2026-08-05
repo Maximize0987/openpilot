@@ -838,7 +838,7 @@ class TestLatControl:
 
   def test_kona_non_scc_center_taper_curve(self):
     assert get_kona_non_scc_center_taper_scale(0.0, 10.0) == pytest.approx(1.0)
-    assert get_kona_non_scc_center_taper_scale(0.0, 25.0) == pytest.approx(0.86)
+    assert get_kona_non_scc_center_taper_scale(0.0, 25.0) == pytest.approx(0.80)
     assert get_kona_non_scc_center_taper_scale(0.28, 25.0) == pytest.approx(1.0)
     assert get_kona_non_scc_center_taper_scale(0.10, 25.0) < get_kona_non_scc_center_taper_scale(0.10, 15.0)
 
