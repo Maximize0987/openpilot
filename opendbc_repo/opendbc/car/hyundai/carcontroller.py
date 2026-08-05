@@ -415,7 +415,7 @@ class CarController(CarControllerBase):
       self._ev9_long_tuning = EV9LongitudinalTuningState()
       self._left_blindspot_warning = BlindspotWarningState()
       self._right_blindspot_warning = BlindspotWarningState()
-    self.long_active_ecu = self.CP.openpilotLongitudinalControl
+    self.long_active_ecu = self.CP.openpilotLongitudinalControl and not (self.CP.flags & HyundaiFlags.NON_SCC)
     self._ioniq_6_lane_change_ui_side = None
     self._ioniq_6_lane_change_ui_frames = 0
     self._ioniq_6_long_tuning = Ioniq6LongitudinalTuningState()
@@ -594,7 +594,7 @@ class CarController(CarControllerBase):
 
     # When ECU disable was skipped (car started in READY mode), don't send any
     # longitudinal messages - stock ECU is still active and these would conflict
-    self.long_active_ecu = self.CP.openpilotLongitudinalControl and not self.ecu_disable_failed
+    self.long_active_ecu = self.CP.openpilotLongitudinalControl and not (self.CP.flags & HyundaiFlags.NON_SCC) and not self.ecu_disable_failed
 
     use_egmp_dynamic_long_tuning = egmp_dynamic_longitudinal_tuning(self.CP) and self.long_active_ecu and \
                                    actuators.longControlState in (LongCtrlState.starting, LongCtrlState.pid, LongCtrlState.stopping)

@@ -613,11 +613,34 @@ class TestHyundaiFingerprint:
     non_scc_fpcp = CarInterface.get_starpilot_params(CAR.KIA_FORTE_2021_NON_SCC, gen_empty_fingerprint(), [], non_scc_cp, toggles)
     assert non_scc_fpcp.redneckCruiseAvailable
     assert not non_scc_fpcp.pcmCruiseSpeed
+    assert non_scc_cp.openpilotLongitudinalControl
+    assert non_scc_cp.pcmCruise
+    assert not non_scc_cp.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.LONG
+    assert not CarInterface(non_scc_cp, non_scc_fpcp).CC.long_active_ecu
 
     canfd_alt_buttons_cp = CarInterface.get_params(CAR.KIA_EV6, gen_empty_fingerprint(), [], False, False, False, toggles)
     canfd_alt_buttons_fpcp = CarInterface.get_starpilot_params(CAR.KIA_EV6, gen_empty_fingerprint(), [], canfd_alt_buttons_cp, toggles)
     assert canfd_alt_buttons_cp.flags & HyundaiFlags.CANFD_ALT_BUTTONS
     assert not canfd_alt_buttons_fpcp.redneckCruiseAvailable
+
+  def test_hyundai_non_scc_without_redneck_keeps_stock_longitudinal_mode(self, monkeypatch):
+    class FakeParams:
+      def __init__(self, *args, **kwargs):
+        pass
+
+      @staticmethod
+      def get_bool(key):
+        return False
+
+    toggles = get_test_toggles()
+    monkeypatch.setattr("opendbc.car.interfaces.Params", FakeParams)
+
+    CP = CarInterface.get_params(CAR.KIA_FORTE_2021_NON_SCC, gen_empty_fingerprint(), [], True, False, False, toggles)
+    FPCP = CarInterface.get_starpilot_params(CAR.KIA_FORTE_2021_NON_SCC, gen_empty_fingerprint(), [], CP, toggles)
+
+    assert not CP.openpilotLongitudinalControl
+    assert CP.pcmCruise
+    assert FPCP.pcmCruiseSpeed
 
   def test_hyundai_full_long_keeps_redneck_cruise_disabled(self, monkeypatch):
     class FakeParams:

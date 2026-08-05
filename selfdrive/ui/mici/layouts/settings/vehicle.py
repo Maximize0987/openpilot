@@ -9,6 +9,7 @@ from openpilot.selfdrive.ui.lib.fingerprint_catalog import (
   shorten_model_label,
 )
 from openpilot.selfdrive.ui.layouts.settings.common import restart_needed_callback
+from openpilot.selfdrive.ui.lib.starpilot_state import starpilot_state
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.multilang import tr
@@ -195,10 +196,10 @@ class VehicleLayoutMici(NavScroller):
     fingerprint_btn = BigButton("fingerprint", "",gui_app.texture("icons_mici/settings/vehicle/fingerprint.png", 58, 64))
     fingerprint_btn.set_click_callback(lambda: gui_app.push_widget(fingerprint_panel))
 
-    # TODO: make it reloadable without restarting ui
-    match ui_state.params.get("CarModel"):
-      case _:
-        vehicle_specific_widgets = tuple()
+    starpilot_state.update(force=True)
+    vehicle_specific_widgets = (
+      BigParamControl("redneck cruise", "RedneckCruise", toggle_callback=restart_needed_callback),
+    ) if starpilot_state.car_state.redneckCruiseAvailable else tuple()
 
     self._scroller.add_widgets([
       fingerprint_btn,
@@ -206,4 +207,3 @@ class VehicleLayoutMici(NavScroller):
     ])
 
     self._font_medium = gui_app.font(FontWeight.MEDIUM)
-

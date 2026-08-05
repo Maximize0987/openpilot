@@ -379,6 +379,10 @@ def set_speed_limit_available(openpilot_longitudinal: bool, has_cc_long: bool, p
   return openpilot_longitudinal or has_cc_long or not pcm_cruise_speed
 
 
+def speed_limit_controller_available(openpilot_longitudinal: bool, redneck_cruise: bool) -> bool:
+  return openpilot_longitudinal or redneck_cruise
+
+
 def migrate_cancel_button_controls(params: Params | None = None) -> bool:
   params = params or Params(return_defaults=True)
   if params.get_bool(CANCEL_BUTTON_MIGRATION_KEY) or not params.get_bool("RemapCancelToDistance"):
@@ -642,12 +646,14 @@ class StarPilotVariables:
     toggle.lkas_allowed_for_aol = hyundai_can_use_lkas_for_aol or toggle.car_make == "honda"
     longitudinalActuatorDelay = CP.longitudinalActuatorDelay
     toggle.openpilot_longitudinal = CP.openpilotLongitudinalControl and not toggle.disable_openpilot_long
-    if not toggle.redneck_cruise_available or toggle.openpilot_longitudinal:
+    if not toggle.redneck_cruise_available or (toggle.openpilot_longitudinal and FPCP.pcmCruiseSpeed):
       self.params.put_bool("RedneckCruise", False)
     toggle.redneck_cruise = self.get_value(
       "RedneckCruise",
       condition=toggle.redneck_cruise_available and not toggle.openpilot_longitudinal,
     )
+    if toggle.redneck_cruise_available and not FPCP.pcmCruiseSpeed:
+      toggle.redneck_cruise = True
     pcm_cruise = CP.pcmCruise
     prohibited_main_aol = not toggle.openpilot_longitudinal and hyundai_can_use_lkas_for_aol
     startAccel = CP.startAccel
@@ -1292,7 +1298,8 @@ class StarPilotVariables:
     toggle.sng_hack = self.get_value("SNGHack", condition=toggle.openpilot_longitudinal and toggle.car_make == "toyota" and not toggle.has_pedal and not has_sng)
     toggle.toyota_auto_hold = self.get_value("ToyotaAutoHold", condition=toggle.car_make == "toyota")
 
-    toggle.speed_limit_controller = toggle.openpilot_longitudinal and self.get_value("SpeedLimitController")
+    slc_available = speed_limit_controller_available(toggle.openpilot_longitudinal, toggle.redneck_cruise)
+    toggle.speed_limit_controller = slc_available and self.get_value("SpeedLimitController")
     set_speed_limit_on_engage = set_speed_limit_available(toggle.openpilot_longitudinal, toggle.has_cc_long, FPCP.pcmCruiseSpeed)
     speed_limit_display = toggle.show_speed_limits or toggle.speed_limit_controller
     toggle.map_speed_lookahead_higher = self.get_value("SLCLookaheadHigher", cast=float, condition=speed_limit_display)

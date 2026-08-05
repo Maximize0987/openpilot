@@ -1347,15 +1347,6 @@
         "settings_tier": "simple"
       },
       {
-        "key": "RedneckCruise",
-        "label": "Redneck Cruise",
-        "description": "On supported Hyundai stock-long cars, use RES/SET button presses to match the cluster set speed to StarPilot's target.",
-        "data_type": "bool",
-        "ui_type": "toggle",
-        "parent_key": "QOLLongitudinal",
-        "settings_tier": "simple"
-      },
-      {
         "key": "WeatherPresets",
         "label": "Weather Condition Offsets",
         "description": "Automatically adjust driving behavior based on real-time weather. Helps maintain comfort and safety in low visibility, rain, or snow.",

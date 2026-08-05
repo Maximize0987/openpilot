@@ -238,9 +238,9 @@ class CarInterfaceBase(ABC):
             fp_ret.flags |= HyundaiStarPilotFlags.SPEED_LIMIT_AVAILABLE.value
 
         fp_ret.redneckCruiseAvailable = bool(CP.flags & HyundaiFlags.NON_SCC) and not bool(CP.flags & HyundaiFlags.CANFD_ALT_BUTTONS)
-        if fp_ret.redneckCruiseAvailable and params.get_bool("RedneckCruise") and \
-            not CP.openpilotLongitudinalControl:
+        if fp_ret.redneckCruiseAvailable and params.get_bool("RedneckCruise"):
           fp_ret.pcmCruiseSpeed = False
+          CP.openpilotLongitudinalControl = True
 
         hyundai_has_lda_button = (
           0x391 in fingerprint[0] or

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from cereal import car
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_CTRL
+from openpilot.selfdrive.car.card import Car
 from openpilot.selfdrive.car.redneck_cruise import (
   DECREASE_INACTIVE_TIMER,
   INCREASE_INACTIVE_TIMER,
@@ -167,6 +168,33 @@ class TestRedneckCruise(unittest.TestCase):
       allow_plan_decrease=False,
     )
     self.assertAlmostEqual(104.4 * CV.KPH_TO_MS, target_speed)
+
+  def test_target_speed_follows_resolved_slc_target(self):
+    for internal_mph, slc_mph in ((55.0, 65.0), (65.0, 55.0)):
+      with self.subTest(internal_mph=internal_mph, slc_mph=slc_mph):
+        target_speed = select_redneck_target_speed(
+          internal_mph * CV.MPH_TO_KPH,
+          internal_mph * CV.MPH_TO_MS,
+          0.0,
+          [],
+          10,
+          allow_plan_decrease=False,
+          slc_target_speed_ms=slc_mph * CV.MPH_TO_MS,
+        )
+        self.assertAlmostEqual(slc_mph * CV.MPH_TO_MS, target_speed)
+
+  def test_card_target_speed_uses_longitudinal_acceleration(self):
+    card = SimpleNamespace(CP=SimpleNamespace(openpilotLongitudinalControl=True))
+    car_state = SimpleNamespace(vEgo=55.0 * CV.MPH_TO_MS)
+    car_control = SimpleNamespace(
+      actuators=SimpleNamespace(accel=0.5),
+      hudControl=SimpleNamespace(leadVisible=True),
+    )
+
+    target_speed, lead_present = Car._get_redneck_target_speed(card, car_state, car_control)
+
+    self.assertAlmostEqual(55.0 * CV.MPH_TO_MS * 1.01 + 1.5, target_speed)
+    self.assertTrue(lead_present)
 
   def test_target_speed_returns_plan_minimum_when_slowing_down(self):
     target_speed = select_redneck_target_speed(

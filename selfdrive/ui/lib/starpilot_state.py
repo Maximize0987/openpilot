@@ -38,6 +38,7 @@ class StarPilotCarState:
     hasZSS: bool = False
     canUsePedal: bool = False
     canUseSDSU: bool = False
+    redneckCruiseAvailable: bool = False
 
     # ========== Device/Car State ==========
     isFrogsGoMoo: bool = False
@@ -206,12 +207,14 @@ class StarPilotState:
 
         # 2. Parse StarPilotCarParamsPersistent
         fpcp_bytes = self.params.get("StarPilotCarParamsPersistent")
+        self.car_state.redneckCruiseAvailable = False
         if fpcp_bytes is not None:
             try:
                 FPCP = messaging.log_from_bytes(fpcp_bytes, custom.StarPilotCarParams)
                 self.car_state.canUsePedal = FPCP.canUsePedal
                 self.car_state.canUseSDSU = FPCP.canUseSDSU
                 self.car_state.openpilotLongitudinalControlDisabled = FPCP.openpilotLongitudinalControlDisabled
+                self.car_state.redneckCruiseAvailable = bool(FPCP.redneckCruiseAvailable)
             except Exception:
                 pass
 

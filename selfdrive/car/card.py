@@ -421,20 +421,32 @@ class Car:
     if self.redneck_cruise is None:
       return
 
-    v_target_ms, lead_present = self._get_redneck_target_speed(CS)
+    v_target_ms, lead_present = self._get_redneck_target_speed(CS, CC)
     send_button, v_target = self.redneck_cruise.run(CS, CC, v_target_ms, self.is_metric, lead_present=lead_present)
     self.CI.CS.redneck_send_button = send_button
     self.CI.CS.redneck_v_target = v_target
 
-  def _get_redneck_target_speed(self, CS: car.CarState) -> tuple[float, bool]:
+  def _get_redneck_target_speed(self, CS: car.CarState, CC: car.CarControl) -> tuple[float, bool]:
+    # With openpilot longitudinal active, project its acceleration demand into the stock cruise setpoint.
+    if self.CP.openpilotLongitudinalControl:
+      return CS.vEgo * 1.01 + 3 * CC.actuators.accel, bool(CC.hudControl.leadVisible)
+
+    # Preserve the existing button-only SLC path when LongControl is disabled.
     starpilot_target_speed = 0.0
+    slc_target_speed = 0.0
     allow_plan_decrease = False
     lead_present = False
     lead_distance_m = 0.0
     lead_rel_speed_ms = 0.0
     lookahead_points = REDNECK_DECREASE_LOOKAHEAD_POINTS
     if self.sm.seen['starpilotPlan'] and self.sm.valid['starpilotPlan']:
-      starpilot_target_speed = float(self.sm['starpilotPlan'].vCruise)
+      starpilot_plan = self.sm['starpilotPlan']
+      starpilot_target_speed = float(starpilot_plan.vCruise)
+      if self.starpilot_toggles.speed_limit_controller:
+        slc_target_speed = max(
+          float(starpilot_plan.slcOverriddenSpeed),
+          float(starpilot_plan.slcSpeedLimit) + float(starpilot_plan.slcSpeedLimitOffset),
+        )
 
     plan_speeds = []
     if self.sm.seen['longitudinalPlan'] and self.sm.valid['longitudinalPlan']:
@@ -461,6 +473,7 @@ class Car:
       lead_present=lead_present,
       lead_distance_m=lead_distance_m,
       lead_rel_speed_ms=lead_rel_speed_ms,
+      slc_target_speed_ms=slc_target_speed,
     ), lead_present
 
   def step(self):

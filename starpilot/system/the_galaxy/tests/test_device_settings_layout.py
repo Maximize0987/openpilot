@@ -50,6 +50,7 @@ def test_galaxy_layout_contains_basic_mode_controls():
     "HumanLaneChanges",
     "QOLLongitudinal",
   } <= sections["Longitudinal (Speed & Following)"].keys()
+  assert "RedneckCruise" not in sections["Longitudinal (Speed & Following)"].keys()
   assert {"GalaxyDeveloperMode", "UseOldUI"} <= sections["Developer"].keys()
 
 

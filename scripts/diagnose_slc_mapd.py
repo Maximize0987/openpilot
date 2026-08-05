@@ -55,7 +55,7 @@ from openpilot.tools.lib.logreader import LogReader, ReadMode
 # Constants
 # ============================================================================
 
-OVERPASS_API_URL = "https://overpass-api.de/api/interpreter"
+OVERPASS_API_URL = "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
 OVERPASS_UA = "starpilot-diagnose-slc/1.0 (https://github.com/FrogAi/StarPilot)"
 
 JWT_HELP_URL = "https://jwt.comma.ai/"
@@ -672,7 +672,8 @@ class OverpassClient:
         if not gps:
             return {}
 
-        key = hashlib.sha256(json.dumps(gps, sort_keys=True).encode()).hexdigest()[:16]
+        cache_input = {"endpoint": OVERPASS_API_URL, "gps": gps}
+        key = hashlib.sha256(json.dumps(cache_input, sort_keys=True).encode()).hexdigest()[:16]
         cached = self._load_cache(key)
         if cached is not None:
             return cached
