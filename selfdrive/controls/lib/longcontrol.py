@@ -233,7 +233,7 @@ class LongControl:
     return min(output_accel, float(positive_cap))
 
   def update(self, active, CS, a_target, should_stop, accel_limits, starpilot_toggles, has_lead=False,
-             traffic_mode_enabled=False, profile_max_accel=0.0, pedal_override=False):
+             traffic_mode_enabled=False, profile_max_accel=0.0, pedal_override=False, leads=None):
     """Update longitudinal control. This updates the state machine and runs a PID loop"""
     self.pid.neg_limit = accel_limits[0]
     self.pid.pos_limit = accel_limits[1]
@@ -286,7 +286,9 @@ class LongControl:
 
     else:  # LongCtrlState.pid
       a_target = self.vehicle_tuning.shape_gm_truck_accel_target(a_target, CS.vEgo, should_stop)
-      a_target = self.vehicle_tuning.shape_toyota_sienna_accel_target(a_target, CS.vEgo, should_stop)
+      a_target = self.vehicle_tuning.shape_toyota_sienna_accel_target(
+        a_target, CS.vEgo, should_stop, leads=leads,
+      )
       error = a_target - CS.aEgo
       self.update_mpc_mode(self.experimental_mode)
       self.vehicle_tuning.shape_volt_test_tune_integrator(self.pid, error, CS.vEgo)

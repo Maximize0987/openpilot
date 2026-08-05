@@ -4,6 +4,7 @@ import pytest
 
 from opendbc.car.subaru.carcontroller import CarController
 from opendbc.car.subaru.fingerprints import FW_VERSIONS
+from opendbc.car.fw_versions import match_fw_to_car
 from opendbc.car.subaru.interface import CarInterface
 from opendbc.car.subaru.values import CAR, SubaruFlags, SubaruSafetyFlags
 from opendbc.car.structs import CarParams
@@ -65,6 +66,23 @@ class TestSubaruFingerprint:
         fw_size = len(fws[0])
         for fw in fws:
           assert len(fw) == fw_size, f"{platform} {ecu}: {len(fw)} {fw_size}"
+
+  def test_outback_2024_firmware(self):
+    outback_fw = FW_VERSIONS[CAR.SUBARU_OUTBACK_2023]
+    assert b'\xa1 $\x17\x00' in outback_fw[(CarParams.Ecu.abs, 0x7b0, None)]
+    assert b'\xfb,\xa2p\x07' in outback_fw[(CarParams.Ecu.engine, 0x7a2, None)]
+    assert b'\xa9\x17w!r' in outback_fw[(CarParams.Ecu.transmission, 0x7a3, None)]
+
+    car_fw = [
+      CarParams.CarFw(ecu=CarParams.Ecu.abs, fwVersion=b'\xa1 $\x17\x00', address=0x7b0, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.eps, fwVersion=b'+\xc0\x12\x11\x00', address=0x746, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\t!\x08\x046\x05!\x08\x01/', address=0x787, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.engine, fwVersion=b'\xfb,\xa2p\x07', address=0x7a2, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.transmission, fwVersion=b'\xa9\x17w!r', address=0x7a3, brand="subaru"),
+    ]
+    exact, matches = match_fw_to_car(car_fw, "4S4BTGUD6R3155987", allow_fuzzy=False, log=False)
+    assert exact
+    assert matches == {CAR.SUBARU_OUTBACK_2023}
 
 
 ANGLE_PLATFORMS = (

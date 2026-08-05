@@ -153,17 +153,19 @@ class StarPilotPlanner:
     self.lateral_acceleration = v_ego**2 * sm["controlsState"].curvature
     self.driving_in_curve = abs(self.lateral_acceleration) >= MINIMUM_LATERAL_ACCELERATION
 
+    CS = sm["carState"]
+    blinker_on = CS.leftBlinker or CS.rightBlinker
+    signal_pause = blinker_on and starpilot_toggles.pause_lateral_below_signal
+
     self.lateral_check = v_ego >= starpilot_toggles.pause_lateral_below_speed
-    self.lateral_check |= not (sm["carState"].leftBlinker or sm["carState"].rightBlinker) and starpilot_toggles.pause_lateral_below_signal
-    self.lateral_check |= sm["carState"].standstill
+    self.lateral_check |= not blinker_on and starpilot_toggles.pause_lateral_below_signal
+    self.lateral_check |= CS.standstill and not signal_pause
     self.lateral_check &= not sm["starpilotCarState"].pauseLateral
 
     # Blinker-based lateral resume delay: after blinker turns off, delay lateral
     # resumption if the vehicle went below half the pause speed during the blinker.
     # This lets the driver manually straighten the wheel after a turn without
     # openpilot fighting them.
-    CS = sm["carState"]
-    blinker_on = CS.leftBlinker or CS.rightBlinker
     prev_blinker_on = self.CS_prev_left_blinker or self.CS_prev_right_blinker
 
     if blinker_on:

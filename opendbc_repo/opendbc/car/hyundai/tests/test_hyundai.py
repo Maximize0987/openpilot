@@ -120,6 +120,17 @@ def get_test_toggles() -> SimpleNamespace:
 
 
 class TestHyundaiFingerprint:
+  def test_canfd_torque_bsm_parser_registers_rear_blindspots(self):
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.CANFD_LKA_STEERING | HyundaiFlags.EV | HyundaiFlags.CANFD_ALT_GEARS_2)
+    CP.enableBsm = True
+
+    parsers = CarState(CP, None).get_can_parsers(CP)
+    pt_messages = {state.name for state in parsers[Bus.pt].message_states.values()}
+
+    assert "BLINDSPOTS_REAR_CORNERS" in pt_messages
+
   def test_feature_detection(self):
     # LKA steering
     for candidate in (CAR.KIA_EV6, CAR.HYUNDAI_IONIQ_6):
@@ -776,6 +787,16 @@ class TestHyundaiFingerprint:
     CP = CarInterface.get_params(CAR.HYUNDAI_ELANTRA_HEV_2024, gen_empty_fingerprint(), [], True, False, False, toggles)
 
     assert CP.longitudinalActuatorDelay == pytest.approx(0.22)
+
+  def test_santa_fe_2022_longitudinal_tune_tracks_slow_scc_response(self):
+    toggles = get_test_toggles()
+    CP = CarInterface.get_params(CAR.HYUNDAI_SANTA_FE_2022, gen_empty_fingerprint(), [], True, False, False, toggles)
+
+    assert CP.longitudinalActuatorDelay == pytest.approx(0.4)
+    assert list(CP.longitudinalTuning.kpBP) == pytest.approx([0.0, 8.0, 20.0, 35.0])
+    assert list(CP.longitudinalTuning.kpV) == pytest.approx([0.20, 0.17, 0.12, 0.08])
+    assert list(CP.longitudinalTuning.kiBP) == pytest.approx([0.0, 8.0, 20.0, 35.0])
+    assert list(CP.longitudinalTuning.kiV) == pytest.approx([0.02, 0.03, 0.05, 0.07])
 
   def test_kia_niro_phev_2022_longitudinal_params_soften_final_stop_hold(self):
     toggles = get_test_toggles()

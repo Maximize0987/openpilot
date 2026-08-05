@@ -25,9 +25,15 @@ GM_TRUCK_TARGET_FILTER_BRAKE_BYPASS = -0.65
 GM_TRUCK_TARGET_FILTER_DROP_BYPASS = 0.45
 TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED = 12.0
 TOYOTA_SIENNA_TARGET_FILTER_UP_TAU = 0.18
-TOYOTA_SIENNA_TARGET_FILTER_DOWN_TAU = 0.12
+TOYOTA_SIENNA_TARGET_FILTER_DOWN_TAU = 0.24
 TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS = -0.75
 TOYOTA_SIENNA_TARGET_FILTER_DROP_BYPASS = 0.65
+TOYOTA_SIENNA_COMFORT_FILTER_MIN_SPEED = 5.0
+TOYOTA_SIENNA_COMFORT_FILTER_MIN_DISTANCE = 10.0
+TOYOTA_SIENNA_COMFORT_FILTER_MIN_TTC = 4.5
+TOYOTA_SIENNA_COMFORT_FILTER_MAX_CLOSING_SPEED = 4.0
+TOYOTA_SIENNA_COMFORT_FILTER_MAX_LEAD_BRAKE = 2.5
+TOYOTA_SIENNA_COMFORT_FILTER_BRAKE_BYPASS = -2.5
 
 
 def get_bolt_acc_pedal_friction_bias(output_accel, a_target, v_ego):
@@ -159,17 +165,51 @@ class LongControlVehicleTuning:
     self.gm_truck_filtered_a_target += alpha * (float(a_target) - self.gm_truck_filtered_a_target)
     return self.gm_truck_filtered_a_target
 
-  def shape_toyota_sienna_accel_target(self, a_target, v_ego, should_stop):
-    """Dampen ordinary high-speed lead handoffs without delaying safety braking."""
-    if not self.is_toyota_sienna_4g or v_ego < TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED or should_stop:
+  def shape_toyota_sienna_accel_target(self, a_target, v_ego, should_stop, leads=None):
+    """Smooth Sienna lead braking only while there is still comfortable stopping room."""
+    if not self.is_toyota_sienna_4g or should_stop:
       self.toyota_sienna_target_filter_initialized = False
       return a_target
 
-    bypass_filter = (
-      a_target <= TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS or
-      (self.toyota_sienna_target_filter_initialized and
-       a_target < self.toyota_sienna_filtered_a_target - TOYOTA_SIENNA_TARGET_FILTER_DROP_BYPASS)
-    )
+    comfort_lead = None
+    if leads:
+      active_leads = [
+        lead for lead in leads
+        if bool(getattr(lead, "status", False)) and
+        abs(float(getattr(lead, "yRel", 0.0))) <= 1.75 and
+        float(getattr(lead, "dRel", 0.0)) > 0.0
+      ]
+      if active_leads:
+        comfort_lead = min(active_leads, key=lambda lead: float(getattr(lead, "dRel", 0.0)))
+
+    comfort_filter_active = False
+    if comfort_lead is not None and v_ego >= TOYOTA_SIENNA_COMFORT_FILTER_MIN_SPEED:
+      lead_distance = float(getattr(comfort_lead, "dRel", 0.0))
+      lead_speed = max(float(getattr(comfort_lead, "vLead", 0.0)), 0.0)
+      closing_speed = max(0.0, float(v_ego) - lead_speed)
+      ttc = lead_distance / max(closing_speed, 0.1) if closing_speed > 0.1 else float("inf")
+      lead_brake = max(0.0, -float(getattr(comfort_lead, "aLeadK", 0.0)))
+      comfort_filter_active = (
+        lead_distance >= TOYOTA_SIENNA_COMFORT_FILTER_MIN_DISTANCE and
+        ttc >= TOYOTA_SIENNA_COMFORT_FILTER_MIN_TTC and
+        closing_speed <= TOYOTA_SIENNA_COMFORT_FILTER_MAX_CLOSING_SPEED and
+        lead_brake <= TOYOTA_SIENNA_COMFORT_FILTER_MAX_LEAD_BRAKE
+      )
+
+    # Keep the legacy high-speed filter unchanged. The lower-speed entry is only
+    # for a centered lead with enough room to soften a comfort response.
+    if v_ego < TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED and not comfort_filter_active:
+      self.toyota_sienna_target_filter_initialized = False
+      return a_target
+
+    if comfort_filter_active:
+      bypass_filter = a_target <= TOYOTA_SIENNA_COMFORT_FILTER_BRAKE_BYPASS
+    else:
+      bypass_filter = (
+        a_target <= TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS or
+        (self.toyota_sienna_target_filter_initialized and
+         a_target < self.toyota_sienna_filtered_a_target - TOYOTA_SIENNA_TARGET_FILTER_DROP_BYPASS)
+      )
     if not self.toyota_sienna_target_filter_initialized or bypass_filter:
       self.toyota_sienna_filtered_a_target = float(a_target)
       self.toyota_sienna_target_filter_initialized = True

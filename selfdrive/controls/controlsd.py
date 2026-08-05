@@ -433,7 +433,8 @@ class Controls:
                                                 self.starpilot_toggles, has_lead=long_plan.hasLead,
                                                 traffic_mode_enabled=self.sm['starpilotCarState'].trafficModeEnabled,
                                                 profile_max_accel=self.sm['starpilotPlan'].maxAcceleration,
-                                                pedal_override=tesla_pedal_override),
+                                                pedal_override=tesla_pedal_override,
+                                                leads=(self.sm['radarState'].leadOne, self.sm['radarState'].leadTwo)),
                                 self.starpilot_toggles.max_desired_acceleration))
 
     # Steering PID loop and lateral MPC

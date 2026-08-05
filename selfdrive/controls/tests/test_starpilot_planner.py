@@ -33,7 +33,7 @@ def make_toggles(**overrides):
   return SimpleNamespace(**defaults)
 
 
-def make_sm(planner, *, frame: int, v_ego: float, left_blinker: bool, right_blinker: bool = False):
+def make_sm(planner, *, frame: int, v_ego: float, left_blinker: bool, right_blinker: bool = False, standstill: bool = False):
   return FakeSM(frame, {
     "radarState": SimpleNamespace(
       leadOne=SimpleNamespace(status=False, dRel=float("inf"), vLead=0.0, modelProb=0.0, radar=False),
@@ -42,7 +42,7 @@ def make_sm(planner, *, frame: int, v_ego: float, left_blinker: bool, right_blin
     "carState": SimpleNamespace(
       vCruise=50.0,
       vEgo=v_ego,
-      standstill=False,
+      standstill=standstill,
       leftBlinker=left_blinker,
       rightBlinker=right_blinker,
     ),
@@ -78,6 +78,32 @@ def test_lateral_resume_delay_zero_keeps_immediate_resume(monkeypatch):
     planner.update(0.0, False, make_sm(planner, frame=2, v_ego=4.0, left_blinker=False), toggles)
     assert planner.lateral_check is True
     assert planner.blinker_delay_active is False
+  finally:
+    planner.shutdown()
+
+
+def test_turn_signal_keeps_lateral_paused_at_standstill(monkeypatch):
+  planner = make_planner(monkeypatch)
+
+  try:
+    toggles = make_toggles(pause_lateral_below_speed=99.0)
+
+    planner.update(0.0, False, make_sm(planner, frame=1, v_ego=0.0, left_blinker=True, standstill=True), toggles)
+
+    assert planner.lateral_check is False
+  finally:
+    planner.shutdown()
+
+
+def test_standstill_without_turn_signal_keeps_lateral_allowed(monkeypatch):
+  planner = make_planner(monkeypatch)
+
+  try:
+    toggles = make_toggles(pause_lateral_below_speed=99.0)
+
+    planner.update(0.0, False, make_sm(planner, frame=1, v_ego=0.0, left_blinker=False, standstill=True), toggles)
+
+    assert planner.lateral_check is True
   finally:
     planner.shutdown()
 

@@ -4178,6 +4178,19 @@ def test_near_duplicate_vision_source_hysteresis_applies_at_tesla_city_speed():
   assert lead_1_bias > 0.0
 
 
+def test_near_duplicate_vision_source_hysteresis_holds_through_low_speed_stop_approach():
+  v_ego = 5.0
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  planner = LongitudinalPlanner(CP, init_v=v_ego)
+  lead_one = make_lead(status=True, d_rel=9.8, v_lead=3.0, a_lead=-0.02, radar=False, model_prob=1.0)
+  lead_two = make_lead(status=True, d_rel=9.9, v_lead=3.02, a_lead=-0.01, radar=False, model_prob=1.0)
+
+  lead_0_bias, lead_1_bias = planner.mpc.get_near_duplicate_lead_source_hysteresis("lead0", lead_one, lead_two, v_ego)
+
+  assert lead_0_bias == 0.0
+  assert lead_1_bias > 0.0
+
+
 def test_stable_follow_cruise_hysteresis_applies_for_radar_lead():
   v_ego = 27.0
   CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)

@@ -280,6 +280,13 @@ class CarInterface(CarInterfaceBase):
     if candidate == CAR.HYUNDAI_IONIQ_6:
       ret.longitudinalActuatorDelay = 0.6
 
+    if candidate == CAR.HYUNDAI_SANTA_FE_2022:
+      ret.longitudinalActuatorDelay = 0.4
+      ret.longitudinalTuning.kpBP = [0.0, 8.0, 20.0, 35.0]
+      ret.longitudinalTuning.kpV = [0.20, 0.17, 0.12, 0.08]
+      ret.longitudinalTuning.kiBP = [0.0, 8.0, 20.0, 35.0]
+      ret.longitudinalTuning.kiV = [0.02, 0.03, 0.05, 0.07]
+
     if candidate == CAR.KIA_EV9 and ret.openpilotLongitudinalControl:
       apply_kia_ev9_longitudinal_params(ret)
 

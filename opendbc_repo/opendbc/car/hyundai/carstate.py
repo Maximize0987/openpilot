@@ -621,8 +621,7 @@ class CarState(CarStateBase):
       ("LFAHDA_CLUSTER", 0),  # optional: carries cluster icon state on some variants
       ("BLINKER_STALKS", 0),  # optional: some trims publish live stalk/light state on ECAN during turn camera events
     ]
-    if CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR and CP.enableBsm:
-      # Keep the suppressed ADAS BSM output optional.
+    if CP.enableBsm:
       msgs.append(("BLINDSPOTS_REAR_CORNERS", 0))
     if CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR:
       msgs.append(("BLINDSPOTS_FRONT_CORNER_2", 0))
