@@ -87,6 +87,9 @@ SILVERADO_CARS = (
 GENESIS_G90_CARS = (
   HYUNDAI_CAR.GENESIS_G90,
 )
+GENESIS_GV70_CARS = (
+  HYUNDAI_CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN,
+)
 PALISADE_CARS = (
   HYUNDAI_CAR.HYUNDAI_PALISADE,
   HYUNDAI_CAR.HYUNDAI_PALISADE_2023,
@@ -162,6 +165,16 @@ RAM_1500_CARS = (
 )
 
 RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT = 1.20
+
+GENESIS_GV70_FRICTION_THRESHOLD_GAIN = 0.08
+GENESIS_GV70_FRICTION_SPEED_ONSET = 8.0 * CV.MPH_TO_MS
+GENESIS_GV70_FRICTION_SPEED_ONSET_WIDTH = 4.0 * CV.MPH_TO_MS
+GENESIS_GV70_FRICTION_SPEED_CUTOFF = 40.0 * CV.MPH_TO_MS
+GENESIS_GV70_FRICTION_SPEED_CUTOFF_WIDTH = 6.0 * CV.MPH_TO_MS
+GENESIS_GV70_FRICTION_CENTER_LAT = 0.20
+GENESIS_GV70_FRICTION_CENTER_LAT_WIDTH = 0.08
+GENESIS_GV70_FRICTION_CALM_JERK = 0.30
+GENESIS_GV70_FRICTION_CALM_JERK_WIDTH = 0.08
 
 BOLT_2017_LATERAL_TESTING_GROUND_ID = testing_ground.id_3
 BOLT_2017_STEER_RATIO_TEST_SCALE = 1.045
@@ -2268,6 +2281,20 @@ def get_genesis_g90_friction_scale(v_ego: float, desired_lateral_accel: float, d
   friction_scale -= (_genesis_g90_side_value(desired_lateral_accel, GENESIS_G90_UNWIND_FRICTION_REDUCTION_LEFT, GENESIS_G90_UNWIND_FRICTION_REDUCTION_RIGHT) *
                      transition_envelope * unwind_weight)
   return min(max(friction_scale, 0.92), 1.12)
+
+
+def get_genesis_gv70_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,
+                                        desired_lateral_jerk: float = 0.0) -> float:
+  base_threshold = get_hkg_canfd_base_friction_threshold(v_ego)
+  speed_onset = _sigmoid((v_ego - GENESIS_GV70_FRICTION_SPEED_ONSET) / GENESIS_GV70_FRICTION_SPEED_ONSET_WIDTH)
+  speed_cutoff = _sigmoid((GENESIS_GV70_FRICTION_SPEED_CUTOFF - v_ego) / GENESIS_GV70_FRICTION_SPEED_CUTOFF_WIDTH)
+  center_weight = _sigmoid((GENESIS_GV70_FRICTION_CENTER_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_GV70_FRICTION_CENTER_LAT_WIDTH)
+  calm_jerk_weight = _sigmoid((GENESIS_GV70_FRICTION_CALM_JERK - abs(desired_lateral_jerk)) /
+                              GENESIS_GV70_FRICTION_CALM_JERK_WIDTH)
+  gain = (GENESIS_GV70_FRICTION_THRESHOLD_GAIN * speed_onset * speed_cutoff *
+          center_weight * calm_jerk_weight)
+  return base_threshold * (1.0 + gain)
 
 
 def _ioniq_5_sigmoid(x: float) -> float:

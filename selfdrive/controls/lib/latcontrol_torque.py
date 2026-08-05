@@ -85,6 +85,7 @@ class LatControlTorque(LatControl):
     self.is_bolt_2017 = CP.carFingerprint in BOLT_2017_CARS
     self.is_volt_standard = CP.carFingerprint in VOLT_STANDARD_CARS
     self.is_genesis_g90 = CP.carFingerprint in GENESIS_G90_CARS
+    self.is_genesis_gv70 = CP.carFingerprint in GENESIS_GV70_CARS
     self.is_palisade = CP.carFingerprint in PALISADE_CARS
     self.is_prius = CP.carFingerprint in PRIUS_CARS
     self.is_rav4_prime = CP.carFingerprint in RAV4_PRIME_CARS
@@ -299,6 +300,8 @@ class LatControlTorque(LatControl):
         friction_threshold = get_gm_base_friction_threshold(CS.vEgo)
       else:
         friction_threshold = get_standard_friction_threshold(CS.vEgo)
+      if self.is_genesis_gv70:
+        friction_threshold = get_genesis_gv70_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
       friction_scale = 1.0
       if bolt_2022_2023_tuned_path_active:
         ff *= get_bolt_2022_2023_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)

@@ -60,6 +60,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g90_ff_scale,
   get_genesis_g90_friction_scale,
   get_genesis_g90_friction_threshold,
+  get_genesis_gv70_friction_threshold,
   get_elantra_non_scc_ff_scale,
   get_palisade_ff_scale,
   get_palisade_friction_scale,
@@ -655,6 +656,16 @@ class TestLatControl:
     assert get_standard_friction_threshold(0.0) == 0.30
     assert get_standard_friction_threshold(6.0) == 0.30
     assert get_standard_friction_threshold(40.0) == 0.30
+
+  def test_genesis_gv70_friction_threshold_only_fades_calm_center_corrections(self):
+    base = get_hkg_canfd_base_friction_threshold(12.0)
+    center = get_genesis_gv70_friction_threshold(12.0, 0.0, 0.0)
+    turn = get_genesis_gv70_friction_threshold(12.0, 0.7, 0.8)
+    high_speed_center = get_genesis_gv70_friction_threshold(40.0, 0.0, 0.0)
+
+    assert center > base
+    assert turn == pytest.approx(base, rel=0.01)
+    assert high_speed_center < center
 
   def test_ioniq_5_ff_scale_curve(self):
     assert get_ioniq_5_ff_scale(0.0, 0.0, 20.0) == 1.0
