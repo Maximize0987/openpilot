@@ -256,6 +256,38 @@ def test_other_legacy_hyundai_main_aol_still_waits_for_set(monkeypatch, tmp_path
   assert ret.alwaysOnLateralEnabled is False
 
 
+def test_legacy_hyundai_main_aol_waits_for_main_button_permission(monkeypatch, tmp_path):
+  monkeypatch.setattr(spc, "Params", FakeParams)
+  monkeypatch.setattr(spc, "is_FrogsGoMoo", lambda: False)
+  monkeypatch.setattr(spc, "ERROR_LOGS_PATH", tmp_path)
+
+  card = spc.StarPilotCard(
+    SimpleNamespace(brand="hyundai", carFingerprint=spc.HYUNDAI_CAR.HYUNDAI_ELANTRA_2021),
+    SimpleNamespace(alternativeExperience=spc.ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL),
+  )
+  sm = make_sm()
+  toggles = make_toggles(
+    always_on_lateral=True,
+    always_on_lateral_main=True,
+    lkas_allowed_for_aol=True,
+    main_cruise_aol_toggle=True,
+  )
+  starpilot_car_state = SimpleNamespace(distancePressed=False)
+
+  ret = card.update(make_car_state(available=True), starpilot_car_state, sm, toggles)
+  assert ret.alwaysOnLateralAllowed is False
+  assert ret.alwaysOnLateralEnabled is False
+
+  ret = card.update(
+    make_car_state(available=True, button_events=[SimpleNamespace(type=spc.ButtonType.mainCruise, pressed=True)]),
+    starpilot_car_state,
+    sm,
+    toggles,
+  )
+  assert ret.alwaysOnLateralAllowed is True
+  assert ret.alwaysOnLateralEnabled is True
+
+
 def test_nissan_main_aol_can_start_before_normal_engagement(monkeypatch, tmp_path):
   monkeypatch.setattr(spc, "Params", FakeParams)
   monkeypatch.setattr(spc, "is_FrogsGoMoo", lambda: False)
@@ -460,7 +492,7 @@ def test_hyundai_main_cruise_button_wrapped_enum_can_toggle_aol(monkeypatch, tmp
   assert ret.alwaysOnLateralEnabled is False
 
 
-def test_hyundai_lda_platform_main_aol_can_start_before_set(monkeypatch, tmp_path):
+def test_hyundai_lda_platform_main_aol_waits_for_engagement_without_lkas_mapping(monkeypatch, tmp_path):
   monkeypatch.setattr(spc, "Params", FakeParams)
   monkeypatch.setattr(spc, "is_FrogsGoMoo", lambda: False)
   monkeypatch.setattr(spc, "ERROR_LOGS_PATH", tmp_path)
@@ -476,6 +508,10 @@ def test_hyundai_lda_platform_main_aol_can_start_before_set(monkeypatch, tmp_pat
 
   ret = card.update(car_state, starpilot_car_state, sm, toggles)
   assert ret.alwaysOnLateralAllowed is True
+  assert ret.alwaysOnLateralEnabled is False
+
+  sm["selfdriveState"].active = True
+  ret = card.update(car_state, starpilot_car_state, sm, toggles)
   assert ret.alwaysOnLateralEnabled is True
 
 

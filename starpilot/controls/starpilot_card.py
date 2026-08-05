@@ -120,7 +120,7 @@ class StarPilotCard:
     button_event_types = [self._button_type_raw(be) for be in carState.buttonEvents]
     button_aol_supported = self.CP.brand == "hyundai" or starpilot_toggles.lkas_allowed_for_aol
     button_managed_aol = starpilot_toggles.always_on_lateral_lkas or (button_aol_supported and starpilot_toggles.main_cruise_aol_toggle)
-    hyundai_aol_needs_engagement = self.hyundai_aol_needs_engagement and not starpilot_toggles.lkas_allowed_for_aol
+    hyundai_aol_needs_engagement = self.hyundai_aol_needs_engagement and not starpilot_toggles.always_on_lateral_lkas
 
     if hyundai_aol_needs_engagement:
       if carState.gearShifter in NON_DRIVING_GEARS:
