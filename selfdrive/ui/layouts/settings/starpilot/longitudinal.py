@@ -1128,7 +1128,7 @@ class StarPilotLongitudinalLayout(_SettingsPage):
         SettingRow(f"{p}FollowHigh", "value", tr_noop("Follow High"),
                    subtitle="",
                    get_value=lambda: f"{self._params.get_float(p + 'FollowHigh'):.2f}s",
-                   on_click=lambda: self._show_slider(p + "FollowHigh", 1.0, 3.0, step=0.05, unit="s", value_type="float"))
+                   on_click=lambda: self._show_slider(p + "FollowHigh", 0.5, 3.0, step=0.05, unit="s", value_type="float"))
       )
     rows.extend([
       SettingRow(f"{p}JerkAccel", "value", tr_noop("Accel Smoothness"),
