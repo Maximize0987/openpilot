@@ -342,4 +342,4 @@ class StarPilotOnroadView(AugmentedRoadView):
       round(cx - sz.x / 2),
       round(self._content_rect.y + self._content_rect.height - sz.y - 5),
     )
-    draw_text_with_shadow(font, road_name, text_pos, font_size, rl.Color(255, 255, 255, 180))
+    draw_text_with_shadow(font, road_name, text_pos, font_size, rl.WHITE)
