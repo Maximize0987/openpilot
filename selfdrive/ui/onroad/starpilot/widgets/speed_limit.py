@@ -22,8 +22,7 @@ class SpeedLimitWidget(LayoutWidget):
     if self._slc_state is None:
       self._pill_rect = None
       return False
-    flashing_pending = self._slc_state['speed_limit_changed'] and self._slc_state['unconfirmed_valid']
-    return flashing_pending or not self._slc_state['hide']
+    return True
 
   def get_size(self) -> tuple[float, float]:
     if self._slc_state is None:

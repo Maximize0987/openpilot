@@ -124,13 +124,10 @@ def _get_slc_state():
   speed_limit_changed = plan.speedLimitChanged
 
   params = ui_state.ui_params
-  show_slc = params.get_bool("ShowSpeedLimits") or params.get_bool("SpeedLimitController")
-  hide_sl = params.get_bool("HideSpeedLimit")
+  show_slc = params.get_bool("ShowSpeedLimits")
   unconfirmed_valid = plan.unconfirmedSlcSpeedLimit > 1
-  # A pending (unconfirmed) limit overrides HideSpeedLimit so the prompt always shows.
-  hide = not (speed_limit_changed and unconfirmed_valid) and hide_sl
 
-  if not show_slc and not speed_limit_changed:
+  if not show_slc:
     _reset_pulse()
     return None
 
@@ -170,7 +167,6 @@ def _get_slc_state():
     'unconfirmed_speed_limit': max(0.0, plan.unconfirmedSlcSpeedLimit * speed_conversion),
     'unconfirmed_valid': unconfirmed_valid,
     'speed_limit_changed': speed_limit_changed,
-    'hide': hide,
     'show_offset': show_offset,
     'use_vienna': params.get_bool("UseVienna"),
     'offset_str': offset_str,
@@ -477,9 +473,6 @@ def render_speed_limit_at(state: dict, rect: rl.Rectangle, expanded: bool = Fals
 
   if flashing_pending:
     _draw_sign(state, rect, pending=True)
-    return None
-
-  if state['hide']:
     return None
 
   _draw_sign(state, rect, pending=False)

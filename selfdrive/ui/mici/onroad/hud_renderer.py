@@ -202,7 +202,7 @@ class HudRenderer(Widget):
 
     if sm.recv_frame["starpilotPlan"] >= ui_state.started_frame:
       starpilot_plan = sm["starpilotPlan"]
-      self._show_speed_limit = ui_state.params.get_bool("ShowSpeedLimits") or ui_state.params.get_bool("SpeedLimitController")
+      self._show_speed_limit = ui_state.params.get_bool("ShowSpeedLimits")
       if self._show_speed_limit:
         dashboard_speed_limit = sm["starpilotCarState"].dashboardSpeedLimit if sm.valid.get("starpilotCarState", False) else 0.0
         vision_speed_limit = ui_state.params_memory.get_float("VisionSpeedLimit") if ui_state.params.get_bool("VisionSpeedLimitDetection") else 0.0

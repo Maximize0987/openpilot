@@ -68,6 +68,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_prius_ff_scale,
   get_prius_friction_scale,
   get_prius_friction_threshold,
+  get_camry_friction_threshold,
   get_rav4_prime_ff_scale,
   get_rav4_prime_friction_scale,
   get_rav4_prime_friction_threshold,
@@ -657,6 +658,15 @@ class TestLatControl:
     right_unwind_scale = get_prius_friction_scale(6.0, -0.7, 0.8)
     assert right_turn_in_scale == left_turn_in_scale > base_scale
     assert base_scale > left_unwind_scale == right_unwind_scale
+
+  def test_camry_friction_threshold_only_fades_in_for_calm_high_speed(self):
+    low_speed_center = get_camry_friction_threshold(10.0, 0.0)
+    high_speed_center = get_camry_friction_threshold(32.0, 0.0)
+    high_speed_curve = get_camry_friction_threshold(32.0, 0.8)
+
+    assert low_speed_center == pytest.approx(get_standard_friction_threshold(10.0), rel=0.01)
+    assert high_speed_center > get_standard_friction_threshold(32.0)
+    assert high_speed_curve < high_speed_center
 
   def test_generic_friction_threshold_floor(self):
     assert get_standard_friction_threshold(0.0) == 0.30

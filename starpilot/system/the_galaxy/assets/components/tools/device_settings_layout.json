@@ -2049,15 +2049,6 @@
         "settings_tier": "simple"
       },
       {
-        "key": "HideSpeedLimit",
-        "label": "Hide Speed Limits",
-        "description": "Hide posted speed limits from the driving screen.",
-        "data_type": "bool",
-        "ui_type": "toggle",
-        "parent_key": "AdvancedCustomUI",
-        "settings_tier": "simple"
-      },
-      {
         "key": "HideSteeringWheel",
         "label": "Hide Steering Wheel",
         "description": "Hide the steering-wheel button from the top-right of the driving screen.",
@@ -2368,7 +2359,7 @@
       {
         "key": "ShowSpeedLimits",
         "label": "Show Speed Limits",
-        "description": "Show speed limits in the top-left corner of the driving screen. Uses data from the car's dashboard (if supported) and \"OpenStreetMap (OSM)\".",
+        "description": "Show the current speed limit on the driving screen. The position depends on the device UI. Uses data from the car's dashboard (if supported) and \"OpenStreetMap (OSM)\".",
         "data_type": "bool",
         "ui_type": "toggle",
         "parent_key": "NavigationUI",

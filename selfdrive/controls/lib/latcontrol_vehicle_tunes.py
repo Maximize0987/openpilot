@@ -144,6 +144,10 @@ PRIUS_CARS = (
   TOYOTA_CAR.TOYOTA_PRIUS,
 )
 
+CAMRY_CARS = (
+  TOYOTA_CAR.TOYOTA_CAMRY,
+)
+
 RAV4_PRIME_CARS = (
   TOYOTA_CAR.TOYOTA_RAV4_PRIME,
 )
@@ -805,6 +809,12 @@ PRIUS_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.07
 PRIUS_CENTER_FRICTION_THRESHOLD_SPEED = 18.0
 PRIUS_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH = 2.2
 
+CAMRY_CENTER_FRICTION_THRESHOLD_GAIN = 0.06
+CAMRY_CENTER_FRICTION_THRESHOLD_LAT = 0.22
+CAMRY_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.06
+CAMRY_CENTER_FRICTION_THRESHOLD_SPEED = 25.0
+CAMRY_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH = 3.0
+
 RAV4_PRIME_PHASE_SCALE = 0.12
 RAV4_PRIME_TURN_IN_FF_BOOST_LEFT = 0.055
 RAV4_PRIME_TURN_IN_FF_BOOST_RIGHT = 0.040
@@ -1153,6 +1163,18 @@ def get_prius_center_taper_scale(desired_lateral_accel: float, v_ego: float) -> 
   center_weight = _prius_sigmoid((PRIUS_CENTER_TAPER_LAT - abs(desired_lateral_accel)) / PRIUS_CENTER_TAPER_LAT_WIDTH)
   reduction = _flm_vehicle_knob("toyota_prius.center_taper_max", PRIUS_CENTER_TAPER_MAX) * speed_weight * center_weight
   return 1.0 - reduction
+
+
+def get_camry_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,
+                                 desired_lateral_jerk: float = 0.0) -> float:
+  del desired_lateral_jerk
+  speed_weight = _sigmoid((v_ego - CAMRY_CENTER_FRICTION_THRESHOLD_SPEED) /
+                          CAMRY_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH)
+  center_weight = _sigmoid((CAMRY_CENTER_FRICTION_THRESHOLD_LAT - abs(desired_lateral_accel)) /
+                           CAMRY_CENTER_FRICTION_THRESHOLD_LAT_WIDTH)
+  gain = _flm_vehicle_knob("toyota_camry.center_friction_threshold_gain",
+                           CAMRY_CENTER_FRICTION_THRESHOLD_GAIN)
+  return get_standard_friction_threshold(v_ego) * (1.0 + gain * speed_weight * center_weight)
 
 
 def _rav4_prime_side_value(desired_lateral_accel: float, left_value: float, right_value: float) -> float:
@@ -3179,6 +3201,7 @@ FLM_RICH_PROFILE_CARS = {
   "hyundai_ioniq_6": set(IONIQ_6_CARS),
   "hyundai_kia_ev6": set(KIA_EV6_CARS),
   "toyota_prius": set(PRIUS_CARS),
+  "toyota_camry": set(CAMRY_CARS),
 }
 
 FLM_RICH_PROFILE_LABELS = {
@@ -3186,6 +3209,7 @@ FLM_RICH_PROFILE_LABELS = {
   "hyundai_ioniq_6": "Ioniq 6",
   "hyundai_kia_ev6": "EV6",
   "toyota_prius": "Prius",
+  "toyota_camry": "Camry",
   FLM_UNIVERSAL_PROFILE_KEY: "Torque Controller",
 }
 
@@ -3251,6 +3275,7 @@ FLM_SUPPORTED_VEHICLE_KNOBS = {
   "toyota_prius.unwind_threshold_increase_left": {"profile": "toyota_prius", "min": 0.0, "max": 0.90, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_UNWIND_THRESHOLD_INCREASE_LEFT},
   "toyota_prius.unwind_threshold_increase_right": {"profile": "toyota_prius", "min": 0.0, "max": 0.90, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_UNWIND_THRESHOLD_INCREASE_RIGHT},
   "toyota_prius.center_friction_threshold_gain": {"profile": "toyota_prius", "min": 0.0, "max": 0.20, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_CENTER_FRICTION_THRESHOLD_GAIN},
+  "toyota_camry.center_friction_threshold_gain": {"profile": "toyota_camry", "min": 0.0, "max": 0.15, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": CAMRY_CENTER_FRICTION_THRESHOLD_GAIN},
 }
 
 
@@ -3275,7 +3300,7 @@ def _add_flm_full_surface_profile_knobs(profile_key: str, defaults: dict[str, fl
     }
 
 
-for _flm_profile_key in ("gm_bolt_2022_2023", "hyundai_ioniq_6", "hyundai_kia_ev6", "toyota_prius", FLM_UNIVERSAL_PROFILE_KEY):
+for _flm_profile_key in ("gm_bolt_2022_2023", "hyundai_ioniq_6", "hyundai_kia_ev6", "toyota_prius", "toyota_camry", FLM_UNIVERSAL_PROFILE_KEY):
   _add_flm_full_surface_profile_knobs(_flm_profile_key)
 
 
@@ -3309,7 +3334,7 @@ def get_flm_capabilities(car_fingerprint, brand: str = "", hyundai_canfd: bool =
   dedicated_friction = car_fingerprint in (
     set(BOLT_2022_2023_CARS) | set(BOLT_2018_2021_CARS) | set(VOLT_STANDARD_CARS) | set(PALISADE_CARS) |
     set(PRIUS_CARS) | set(RAV4_PRIME_CARS) | set(SIENNA_4TH_GEN_CARS) | set(IONIQ_5_CARS) | set(IONIQ_6_CARS) | set(KIA_EV6_CARS) | set(KIA_FORTE_CARS) |
-    set(KIA_NIRO_PHEV_2022_CARS) | set(KIA_CARNIVAL_CARS) | set(GENESIS_G90_CARS)
+    set(KIA_NIRO_PHEV_2022_CARS) | set(KIA_CARNIVAL_CARS) | set(GENESIS_G90_CARS) | set(CAMRY_CARS)
   )
   dedicated_center_taper = car_fingerprint in (
     set(PRIUS_CARS) | set(SIENNA_4TH_GEN_CARS) | set(BOLT_CARS) | set(VOLT_STANDARD_CARS) | set(IONIQ_5_CARS) |
