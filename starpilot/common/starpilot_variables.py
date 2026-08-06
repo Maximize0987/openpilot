@@ -847,36 +847,36 @@ class StarPilotVariables:
     toggle.speed_limit_changed_alert = self.get_value("SpeedLimitChangedAlert", condition=custom_alerts)
 
     toggle.custom_personalities = toggle.openpilot_longitudinal and self.get_value("CustomPersonalities")
-    toggle.aggressive_jerk_acceleration = self.get_value("AggressiveJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.aggressive_jerk_deceleration = self.get_value("AggressiveJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.aggressive_jerk_danger = self.get_value("AggressiveJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.aggressive_jerk_speed = self.get_value("AggressiveJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.aggressive_jerk_speed_decrease = self.get_value("AggressiveJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    aggressive_follow_low = float(self.get_value("AggressiveFollow", cast=float, condition=toggle.custom_personalities, min=1, max=MAX_T_FOLLOW))
-    aggressive_follow_high = float(self.get_value("AggressiveFollowHigh", cast=float, condition=toggle.custom_personalities, min=1, max=MAX_T_FOLLOW))
+    toggle.aggressive_jerk_acceleration = self.get_value("AggressiveJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.aggressive_jerk_deceleration = self.get_value("AggressiveJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.aggressive_jerk_danger = self.get_value("AggressiveJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.aggressive_jerk_speed = self.get_value("AggressiveJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.aggressive_jerk_speed_decrease = self.get_value("AggressiveJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    aggressive_follow_low = float(self.get_value("AggressiveFollow", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW))
+    aggressive_follow_high = float(self.get_value("AggressiveFollowHigh", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW))
     toggle.aggressive_follow = [aggressive_follow_low, aggressive_follow_high]
-    toggle.standard_jerk_acceleration = self.get_value("StandardJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.standard_jerk_deceleration = self.get_value("StandardJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.standard_jerk_danger = self.get_value("StandardJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.standard_jerk_speed = self.get_value("StandardJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.standard_jerk_speed_decrease = self.get_value("StandardJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    standard_follow_low = float(self.get_value("StandardFollow", cast=float, condition=toggle.custom_personalities, min=1, max=MAX_T_FOLLOW))
-    standard_follow_high = float(self.get_value("StandardFollowHigh", cast=float, condition=toggle.custom_personalities, min=1, max=MAX_T_FOLLOW))
+    toggle.standard_jerk_acceleration = self.get_value("StandardJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.standard_jerk_deceleration = self.get_value("StandardJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.standard_jerk_danger = self.get_value("StandardJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.standard_jerk_speed = self.get_value("StandardJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.standard_jerk_speed_decrease = self.get_value("StandardJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    standard_follow_low = float(self.get_value("StandardFollow", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW))
+    standard_follow_high = float(self.get_value("StandardFollowHigh", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW))
     toggle.standard_follow = [standard_follow_low, standard_follow_high]
-    toggle.relaxed_jerk_acceleration = self.get_value("RelaxedJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.relaxed_jerk_deceleration = self.get_value("RelaxedJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.relaxed_jerk_danger = self.get_value("RelaxedJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.relaxed_jerk_speed = self.get_value("RelaxedJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    toggle.relaxed_jerk_speed_decrease = self.get_value("RelaxedJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0)
-    relaxed_follow_low = float(self.get_value("RelaxedFollow", cast=float, condition=toggle.custom_personalities, min=1, max=MAX_T_FOLLOW))
-    relaxed_follow_high = float(self.get_value("RelaxedFollowHigh", cast=float, condition=toggle.custom_personalities, min=1, max=MAX_T_FOLLOW))
+    toggle.relaxed_jerk_acceleration = self.get_value("RelaxedJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.relaxed_jerk_deceleration = self.get_value("RelaxedJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.relaxed_jerk_danger = self.get_value("RelaxedJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.relaxed_jerk_speed = self.get_value("RelaxedJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    toggle.relaxed_jerk_speed_decrease = self.get_value("RelaxedJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)
+    relaxed_follow_low = float(self.get_value("RelaxedFollow", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW))
+    relaxed_follow_high = float(self.get_value("RelaxedFollowHigh", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW))
     toggle.relaxed_follow = [relaxed_follow_low, relaxed_follow_high]
-    toggle.traffic_mode_jerk_acceleration = [self.get_value("TrafficJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0), toggle.relaxed_jerk_acceleration]
-    toggle.traffic_mode_jerk_deceleration = [self.get_value("TrafficJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0), toggle.relaxed_jerk_deceleration]
-    toggle.traffic_mode_jerk_danger = [self.get_value("TrafficJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0), toggle.relaxed_jerk_danger]
-    toggle.traffic_mode_jerk_speed = [self.get_value("TrafficJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0), toggle.relaxed_jerk_speed]
-    toggle.traffic_mode_jerk_speed_decrease = [self.get_value("TrafficJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=2.0), toggle.relaxed_jerk_speed_decrease]
-    toggle.traffic_mode_follow = [float(self.get_value("TrafficFollow", cast=float, condition=toggle.custom_personalities, min=0.5, max=MAX_T_FOLLOW)), toggle.relaxed_follow[0]]
+    toggle.traffic_mode_jerk_acceleration = [self.get_value("TrafficJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0), toggle.relaxed_jerk_acceleration]
+    toggle.traffic_mode_jerk_deceleration = [self.get_value("TrafficJerkDeceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0), toggle.relaxed_jerk_deceleration]
+    toggle.traffic_mode_jerk_danger = [self.get_value("TrafficJerkDanger", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0), toggle.relaxed_jerk_danger]
+    toggle.traffic_mode_jerk_speed = [self.get_value("TrafficJerkSpeed", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0), toggle.relaxed_jerk_speed]
+    toggle.traffic_mode_jerk_speed_decrease = [self.get_value("TrafficJerkSpeedDecrease", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0), toggle.relaxed_jerk_speed_decrease]
+    toggle.traffic_mode_follow = [float(self.get_value("TrafficFollow", cast=float, condition=toggle.custom_personalities, min=0.1, max=MAX_T_FOLLOW)), toggle.relaxed_follow[0]]
 
     custom_themes = self.get_value("CustomThemes")
     toggle.boot_logo = self.get_value("BootLogo", cast=None, default="starpilot")
