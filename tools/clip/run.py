@@ -34,6 +34,9 @@ RESOLUTION = '2160x1080'
 SECONDS_TO_WARM = 2
 PROC_WAIT_SECONDS = 30*10
 RECORD_TAIL_MARGIN = 5  # extra seconds recorded past the requested end, see record_raybig
+MAX_CACHED_SEGMENTS = 5  # replay's own default, see tools/replay/main.cc
+PROGRESS_INTERVAL = 30  # seconds between progress lines while recording
+STALL_WARN_SECONDS = 60  # warn if the output file stops growing for this long
 
 OPENPILOT_FONT = str(Path(BASEDIR, 'selfdrive/assets/fonts/Inter-Regular.ttf').resolve())
 REPLAY = str(Path(BASEDIR, 'tools/replay/replay').resolve())
@@ -43,6 +46,18 @@ RAYBIG_PREPARE_SCRIPT = str(Path(BASEDIR, 'scripts/launch_ui_raybig_desktop.sh')
 WSLG_X11_DIR = '/mnt/wslg/.X11-unix'
 
 logger = logging.getLogger('clip.py')
+
+
+def proc_output(proc: Popen, tail: int = 4000) -> str:
+  log_file = getattr(proc, 'log_file', None)
+  if log_file is None:
+    return ''
+  pos = log_file.tell()
+  log_file.seek(0)
+  try:
+    return log_file.read().decode(errors='replace')[-tail:]
+  finally:
+    log_file.seek(pos)
 
 
 def check_for_failure(procs: list[Popen]):
@@ -56,11 +71,9 @@ def check_for_failure(procs: list[Popen]):
         cmd = str(proc.args[0])
       msg = f'{cmd} failed, exit code {exit_code}'
       logger.error(msg)
-      stdout, stderr = proc.communicate()
-      if stdout:
-        logger.error(stdout.decode())
-      if stderr:
-        logger.error(stderr.decode())
+      output = proc_output(proc)
+      if output:
+        logger.error(output)
       raise ChildProcessError(msg)
 
 
@@ -199,6 +212,13 @@ def validate_title(title: str):
   if len(title) > 80:
     raise ArgumentTypeError('title must be no longer than 80 chars')
   return title
+
+
+def validate_scale(scale: str):
+  value = float(scale)
+  if not 0 < value <= 1:
+    raise ArgumentTypeError('scale must be greater than 0 and at most 1')
+  return value
 
 
 def wait_for_frames(procs: list[Popen]):
@@ -347,7 +367,33 @@ def record_raybig(ui_proc: Popen, replay_proc: Popen, duration: int, out: str):
   wait_for_frames(procs)
   logger.info(f'recording in progress ({duration}s)...')
   started_at = time.monotonic()
-  time.sleep(SECONDS_TO_WARM + duration + RECORD_TAIL_MARGIN)
+  record_for = SECONDS_TO_WARM + duration + RECORD_TAIL_MARGIN
+  out_path = Path(out)
+  last_size, grew_at, logged_at = -1, started_at, started_at
+
+  # poll rather than sleeping straight through, so a replay or UI that dies partway is caught
+  # now instead of after the full duration has elapsed
+  while (elapsed := time.monotonic() - started_at) < record_for:
+    check_for_failure(procs)
+    now = time.monotonic()
+    size = out_path.stat().st_size if out_path.exists() else 0
+
+    if size > last_size:
+      last_size, grew_at = size, now
+    elif now - grew_at > STALL_WARN_SECONDS:
+      logger.warning(f'{out} has not grown in {now - grew_at:.0f}s; recording may have stalled')
+      # the source is the usual suspect, so show what it last reported
+      output = proc_output(replay_proc, tail=1500)
+      if output:
+        logger.warning(f'last replay output:\n{output}')
+      grew_at = now
+
+    if now - logged_at >= PROGRESS_INTERVAL:
+      logger.info(f'recording {elapsed:.0f}/{record_for:.0f}s, {size / 1e6:.0f}MB')
+      logged_at = now
+
+    time.sleep(1)
+
   check_for_failure(procs)
 
   logger.info('stopping recording...')
@@ -382,6 +428,7 @@ def clip(
   target_mb: int,
   title: str | None,
   ui: Literal['c3', 'raybig'],
+  scale: float | None,
 ):
   logger.info(f'clipping route {route.name.canonical_name}, start={start} end={end} quality={quality} target_filesize={target_mb}MB')
   Path(out).resolve().parent.mkdir(parents=True, exist_ok=True)
@@ -419,9 +466,10 @@ def clip(
       "fps=60",
     ]
 
-  # cache enough of the ~60s segments to cover the clip, else replay runs dry partway through
-  # and loops back on itself, repeating earlier footage
-  segments_to_cache = math.ceil((end - begin_at) / 60) + 1
+  # read far enough ahead that replay doesn't run dry partway through and loop back on itself,
+  # repeating earlier footage. capped because each cached ~60s segment holds its logs and camera
+  # video in memory, and a long clip would otherwise try to hold the whole route at once.
+  segments_to_cache = min(math.ceil((end - begin_at) / 60) + 1, MAX_CACHED_SEGMENTS)
   replay_cmd = [REPLAY, '--ecam', '-c', str(segments_to_cache), '-s', str(begin_at), '--prefix', prefix]
   if data_dir:
     replay_cmd.extend(['--data_dir', data_dir])
@@ -461,6 +509,10 @@ def clip(
       # the UI defaults to 60fps and tags the export as such, but the per-frame GPU readback
       # can't sustain that and the clip plays fast. ask for a rate it can actually hit.
       env['FPS'] = str(FRAMERATE)
+      # sets the render texture size, which is what gets piped to ffmpeg. left unset, the UI
+      # picks a scale that fits the screen.
+      if scale is not None:
+        env['SCALE'] = str(scale)
 
       if use_wslg:
         logger.info('WSLg detected: rendering against the live desktop display.')
@@ -495,6 +547,8 @@ def main():
   p.add_argument('-u', '--ui', help='desktop UI to record. raybig exports its own frames, so it also works where screen capture '
                                     'cannot see the window (e.g. WSLg), but gets no title/metadata overlays',
                  choices=['c3', 'raybig'], default='c3')
+  p.add_argument('--scale', help='scale the recorded resolution, e.g. 0.5 for half size (raybig only, default is to fit the screen)',
+                 type=validate_scale)
   args = parse_args(p)
   validate_env(p, args.ui)
   exit_code = 1
@@ -511,6 +565,7 @@ def main():
       target_mb=args.file_size,
       title=args.title,
       ui=args.ui,
+      scale=args.scale,
     )
     exit_code = 0
   except KeyboardInterrupt as e:
