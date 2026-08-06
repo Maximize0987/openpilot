@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from cereal import car
 from openpilot.common.constants import CV
@@ -184,7 +185,14 @@ class TestRedneckCruise(unittest.TestCase):
         self.assertAlmostEqual(slc_mph * CV.MPH_TO_MS, target_speed)
 
   def test_card_target_speed_uses_longitudinal_acceleration(self):
-    card = SimpleNamespace(CP=SimpleNamespace(openpilotLongitudinalControl=True))
+    sm = MagicMock()
+    sm.seen = {"starpilotPlan": False, "longitudinalPlan": False, "radarState": False}
+    sm.valid = sm.seen.copy()
+    card = SimpleNamespace(
+      CP=SimpleNamespace(openpilotLongitudinalControl=True),
+      sm=sm,
+      starpilot_toggles=SimpleNamespace(speed_limit_controller=False),
+    )
     car_state = SimpleNamespace(vEgo=55.0 * CV.MPH_TO_MS)
     car_control = SimpleNamespace(
       actuators=SimpleNamespace(accel=0.5),
@@ -195,6 +203,37 @@ class TestRedneckCruise(unittest.TestCase):
 
     self.assertAlmostEqual(55.0 * CV.MPH_TO_MS * 1.01 + 1.5, target_speed)
     self.assertTrue(lead_present)
+
+  def test_card_target_speed_uses_slc_target_with_longitudinal_control(self):
+    slc_target = 80.0 * CV.KPH_TO_MS
+    starpilot_plan = SimpleNamespace(
+      vCruise=110.0 * CV.KPH_TO_MS,
+      slcOverriddenSpeed=0.0,
+      slcSpeedLimit=slc_target,
+      slcSpeedLimitOffset=0.0,
+    )
+    sm = MagicMock()
+    sm.seen = {"starpilotPlan": True, "longitudinalPlan": False, "radarState": False}
+    sm.valid = sm.seen.copy()
+    sm.__getitem__.side_effect = {"starpilotPlan": starpilot_plan}.__getitem__
+    card = SimpleNamespace(
+      CP=SimpleNamespace(openpilotLongitudinalControl=True),
+      sm=sm,
+      starpilot_toggles=SimpleNamespace(speed_limit_controller=True),
+    )
+    car_state = SimpleNamespace(
+      vEgo=100.0 * CV.KPH_TO_MS,
+      cruiseState=SimpleNamespace(speedCluster=70.0 * CV.KPH_TO_MS),
+    )
+    car_control = SimpleNamespace(
+      actuators=SimpleNamespace(accel=-1.0),
+      hudControl=SimpleNamespace(leadVisible=False),
+    )
+
+    target_speed, lead_present = Car._get_redneck_target_speed(card, car_state, car_control)
+
+    self.assertAlmostEqual(slc_target, target_speed)
+    self.assertFalse(lead_present)
 
   def test_target_speed_returns_plan_minimum_when_slowing_down(self):
     target_speed = select_redneck_target_speed(
