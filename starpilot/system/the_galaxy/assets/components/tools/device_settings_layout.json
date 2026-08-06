@@ -2147,7 +2147,7 @@
         "is_parent_toggle": true,
         "requires_nonempty_key": "PIPPreviewMask",
         "disabled_reason": "Configure the PiP window mask first in Galaxy > PiP Side Camera",
-        "settings_tier": "simple"
+        "settings_tier": "advanced"
       },
       {
         "key": "PIPPreviewShowOnBlinker",
@@ -2156,7 +2156,7 @@
         "data_type": "bool",
         "ui_type": "toggle",
         "parent_key": "PIPPreviewEnabled",
-        "settings_tier": "simple"
+        "settings_tier": "advanced"
       },
       {
         "key": "PIPPreviewShowOnBSM",
@@ -2165,7 +2165,7 @@
         "data_type": "bool",
         "ui_type": "toggle",
         "parent_key": "PIPPreviewEnabled",
-        "settings_tier": "simple"
+        "settings_tier": "advanced"
       },
       {
         "key": "Compass",

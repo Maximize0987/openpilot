@@ -97,6 +97,7 @@ GITLAB_SUBMISSIONS_PROJECT_ID = "71992109"
 GITLAB_TOKEN = os.environ.get("GITLAB_TOKEN", "")
 LEGACY_LATERAL_METHOD_API_PREFIX = "/api/" + "".join(("f", "t", "m"))
 VASM_CONFIGURATION_KEYS = {"VASMEnabled", "VASMConfidenceThreshold", "VASMSmoothSeconds", "VASMAnnotationConfig"}
+PIP_PREVIEW_CONFIGURATION_KEYS = {"PIPPreviewEnabled", "PIPPreviewMask", "PIPPreviewShowOnBlinker", "PIPPreviewShowOnBSM"}
 MODEL_SMOOTHING_KEYS = {"LatSmoothSeconds", "LongSmoothSeconds"}
 
 GALAXY_DEPS_PATH = "/data/galaxy_deps"
@@ -4511,6 +4512,12 @@ def setup(app):
       if key in VASM_CONFIGURATION_KEYS and params.get_bool("IsOnroad"):
         return jsonify({"error": "Cannot change V-ASM configuration while driving."}), 403
 
+      if key in PIP_PREVIEW_CONFIGURATION_KEYS:
+        if not params.get_bool("GalaxyDeveloperMode"):
+          return jsonify({"error": "PiP Side Camera is available only with Galaxy Developer Mode enabled."}), 403
+        if params.get_bool("IsOnroad"):
+          return jsonify({"error": "Cannot change PiP Side Camera configuration while driving."}), 403
+
       if key in PANDA_FIRMWARE_TOGGLE_KEYS and params.get_bool("IsOnroad"):
         return jsonify({"error": "Cannot flash Panda firmware while driving."}), 403
       if key in PANDA_FIRMWARE_TOGGLE_KEYS and data.get(PANDA_FIRMWARE_CONFIRMATION_FIELD) is not True:
@@ -7716,6 +7723,10 @@ def setup(app):
 
   @app.route("/api/pip_preview/snapshot", methods=["GET"])
   def pip_preview_snapshot():
+    if not params.get_bool("GalaxyDeveloperMode"):
+      return jsonify({"error": "PiP Side Camera is available only with Galaxy Developer Mode enabled."}), 403
+    if params.get_bool("IsOnroad"):
+      return jsonify({"error": "Camera snapshots are unavailable while driving."}), 403
     jpeg = _get_live_driver_jpeg()
     if jpeg is not None:
       return Response(jpeg, mimetype="image/jpeg")
@@ -7723,10 +7734,16 @@ def setup(app):
 
   @app.route("/api/pip_preview/config", methods=["GET"])
   def pip_preview_get_config():
+    if not params.get_bool("GalaxyDeveloperMode"):
+      return jsonify({"error": "PiP Side Camera is available only with Galaxy Developer Mode enabled."}), 403
     return jsonify(_decode_json_object(params.get("PIPPreviewMask")))
 
   @app.route("/api/pip_preview/config", methods=["POST"])
   def pip_preview_save_config():
+    if not params.get_bool("GalaxyDeveloperMode"):
+      return jsonify({"error": "PiP Side Camera is available only with Galaxy Developer Mode enabled."}), 403
+    if params.get_bool("IsOnroad"):
+      return jsonify({"error": "Cannot change PiP Side Camera configuration while driving."}), 403
     try:
       config = _normalize_pip_preview_config(request.get_json(silent=True))
     except ValueError as exc:
@@ -7738,6 +7755,10 @@ def setup(app):
 
   @app.route("/api/pip_preview/config", methods=["DELETE"])
   def pip_preview_delete_config():
+    if not params.get_bool("GalaxyDeveloperMode"):
+      return jsonify({"error": "PiP Side Camera is available only with Galaxy Developer Mode enabled."}), 403
+    if params.get_bool("IsOnroad"):
+      return jsonify({"error": "Cannot change PiP Side Camera configuration while driving."}), 403
     params.put("PIPPreviewMask", {})
     params.put_bool("PIPPreviewEnabled", False)
     update_starpilot_toggles()

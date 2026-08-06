@@ -134,7 +134,7 @@ class PipSideCamera:
     if not force and now - self._last_param_refresh < PARAM_REFRESH_INTERVAL:
       return
     self._last_param_refresh = now
-    self._enabled = self._params.get_bool("PIPPreviewEnabled")
+    self._enabled = self._params.get_bool("PIPPreviewEnabled") and self._params.get_bool("GalaxyDeveloperMode")
     self._show_on_blinker = self._params.get_bool("PIPPreviewShowOnBlinker")
     self._show_on_bsm = self._params.get_bool("PIPPreviewShowOnBSM")
     try:

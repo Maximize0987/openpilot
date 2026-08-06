@@ -86,7 +86,10 @@ def test_requested_simple_and_advanced_settings_tiers():
     "Wheel Controls",
     "Device & Data",
   ):
-    assert {param["settings_tier"] for param in sections[section_name].values()} == {"simple"}
+    params = sections[section_name].values()
+    if section_name == "Visual (Display & UI)":
+      params = [param for param in params if not param["key"].startswith("PIPPreview")]
+    assert {param["settings_tier"] for param in params} == {"simple"}
 
   for key in ("AlwaysOnLateral", "LaneChanges", "QOLLateral"):
     assert lateral[key]["settings_tier"] == "simple"
@@ -161,7 +164,9 @@ def test_pip_preview_is_under_driving_screen_widgets_and_configured_only_in_gala
   assert visual["PIPPreviewEnabled"]["parent_key"] == "CustomUI"
   assert visual["PIPPreviewShowOnBlinker"]["parent_key"] == "PIPPreviewEnabled"
   assert visual["PIPPreviewShowOnBSM"]["parent_key"] == "PIPPreviewEnabled"
-  assert visual["PIPPreviewEnabled"]["settings_tier"] == "simple"
+  assert visual["PIPPreviewEnabled"]["settings_tier"] == "advanced"
+  assert visual["PIPPreviewShowOnBlinker"]["settings_tier"] == "advanced"
+  assert visual["PIPPreviewShowOnBSM"]["settings_tier"] == "advanced"
 
   assert _declared_default("PIPPreviewEnabled") == "0"
   assert _declared_default("PIPPreviewShowOnBlinker") == "0"
