@@ -380,16 +380,16 @@ StarPilotLongitudinalPanel::StarPilotLongitudinalPanel(StarPilotSettingsWindow *
       if (param == "TrafficFollow" || param == "AggressiveFollow" || param == "AggressiveFollowHigh" ||
           param == "StandardFollow" || param == "StandardFollowHigh" || param == "RelaxedFollow" || param == "RelaxedFollowHigh") {
         std::map<float, QString> followTimeLabels;
-        for (float i = 0; i <= 3; i += 0.01) {
+        for (float i = 0; i <= 6; i += 0.01) {
           followTimeLabels[i] = std::lround(i / 0.01) == 1 / 0.01 ? QString::number(i, 'f', 2) + tr(" second") : QString::number(i, 'f', 2) + tr(" seconds");
         }
         if (param == "TrafficFollow") {
-          longitudinalToggle = new StarPilotParamValueControl(param, title, desc, icon, 0.5, 3, QString(), followTimeLabels, 0.01, true);
+          longitudinalToggle = new StarPilotParamValueControl(param, title, desc, icon, 0.1, 6, QString(), followTimeLabels, 0.01, true);
         } else {
-          longitudinalToggle = new StarPilotParamValueControl(param, title, desc, icon, 1, 3, QString(), followTimeLabels, 0.01, true);
+          longitudinalToggle = new StarPilotParamValueControl(param, title, desc, icon, 0.1, 6, QString(), followTimeLabels, 0.01, true);
         }
       } else {
-        longitudinalToggle = new StarPilotParamValueControl(param, title, desc, icon, 25, 200, "%");
+        longitudinalToggle = new StarPilotParamValueControl(param, title, desc, icon, 01, 400, "%");
       }
 
     } else if (param == "LongitudinalTune") {
