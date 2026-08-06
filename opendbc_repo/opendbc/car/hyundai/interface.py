@@ -214,6 +214,11 @@ class CarInterface(CarInterfaceBase):
       if hyundai_cancel_button_enables_cruise(candidate):
         ret.safetyConfigs[-1].safetyParam |= HyundaiSafetyFlags.CANCEL_BTN_ENABLE.value
 
+      if 0x2AA in fingerprint[0]:
+        ret.minSteerSpeed = 0.0
+        ret.flags &= ~HyundaiFlags.MIN_STEER_32_MPH.value
+        ret.steerAtStandstill = True
+
     # Common lateral control setup
 
     ret.centerToFront = ret.wheelbase * 0.4

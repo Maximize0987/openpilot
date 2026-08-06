@@ -799,6 +799,11 @@ PRIUS_CENTER_TAPER_LAT = 0.16
 PRIUS_CENTER_TAPER_LAT_WIDTH = 0.035
 PRIUS_CENTER_TAPER_SPEED = 18.0
 PRIUS_CENTER_TAPER_SPEED_WIDTH = 2.2
+PRIUS_CENTER_FRICTION_THRESHOLD_GAIN = 0.08
+PRIUS_CENTER_FRICTION_THRESHOLD_LAT = 0.30
+PRIUS_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.07
+PRIUS_CENTER_FRICTION_THRESHOLD_SPEED = 18.0
+PRIUS_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH = 2.2
 
 RAV4_PRIME_PHASE_SCALE = 0.12
 RAV4_PRIME_TURN_IN_FF_BOOST_LEFT = 0.055
@@ -853,8 +858,10 @@ SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED = 27.0
 SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED_WIDTH = 3.0
 
 LEXUS_IS_PHASE_SCALE = 0.10
-LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.06
-LEXUS_IS_UNWIND_FF_REDUCTION_RIGHT = 0.12
+LEXUS_IS_TURN_IN_FF_BOOST_LEFT = 0.04
+LEXUS_IS_TURN_IN_FF_BOOST_RIGHT = 0.04
+LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.10
+LEXUS_IS_UNWIND_FF_REDUCTION_RIGHT = 0.16
 LEXUS_IS_UNWIND_LAT_ONSET = 0.18
 LEXUS_IS_UNWIND_LAT_WIDTH = 0.07
 LEXUS_IS_UNWIND_SPEED_ONSET = 9.0
@@ -876,14 +883,15 @@ RAM_1500_TRANSITION_LAT_FADE_END = 1.85
 # reverses the requested lateral acceleration roughly once per second at
 # 29-30 m/s. Fade only rapid, high-speed turn-building torque so the EPS has
 # less stored torque to unwind while leaving steady curves and counter-torque.
-KONA_NON_SCC_TRANSITION_TAPER_MAX = 0.34
+KONA_NON_SCC_TRANSITION_TURN_IN_TAPER_MAX = 0.24
+KONA_NON_SCC_TRANSITION_UNWIND_TAPER_MAX = 0.42
 KONA_NON_SCC_TRANSITION_SPEED_ONSET = 22.0
 KONA_NON_SCC_TRANSITION_SPEED_FULL = 29.0
 KONA_NON_SCC_TRANSITION_JERK_ONSET = 0.35
 KONA_NON_SCC_TRANSITION_JERK_FULL = 1.20
 KONA_NON_SCC_TRANSITION_LAT_FADE_START = 0.45
 KONA_NON_SCC_TRANSITION_LAT_FADE_END = 1.60
-KONA_NON_SCC_CENTER_TAPER_MAX = 0.20
+KONA_NON_SCC_CENTER_TAPER_MAX = 0.14
 KONA_NON_SCC_CENTER_TAPER_LAT = 0.28
 KONA_NON_SCC_CENTER_TAPER_SPEED_ONSET = 12.0
 KONA_NON_SCC_CENTER_TAPER_SPEED_FULL = 24.0
@@ -1117,6 +1125,13 @@ def get_prius_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.
                       _flm_vehicle_knob("toyota_prius.unwind_threshold_increase_right", PRIUS_UNWIND_THRESHOLD_INCREASE_RIGHT),
                     ) *
                       transition_envelope * unwind_weight)
+  center_speed_weight = _prius_sigmoid((v_ego - PRIUS_CENTER_FRICTION_THRESHOLD_SPEED) /
+                                       PRIUS_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH)
+  center_lat_weight = _prius_sigmoid((PRIUS_CENTER_FRICTION_THRESHOLD_LAT - abs(desired_lateral_accel)) /
+                                     PRIUS_CENTER_FRICTION_THRESHOLD_LAT_WIDTH)
+  threshold_scale += (_flm_vehicle_knob("toyota_prius.center_friction_threshold_gain",
+                                        PRIUS_CENTER_FRICTION_THRESHOLD_GAIN) *
+                      center_speed_weight * center_lat_weight)
   return base_threshold * min(max(threshold_scale, 0.86), 1.16)
 
 
@@ -1269,11 +1284,14 @@ def get_lexus_is_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: fl
     return 1.0
 
   phase = math.tanh((desired_lateral_accel * desired_lateral_jerk) / LEXUS_IS_PHASE_SCALE)
+  turn_in_weight = max(phase, 0.0)
   unwind_weight = max(-phase, 0.0)
   lat_weight = _sigmoid((abs(desired_lateral_accel) - LEXUS_IS_UNWIND_LAT_ONSET) / LEXUS_IS_UNWIND_LAT_WIDTH)
   speed_weight = _sigmoid((v_ego - LEXUS_IS_UNWIND_SPEED_ONSET) / LEXUS_IS_UNWIND_SPEED_WIDTH)
+  turn_in_boost = LEXUS_IS_TURN_IN_FF_BOOST_LEFT if desired_lateral_accel >= 0.0 else LEXUS_IS_TURN_IN_FF_BOOST_RIGHT
   reduction = LEXUS_IS_UNWIND_FF_REDUCTION_LEFT if desired_lateral_accel >= 0.0 else LEXUS_IS_UNWIND_FF_REDUCTION_RIGHT
-  return 1.0 - (reduction * unwind_weight * lat_weight * speed_weight)
+  return (1.0 + (turn_in_boost * turn_in_weight * lat_weight * speed_weight) -
+          (reduction * unwind_weight * lat_weight * speed_weight))
 
 
 def get_subaru_impreza_pid_output_scale(angle_error_deg: float) -> float:
@@ -1298,7 +1316,10 @@ def get_kona_non_scc_highway_transition_output_scale(desired_lateral_accel: floa
                                 [KONA_NON_SCC_TRANSITION_JERK_ONSET, KONA_NON_SCC_TRANSITION_JERK_FULL], [0.0, 1.0]))
   lat_weight = 1.0 - float(np.interp(abs(desired_lateral_accel),
                                      [KONA_NON_SCC_TRANSITION_LAT_FADE_START, KONA_NON_SCC_TRANSITION_LAT_FADE_END], [0.0, 1.0]))
-  return 1.0 - (KONA_NON_SCC_TRANSITION_TAPER_MAX * speed_weight * jerk_weight * lat_weight)
+  taper_max = (KONA_NON_SCC_TRANSITION_UNWIND_TAPER_MAX
+               if desired_lateral_accel * desired_lateral_jerk < 0.0
+               else KONA_NON_SCC_TRANSITION_TURN_IN_TAPER_MAX)
+  return 1.0 - (taper_max * speed_weight * jerk_weight * lat_weight)
 
 
 def get_kona_non_scc_center_taper_scale(desired_lateral_accel: float, v_ego: float) -> float:
@@ -3229,6 +3250,7 @@ FLM_SUPPORTED_VEHICLE_KNOBS = {
   "toyota_prius.turn_in_threshold_reduction_right": {"profile": "toyota_prius", "min": 0.0, "max": 0.50, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_TURN_IN_THRESHOLD_REDUCTION_RIGHT},
   "toyota_prius.unwind_threshold_increase_left": {"profile": "toyota_prius", "min": 0.0, "max": 0.90, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_UNWIND_THRESHOLD_INCREASE_LEFT},
   "toyota_prius.unwind_threshold_increase_right": {"profile": "toyota_prius", "min": 0.0, "max": 0.90, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_UNWIND_THRESHOLD_INCREASE_RIGHT},
+  "toyota_prius.center_friction_threshold_gain": {"profile": "toyota_prius", "min": 0.0, "max": 0.20, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_CENTER_FRICTION_THRESHOLD_GAIN},
 }
 
 

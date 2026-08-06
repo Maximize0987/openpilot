@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from openpilot.common.realtime import DT_MDL
-from openpilot.starpilot.controls.starpilot_planner import StarPilotPlanner
+from openpilot.starpilot.controls.starpilot_planner import StarPilotPlanner, get_force_stop_jerk_scale
 import openpilot.starpilot.controls.starpilot_planner as starpilot_planner_module
 
 
@@ -31,6 +31,11 @@ def make_toggles(**overrides):
   }
   defaults.update(overrides)
   return SimpleNamespace(**defaults)
+
+
+def test_force_stop_jerk_scale_is_platform_specific():
+  assert get_force_stop_jerk_scale(SimpleNamespace(carFingerprint="HYUNDAI_ELANTRA_2021")) == 0.60
+  assert get_force_stop_jerk_scale(SimpleNamespace(carFingerprint="OTHER_CAR")) == 0.32
 
 
 def make_sm(planner, *, frame: int, v_ego: float, left_blinker: bool, right_blinker: bool = False, standstill: bool = False):

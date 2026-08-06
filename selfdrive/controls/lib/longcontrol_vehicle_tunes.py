@@ -34,6 +34,10 @@ TOYOTA_SIENNA_COMFORT_FILTER_MIN_TTC = 4.5
 TOYOTA_SIENNA_COMFORT_FILTER_MAX_CLOSING_SPEED = 4.0
 TOYOTA_SIENNA_COMFORT_FILTER_MAX_LEAD_BRAKE = 2.5
 TOYOTA_SIENNA_COMFORT_FILTER_BRAKE_BYPASS = -2.5
+VOLT_CRUISE_INTEGRATOR_MIN_SPEED = 8.0
+VOLT_CRUISE_INTEGRATOR_TARGET_MAX = 0.12
+VOLT_CRUISE_INTEGRATOR_ERROR_MAX = 0.12
+VOLT_CRUISE_INTEGRATOR_LEAK = 0.995
 
 
 def get_bolt_acc_pedal_friction_bias(output_accel, a_target, v_ego):
@@ -259,6 +263,17 @@ class LongControlVehicleTuning:
     if pid.i * error < 0.0 and abs(error) > 0.05:
       bleed = interp(v_ego, [0.0, 4.0, 12.0, 25.0], [0.82, 0.86, 0.90, 0.94])
       pid.i *= bleed
+
+  def trim_volt_cruise_integrator(self, pid, a_target, error, v_ego, should_stop, has_lead):
+    """Release stale negative I during settled open-road speed holding."""
+    if not self.is_volt or should_stop or has_lead:
+      return
+    if v_ego < VOLT_CRUISE_INTEGRATOR_MIN_SPEED:
+      return
+    if abs(a_target) > VOLT_CRUISE_INTEGRATOR_TARGET_MAX or abs(error) > VOLT_CRUISE_INTEGRATOR_ERROR_MAX:
+      return
+    if pid.i < 0.0:
+      pid.i *= VOLT_CRUISE_INTEGRATOR_LEAK
 
   def trim_gm_truck_positive_hold_integrator(self, pid, last_output_accel, a_target, error, CS):
     if not self.is_gm_stock_truck or pid.i <= 0.0:

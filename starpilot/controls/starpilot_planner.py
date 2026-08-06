@@ -31,6 +31,14 @@ from openpilot.starpilot.controls.lib.weather_checker import WeatherChecker
 
 RADARLESS_TRACK_HOLD_TIME = 0.45
 FORCE_STOP_JERK_SCALE = 0.32  # accel-change cost multiplier while forcing_stop (125 -> ~40)
+FORCE_STOP_JERK_SCALE_OVERRIDES = {
+  "HYUNDAI_ELANTRA_2021": 0.60,
+}
+
+
+def get_force_stop_jerk_scale(car_params):
+  fingerprint = str(getattr(car_params, "carFingerprint", ""))
+  return FORCE_STOP_JERK_SCALE_OVERRIDES.get(fingerprint, FORCE_STOP_JERK_SCALE)
 
 
 def _sanitize_json_value(value):
@@ -287,7 +295,14 @@ class StarPilotPlanner:
 
     # While committed to a Force Stop, cut the MPC's accel-change penalty so terminal
     # braking can ramp faster. 0.32 lands near 40, what long_mpc uses in blended mode.
-    jerk_scale = FORCE_STOP_JERK_SCALE if self.starpilot_vcruise.forcing_stop else 1.0
+    if self.starpilot_vcruise.forcing_stop:
+      try:
+        car_params = sm["carParams"]
+      except (KeyError, IndexError, TypeError, AttributeError):
+        car_params = None
+      jerk_scale = get_force_stop_jerk_scale(car_params)
+    else:
+      jerk_scale = 1.0
     starpilotPlan.accelerationJerk = float(A_CHANGE_COST * self.starpilot_following.acceleration_jerk * jerk_scale)
     starpilotPlan.dangerFactor = float(self.starpilot_following.danger_factor)
     starpilotPlan.dangerJerk = float(DANGER_ZONE_COST * self.starpilot_following.danger_jerk)

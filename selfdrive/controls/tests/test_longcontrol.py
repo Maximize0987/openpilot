@@ -715,6 +715,68 @@ def test_non_interceptor_volt_testing_ground_handoff_freezes_integrator(monkeypa
   assert lc.vehicle_tuning.integrator_hold_frames > 0
 
 
+def test_volt_cruise_integrator_releases_stale_negative_bias():
+  CP = car.CarParams.new_message()
+  CP.brand = "gm"
+  CP.carFingerprint = "CHEVROLET_VOLT_ASCM"
+  CP.longitudinalTuning.kpBP = [0.0]
+  CP.longitudinalTuning.kpV = [0.0]
+  CP.longitudinalTuning.kiBP = [0.0]
+  CP.longitudinalTuning.kiV = [0.5]
+
+  lc = LongControl(CP)
+  lc.long_control_state = LongCtrlState.pid
+  lc.pid.i = -0.20
+  CS = car.CarState.new_message(vEgo=18.0, aEgo=0.0, brakePressed=False, gasPressed=False)
+  CS.cruiseState.standstill = False
+
+  output_accel = lc.update(
+    active=True,
+    CS=CS,
+    a_target=0.0,
+    should_stop=False,
+    accel_limits=(-3.0, 2.0),
+    starpilot_toggles=make_toggles(),
+    has_lead=False,
+  )
+
+  assert lc.pid.i > -0.20
+  assert output_accel > -0.20
+
+
+@pytest.mark.parametrize("kwargs", [
+  {"has_lead": True},
+  {"should_stop": True},
+  {"a_target": -0.25},
+  {"aEgo": 0.25},
+  {"vEgo": 4.0},
+])
+def test_volt_cruise_integrator_does_not_release_outside_settled_open_road(kwargs):
+  CP = car.CarParams.new_message()
+  CP.brand = "gm"
+  CP.carFingerprint = "CHEVROLET_VOLT_ASCM"
+  CP.longitudinalTuning.kpBP = [0.0]
+  CP.longitudinalTuning.kpV = [0.0]
+  CP.longitudinalTuning.kiBP = [0.0]
+  CP.longitudinalTuning.kiV = [0.5]
+
+  lc = LongControl(CP)
+  pid = SimpleNamespace(i=-0.20)
+  v_ego = kwargs.get("vEgo", 18.0)
+  a_ego = kwargs.get("aEgo", 0.0)
+  a_target = kwargs.get("a_target", 0.0)
+  lc.vehicle_tuning.trim_volt_cruise_integrator(
+    pid,
+    a_target=a_target,
+    error=a_target - a_ego,
+    v_ego=v_ego,
+    should_stop=kwargs.get("should_stop", False),
+    has_lead=kwargs.get("has_lead", False),
+  )
+
+  assert pid.i == pytest.approx(-0.20)
+
+
 def test_negative_target_unwinds_positive_accel_command_after_sign_flip():
   CP = car.CarParams.new_message(startingState=True, vEgoStarting=0.5)
   CP.longitudinalTuning.kpBP = [0.0]

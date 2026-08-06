@@ -252,7 +252,7 @@ def starpilot_thread():
   config_realtime_process(5, Priority.CTRL_LOW)
 
   pm = messaging.PubMaster(["starpilotPlan"])
-  sm = messaging.SubMaster(["carControl", "carState", "controlsState", "deviceState", "driverMonitoringState",
+  sm = messaging.SubMaster(["carControl", "carParams", "carState", "controlsState", "deviceState", "driverMonitoringState",
                             "gpsLocation", "gpsLocationExternal", "liveParameters", "managerState", "modelV2",
                             "onroadEvents", "pandaStates", "radarState", "selfdriveState", "starpilotCarState",
                             "starpilotRadarState", "starpilotSelfdriveState", "starpilotModelV2", "starpilotOnroadEvents", "mapdOut"],

@@ -118,6 +118,7 @@ class HyundaiStarPilotSafetyFlags(IntFlag):
 
 class HyundaiStarPilotFlags(IntFlag):
   SPEED_LIMIT_AVAILABLE = 1
+  MAIN_CRUISE_STATE_TRACKING = 2 ** 2
 
 
 class HyundaiFlags(IntFlag):

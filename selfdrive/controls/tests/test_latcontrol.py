@@ -635,6 +635,12 @@ class TestLatControl:
 
   def test_prius_friction_curves(self):
     base_threshold = get_gm_base_friction_threshold(12.0)
+    low_speed_center_threshold = get_prius_friction_threshold(8.0, 0.0, 0.0)
+    high_speed_center_threshold = get_prius_friction_threshold(30.0, 0.0, 0.0)
+    high_speed_curve_threshold = get_prius_friction_threshold(30.0, 0.8, 0.0)
+    assert high_speed_center_threshold > get_gm_base_friction_threshold(30.0)
+    assert high_speed_center_threshold > low_speed_center_threshold
+    assert high_speed_curve_threshold < high_speed_center_threshold
     left_turn_in_threshold = get_prius_friction_threshold(6.0, 0.7, 0.8)
     right_turn_in_threshold = get_prius_friction_threshold(6.0, -0.7, -0.8)
     left_unwind_threshold = get_prius_friction_threshold(6.0, 0.7, -0.8)
@@ -832,13 +838,13 @@ class TestLatControl:
 
     center_transition = get_kona_non_scc_highway_transition_output_scale(0.4, 1.25, 30.0)
     medium_transition = get_kona_non_scc_highway_transition_output_scale(1.1, -1.25, 30.0)
-    assert center_transition == pytest.approx(0.66)
+    assert center_transition == pytest.approx(0.76)
     assert center_transition < medium_transition < 1.0
     assert get_kona_non_scc_highway_transition_output_scale(1.65, 2.5, 30.0) == pytest.approx(1.0)
 
   def test_kona_non_scc_center_taper_curve(self):
     assert get_kona_non_scc_center_taper_scale(0.0, 10.0) == pytest.approx(1.0)
-    assert get_kona_non_scc_center_taper_scale(0.0, 25.0) == pytest.approx(0.80)
+    assert get_kona_non_scc_center_taper_scale(0.0, 25.0) == pytest.approx(0.86)
     assert get_kona_non_scc_center_taper_scale(0.28, 25.0) == pytest.approx(1.0)
     assert get_kona_non_scc_center_taper_scale(0.10, 25.0) < get_kona_non_scc_center_taper_scale(0.10, 15.0)
 
@@ -1018,11 +1024,13 @@ class TestLatControl:
   def test_lexus_is_ff_scale_curve(self):
     steady_left = get_lexus_is_ff_scale(0.6, 0.0, 22.0)
     turn_in_left = get_lexus_is_ff_scale(0.6, 0.5, 22.0)
+    turn_in_right = get_lexus_is_ff_scale(-0.6, -0.5, 22.0)
     unwind_left = get_lexus_is_ff_scale(0.6, -0.5, 22.0)
     unwind_right = get_lexus_is_ff_scale(-0.6, 0.5, 22.0)
     low_speed_unwind_right = get_lexus_is_ff_scale(-0.6, 0.5, 5.0)
     assert steady_left == 1.0
-    assert turn_in_left == 1.0
+    assert turn_in_left > steady_left
+    assert turn_in_right > steady_left
     assert unwind_right < unwind_left < steady_left
     assert unwind_right < low_speed_unwind_right < 1.0
 

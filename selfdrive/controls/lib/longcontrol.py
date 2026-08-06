@@ -292,6 +292,9 @@ class LongControl:
       error = a_target - CS.aEgo
       self.update_mpc_mode(self.experimental_mode)
       self.vehicle_tuning.shape_volt_test_tune_integrator(self.pid, error, CS.vEgo)
+      self.vehicle_tuning.trim_volt_cruise_integrator(
+        self.pid, a_target, error, CS.vEgo, should_stop, has_lead,
+      )
       self._trim_positive_overshoot_integrator(a_target, error, CS)
       self.vehicle_tuning.trim_gm_truck_positive_hold_integrator(
         self.pid, self.last_output_accel, a_target, error, CS,

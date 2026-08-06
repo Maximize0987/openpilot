@@ -2,11 +2,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from opendbc.car import Bus
 from opendbc.car.subaru.carcontroller import CarController
+from opendbc.car.subaru.carstate import CarState
 from opendbc.car.subaru.fingerprints import FW_VERSIONS
 from opendbc.car.fw_versions import match_fw_to_car
 from opendbc.car.subaru.interface import CarInterface
-from opendbc.car.subaru.values import CAR, SubaruFlags, SubaruSafetyFlags
+from opendbc.car.subaru.values import CAR, CanBus, SubaruFlags, SubaruSafetyFlags
 from opendbc.car.structs import CarParams
 
 
@@ -110,6 +112,30 @@ def test_torque_platform_does_not_enable_angle_safety():
   assert not (CP.flags & SubaruFlags.LKAS_ANGLE)
   assert CP.steerControlType == CarParams.SteerControlType.torque
   assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.LKAS_ANGLE)
+
+
+def test_outback_2023_uses_d_platform_bus_layout():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_OUTBACK_2023)
+  parsers = CarState.get_can_parsers(CP)
+
+  assert CP.flags & SubaruFlags.D_PLATFORM
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
+  assert CanBus.main_for_cp(CP) == CanBus.alt
+  assert CanBus.angle_for_cp(CP) == CanBus.camera
+  assert parsers[Bus.pt].bus == CanBus.alt
+  assert parsers[Bus.cam].bus == CanBus.camera
+  assert parsers[Bus.alt].bus == CanBus.alt
+
+
+def test_other_angle_platforms_keep_existing_bus_layout():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_CROSSTREK_2025)
+  parsers = CarState.get_can_parsers(CP)
+
+  assert not (CP.flags & SubaruFlags.D_PLATFORM)
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM)
+  assert parsers[Bus.pt].bus == CanBus.main
+  assert parsers[Bus.cam].bus == CanBus.camera
+  assert parsers[Bus.alt].bus == CanBus.alt
 
 
 def test_angle_controller_tracks_driver_override():

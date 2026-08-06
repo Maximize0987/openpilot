@@ -26,7 +26,7 @@ from opendbc.car.hyundai.values import CAMERA_SCC_CAR, CANFD_CAR, CAN_GEARS, CAR
                                          HYBRID_CAR, EV_CAR, FW_QUERY_CONFIG, LEGACY_SAFETY_MODE_CAR, CANFD_FUZZY_WHITELIST, \
                                          UNSUPPORTED_LONGITUDINAL_CAR, PLATFORM_CODE_ECUS, HYUNDAI_VERSION_REQUEST_LONG, \
                                          LEGACY_LONGITUDINAL_CAR, DBC, HyundaiFlags, get_platform_codes, HyundaiSafetyFlags, \
-                                         HyundaiStarPilotSafetyFlags, Buttons, CarControllerParams, kia_ev6_gt_line_longitudinal_tuning
+                                         HyundaiStarPilotFlags, HyundaiStarPilotSafetyFlags, Buttons, CarControllerParams, kia_ev6_gt_line_longitudinal_tuning
 
 LongCtrlState = CarControl.Actuators.LongControlState
 from opendbc.car.hyundai.fingerprints import FW_VERSIONS
@@ -312,6 +312,21 @@ class TestHyundaiFingerprint:
     CP = CarInterface.get_params(CAR.KIA_SPORTAGE_HEV_2026, fingerprint, [], False, False, False, None)
     assert CP.flags & HyundaiFlags.SEND_LFA
 
+  def test_smart_mdps_allows_low_speed_steering(self):
+    candidate = CAR.HYUNDAI_IONIQ_EV_LTD
+
+    regular_fingerprint = gen_empty_fingerprint()
+    regular_cp = CarInterface.get_params(candidate, regular_fingerprint, [], False, False, False, None)
+    assert regular_cp.flags & HyundaiFlags.MIN_STEER_32_MPH
+    assert regular_cp.minSteerSpeed > 0.0
+
+    smart_mdps_fingerprint = gen_empty_fingerprint()
+    smart_mdps_fingerprint[0][0x2AA] = 8
+    smart_mdps_cp = CarInterface.get_params(candidate, smart_mdps_fingerprint, [], False, False, False, None)
+    assert not (smart_mdps_cp.flags & HyundaiFlags.MIN_STEER_32_MPH)
+    assert smart_mdps_cp.minSteerSpeed == 0.0
+    assert smart_mdps_cp.steerAtStandstill
+
   @pytest.mark.parametrize("candidate", CCNC_NON_HDA2_CARS)
   def test_ccnc_non_hda2_platforms_set_ccnc_safety(self, candidate):
     CP = CarInterface.get_params(candidate, gen_empty_fingerprint(), [], False, False, False, None)
@@ -508,6 +523,27 @@ class TestHyundaiFingerprint:
       CAR.HYUNDAI_SONATA_HYBRID, gen_empty_fingerprint(), [], sonata_hybrid_cp, SimpleNamespace(),
     )
     assert not (minimal_fpcp.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.AOL_MAIN_LKAS_SYNC)
+
+  def test_classic_hyundai_long_tracks_main_cruise_state(self):
+    toggles = get_test_toggles()
+    classic_cp = CarInterface.get_params(CAR.HYUNDAI_ELANTRA_2021, gen_empty_fingerprint(), [], True, False, False, toggles)
+    classic_fpcp = CarInterface.get_starpilot_params(
+      CAR.HYUNDAI_ELANTRA_2021, gen_empty_fingerprint(), [], classic_cp, toggles,
+    )
+    assert classic_fpcp.flags & HyundaiStarPilotFlags.MAIN_CRUISE_STATE_TRACKING
+
+    car_state = CarState(classic_cp, classic_fpcp)
+    ret = SimpleNamespace(
+      cruiseState=SimpleNamespace(available=True),
+      buttonEvents=[structs.CarState.ButtonEvent(pressed=True, type=ButtonType.mainCruise)],
+    )
+    assert car_state.update_main_cruise(ret)
+
+    ioniq_cp = CarInterface.get_params(CAR.HYUNDAI_IONIQ_6, gen_empty_fingerprint(), [], True, False, False, toggles)
+    ioniq_fpcp = CarInterface.get_starpilot_params(
+      CAR.HYUNDAI_IONIQ_6, gen_empty_fingerprint(), [], ioniq_cp, toggles,
+    )
+    assert not (ioniq_fpcp.flags & HyundaiStarPilotFlags.MAIN_CRUISE_STATE_TRACKING)
 
   def test_non_scc_flag_quirks(self):
     elantra_hev = CarInterface.get_params(CAR.HYUNDAI_ELANTRA_HEV_2022_NON_SCC, gen_empty_fingerprint(), [], True, False, False, None)
