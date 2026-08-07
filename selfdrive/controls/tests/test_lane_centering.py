@@ -108,6 +108,11 @@ def test_lane_center_error_steers_toward_center():
   assert left < 0.0
 
 
+def test_small_center_error_does_not_chatter():
+  _, output = _converge(_model(left=-1.75, right=1.85), authority=0.0)
+  assert output == 0.0
+
+
 def test_offset_direction():
   _, right = _converge(_model(), offset=0.2, authority=0.0)
   _, left = _converge(_model(), offset=-0.2, authority=0.0)
@@ -144,10 +149,22 @@ def test_e2e_authority_blends_lane_correction():
   assert lane_only > blended > e2e >= 0.0
 
 
+def test_confident_e2e_authority_starts_before_large_offset():
+  model = _model(left=-1.7, right=2.1, model_y=0.0, path_std=0.1)
+  _, lane_only = _converge(model, authority=0.0)
+  _, e2e = _converge(model, authority=1.0)
+  assert lane_only > e2e > 0.0
+
+
 def test_confidence_loss_drops_filtered_correction():
   controller, output = _converge(_model(left=-1.5, right=2.1), authority=0.0)
   assert output > 0.0
-  assert _update(controller, _model(left=-1.5, right=2.1, lane_prob=0.2), authority=0.0) == 0.0
+  fading = _update(controller, _model(left=-1.5, right=2.1, lane_prob=0.2), authority=0.0)
+  assert 0.0 < fading < output
+
+  for _ in range(300):
+    fading = _update(controller, _model(left=-1.5, right=2.1, lane_prob=0.2), authority=0.0)
+  assert abs(fading) < 1e-6
 
 
 def test_correction_is_smoothed_and_capped():
