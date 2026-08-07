@@ -307,7 +307,7 @@ class Controls:
     self.sm = messaging.SubMaster(['liveDelay', 'liveParameters', 'liveTorqueParameters', 'modelV2', 'selfdriveState',
                                    'liveCalibration', 'livePose', 'longitudinalPlan', 'lateralManeuverPlan', 'carState', 'carOutput',
                                    'driverMonitoringState', 'onroadEvents', 'driverAssistance', 'radarState'], poll='selfdriveState')
-    self.pm = messaging.PubMaster(['carControl', 'controlsState'])
+    self.pm = messaging.PubMaster(['carControl', 'controlsState', 'starpilotLateralState'])
 
     self.steer_limited_by_safety = False
     self.curvature = 0.0
@@ -771,6 +771,11 @@ class Controls:
       cs.lateralControlState.torqueState = lac_log
 
     self.pm.send('controlsState', dat)
+
+    if hasattr(self.LaC, 'starpilot_lateral_state'):
+      debug_dat = messaging.new_message('starpilotLateralState')
+      debug_dat.starpilotLateralState = self.LaC.starpilot_lateral_state
+      self.pm.send('starpilotLateralState', debug_dat)
 
     # carControl
     cc_send = messaging.new_message('carControl')

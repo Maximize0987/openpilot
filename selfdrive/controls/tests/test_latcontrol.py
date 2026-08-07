@@ -38,6 +38,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
 )
 from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_civic_bosch_modified_a_center_taper_scale,
+  get_center_chatter_friction_jerk_deadzone,
   LatControlTorque,
   get_civic_bosch_modified_b_ff_scale,
   get_civic_bosch_modified_b_friction_scale,
@@ -122,6 +123,30 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
 
 
 class TestLatControl:
+
+  def test_center_chatter_friction_jerk_deadzone_is_center_and_speed_gated(self):
+    low_speed_center = get_center_chatter_friction_jerk_deadzone(2.0, 0.0)
+    highway_center = get_center_chatter_friction_jerk_deadzone(25.0, 0.0)
+    highway_curve = get_center_chatter_friction_jerk_deadzone(25.0, 0.6)
+
+    assert low_speed_center == pytest.approx(0.08)
+    assert highway_center == pytest.approx(0.18)
+    assert highway_curve == pytest.approx(0.0)
+
+  def test_center_chatter_friction_jerk_deadzone_preserves_vehicle_override(self):
+    assert get_center_chatter_friction_jerk_deadzone(25.0, 0.6, 0.30) == pytest.approx(0.30)
+
+  def test_torque_log_exposes_friction_controller_state(self):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.CHEVROLET_BOLT_ACC_2022_2023)
+
+    _, _, lac_log = controller.update(True, CS, VM, params, False, 0.0, False, 0.2, None, None, starpilot_toggles)
+
+    debug_state = controller.starpilot_lateral_state
+    assert debug_state.active
+    assert debug_state.frictionThreshold > 0.0
+    assert debug_state.frictionScale > 0.0
+    assert debug_state.frictionJerkDeadzone > 0.0
+    assert debug_state.lowSpeedFactor > 0.0
 
   @staticmethod
   def _build_torque_controller(car_name, force_torque=False):
