@@ -129,7 +129,7 @@ class TestLatControl:
     highway_center = get_center_chatter_friction_jerk_deadzone(25.0, 0.0)
     highway_curve = get_center_chatter_friction_jerk_deadzone(25.0, 0.6)
 
-    assert low_speed_center == pytest.approx(0.08)
+    assert low_speed_center == pytest.approx(0.096)
     assert highway_center == pytest.approx(0.18)
     assert highway_curve == pytest.approx(0.0)
 

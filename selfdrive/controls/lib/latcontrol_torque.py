@@ -97,16 +97,6 @@ class LatControlTorque(LatControl):
     self.prev_desired_lateral_accel = 0.0
     self.starpilot_lateral_state = custom.StarPilotLateralState.new_message()
 
-  def _clear_starpilot_lateral_state(self):
-    self.starpilot_lateral_state.active = False
-    self.starpilot_lateral_state.frictionThreshold = 0.0
-    self.starpilot_lateral_state.frictionScale = 0.0
-    self.starpilot_lateral_state.feedforward = 0.0
-    self.starpilot_lateral_state.frictionJerk = 0.0
-    self.starpilot_lateral_state.frictionJerkDeadzone = 0.0
-    self.starpilot_lateral_state.lowSpeedFactor = 0.0
-    self.starpilot_lateral_state.unwindDetected = False
-
     self.is_bolt = CP.carFingerprint in BOLT_CARS
     self.is_bolt_2022_2023 = CP.carFingerprint in BOLT_2022_2023_CARS
     self.is_bolt_2018_2021 = CP.carFingerprint in BOLT_2018_2021_CARS
@@ -178,6 +168,16 @@ class LatControlTorque(LatControl):
       self.torque_ki_mult = float(kd_scale)
       if self.use_bolt_ki_multiplier and self.torque_ki_mult > 0.0 and self.torque_ki_mult != 1.0:
         self.pid._k_i = [self.pid._k_i[0], [k * self.torque_ki_mult for k in self.pid._k_i[1]]]
+
+  def _clear_starpilot_lateral_state(self):
+    self.starpilot_lateral_state.active = False
+    self.starpilot_lateral_state.frictionThreshold = 0.0
+    self.starpilot_lateral_state.frictionScale = 0.0
+    self.starpilot_lateral_state.feedforward = 0.0
+    self.starpilot_lateral_state.frictionJerk = 0.0
+    self.starpilot_lateral_state.frictionJerkDeadzone = 0.0
+    self.starpilot_lateral_state.lowSpeedFactor = 0.0
+    self.starpilot_lateral_state.unwindDetected = False
 
   def update_live_torque_params(self, latAccelFactor, latAccelOffset, friction):
     if self.is_palisade:
