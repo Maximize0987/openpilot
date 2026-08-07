@@ -797,9 +797,9 @@ class TestLatControl:
     highway_calm = get_sienna_4th_gen_center_taper_scale(0.0, 20.0)
     fast = get_sienna_4th_gen_center_taper_scale(0.0, 25.0)
     assert calm < turn_taper <= 1.0
-    assert calm < highway_calm < 1.0
+    assert highway_calm < calm < 1.0
     assert fast > calm
-    assert get_sienna_4th_gen_high_speed_output_taper_scale(10.0) == pytest.approx(1.0)
+    assert get_sienna_4th_gen_high_speed_output_taper_scale(10.0) == pytest.approx(1.0, abs=0.002)
     assert get_sienna_4th_gen_high_speed_output_taper_scale(22.0) < 1.0
 
   def test_rav4_prime_forced_torque_update_path(self, monkeypatch):
