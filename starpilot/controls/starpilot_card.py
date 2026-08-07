@@ -14,7 +14,7 @@ from openpilot.starpilot.common.experimental_state import (
   sync_manual_cc_state,
   sync_manual_ce_state,
 )
-from openpilot.starpilot.common.favorite_slots import toggle_favorite_slot
+from openpilot.starpilot.common.favorite_slots import FAVORITE_ACTION_TRAFFIC_MODE_COUNTER, toggle_favorite_slot
 from openpilot.starpilot.common.starpilot_utilities import is_FrogsGoMoo
 from openpilot.starpilot.common.starpilot_variables import ERROR_LOGS_PATH, GearShifter, NON_DRIVING_GEARS
 
@@ -58,6 +58,7 @@ class StarPilotCard:
     self.pause_longitudinal = False
     self.switchback_mode_enabled = self.params_memory.get_bool("SwitchbackModeEnabled")
     self.traffic_mode_enabled = False
+    self._favorite_traffic_mode_counter = self.params_memory.get_int(FAVORITE_ACTION_TRAFFIC_MODE_COUNTER)
 
     self.gap_counter = 0
     self.cancel_counter = 0
@@ -98,6 +99,14 @@ class StarPilotCard:
     counter = self.params_memory.get_int("WheelButtonBookmarkCounter")
     self.params_memory.put_int("WheelButtonBookmarkCounter", counter + 1)
 
+  def _handle_favorite_traffic_mode_action(self, sm):
+    counter = self.params_memory.get_int(FAVORITE_ACTION_TRAFFIC_MODE_COUNTER)
+    pending = counter - self._favorite_traffic_mode_counter
+    self._favorite_traffic_mode_counter = counter
+
+    if pending > 0 and sm["carControl"].longActive and pending % 2:
+      self.traffic_mode_enabled = not self.traffic_mode_enabled
+
   def handle_experimental_mode(self, sm, starpilot_toggles):
     if getattr(starpilot_toggles, "safe_mode", False):
       return
@@ -117,6 +126,7 @@ class StarPilotCard:
 
   def update(self, carState, starpilotCarState, sm, starpilot_toggles):
     self.switchback_mode_enabled = self.params_memory.get_bool("SwitchbackModeEnabled")
+    self._handle_favorite_traffic_mode_action(sm)
     button_event_types = [self._button_type_raw(be) for be in carState.buttonEvents]
     button_aol_supported = self.CP.brand == "hyundai" or starpilot_toggles.lkas_allowed_for_aol
     button_managed_aol = starpilot_toggles.always_on_lateral_lkas or (button_aol_supported and starpilot_toggles.main_cruise_aol_toggle)
