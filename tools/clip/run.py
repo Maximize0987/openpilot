@@ -35,6 +35,7 @@ SECONDS_TO_WARM = 2
 PROC_WAIT_SECONDS = 30*10
 RECORD_TAIL_MARGIN = 5  # extra seconds recorded past the requested end, see record_raybig
 MAX_CACHED_SEGMENTS = 5  # replay's own default, see tools/replay/main.cc
+MAX_PLAYBACK = 10  # upper bound for --playback, see record_raybig
 PROGRESS_INTERVAL = 30  # seconds between progress lines while recording
 STALL_WARN_SECONDS = 60  # warn if the output file stops growing for this long
 
@@ -221,6 +222,13 @@ def validate_scale(scale: str):
   return value
 
 
+def validate_playback(playback: str):
+  value = float(playback)
+  if not 1 <= value <= MAX_PLAYBACK:
+    raise ArgumentTypeError(f'playback must be between 1 and {MAX_PLAYBACK}')
+  return value
+
+
 def wait_for_frames(procs: list[Popen]):
   from cereal.messaging import SubMaster
 
@@ -359,15 +367,19 @@ def retime_to_wall_clock(out: str, recorded_seconds: float, tolerance: float = 0
     retimed.unlink(missing_ok=True)
 
 
-def record_raybig(ui_proc: Popen, replay_proc: Popen, duration: int, out: str):
+def record_raybig(ui_proc: Popen, replay_proc: Popen, duration: int, out: str, playback: float = 1.0):
   # the UI records from the moment its window opens, so the export leads with some offroad
   # frames. tail margin covers replay not being exactly at `start` on the first onroad frame.
+  # at playback > 1 the route advances faster than the clock, so we wait proportionally less.
   procs = [ui_proc, replay_proc]
   logger.info('waiting for replay to begin (loading segments, may take a while)...')
   wait_for_frames(procs)
-  logger.info(f'recording in progress ({duration}s)...')
+  record_for = (SECONDS_TO_WARM + duration + RECORD_TAIL_MARGIN) / playback
+  if playback > 1:
+    logger.info(f'recording in progress ({duration}s of route at {playback}x, ~{record_for:.0f}s wall clock)...')
+  else:
+    logger.info(f'recording in progress ({duration}s)...')
   started_at = time.monotonic()
-  record_for = SECONDS_TO_WARM + duration + RECORD_TAIL_MARGIN
   out_path = Path(out)
   last_size, grew_at, logged_at = -1, started_at, started_at
 
@@ -401,7 +413,10 @@ def record_raybig(ui_proc: Popen, replay_proc: Popen, duration: int, out: str):
   # system/ui/lib/application.py). SIGTERM, which managed_proc uses, has no handler and would
   # skip that. close_ffmpeg() can take up to 60s, so wait longer than that before killing.
   ui_proc.send_signal(signal.SIGINT)
-  recorded_seconds = time.monotonic() - started_at
+  # the clip should run for the stretch of route it covers, not the wall clock time it took,
+  # so at playback > 1 scale back up. this also self-corrects a machine that couldn't render
+  # fast enough to keep up: the result is fewer frames, not a wrongly sped up clip.
+  recorded_seconds = (time.monotonic() - started_at) * playback
   try:
     ui_proc.wait(timeout=90)
   except TimeoutExpired:
@@ -429,6 +444,7 @@ def clip(
   title: str | None,
   ui: Literal['c3', 'raybig'],
   scale: float | None,
+  playback: float,
 ):
   logger.info(f'clipping route {route.name.canonical_name}, start={start} end={end} quality={quality} target_filesize={target_mb}MB')
   Path(out).resolve().parent.mkdir(parents=True, exist_ok=True)
@@ -471,6 +487,8 @@ def clip(
   # video in memory, and a long clip would otherwise try to hold the whole route at once.
   segments_to_cache = min(math.ceil((end - begin_at) / 60) + 1, MAX_CACHED_SEGMENTS)
   replay_cmd = [REPLAY, '--ecam', '-c', str(segments_to_cache), '-s', str(begin_at), '--prefix', prefix]
+  if playback > 1:
+    replay_cmd.extend(['-x', str(playback)])
   if data_dir:
     replay_cmd.extend(['--data_dir', data_dir])
   if quality == 'low':
@@ -507,8 +525,10 @@ def clip(
       if speed > 1:
         env['RECORD_SPEED'] = str(speed)
       # the UI defaults to 60fps and tags the export as such, but the per-frame GPU readback
-      # can't sustain that and the clip plays fast. ask for a rate it can actually hit.
-      env['FPS'] = str(FRAMERATE)
+      # can't sustain that and the clip plays fast. ask for a rate it can actually hit. at
+      # playback > 1 it has to render proportionally faster to still cover FRAMERATE frames
+      # per second of route.
+      env['FPS'] = str(int(round(FRAMERATE * playback)))
       # sets the render texture size, which is what gets piped to ffmpeg. left unset, the UI
       # picks a scale that fits the screen.
       if scale is not None:
@@ -517,12 +537,12 @@ def clip(
       if use_wslg:
         logger.info('WSLg detected: rendering against the live desktop display.')
         with managed_proc(ui_cmd, env) as ui_proc, managed_proc(replay_cmd, env) as replay_proc:
-          record_raybig(ui_proc, replay_proc, duration, out)
+          record_raybig(ui_proc, replay_proc, duration, out, playback)
       else:
         with managed_proc(xvfb_cmd, env) as xvfb_proc:
           wait_for_xvfb(display_num, xvfb_proc)
           with managed_proc(ui_cmd, env) as ui_proc, managed_proc(replay_cmd, env) as replay_proc:
-            record_raybig(ui_proc, replay_proc, duration, out)
+            record_raybig(ui_proc, replay_proc, duration, out, playback)
     else:
       with managed_proc(xvfb_cmd, env) as xvfb_proc:
         wait_for_xvfb(display_num, xvfb_proc)
@@ -549,6 +569,9 @@ def main():
                  choices=['c3', 'raybig'], default='c3')
   p.add_argument('--scale', help='scale the recorded resolution, e.g. 0.5 for half size (raybig only, default is to fit the screen)',
                  type=validate_scale)
+  p.add_argument('--playback', help='replay faster than real time to finish sooner, e.g. 2 for twice as fast (raybig only). '
+                                    'the clip still plays at normal speed, but drops frames if the UI cannot keep up',
+                 type=validate_playback, default=1.0)
   args = parse_args(p)
   validate_env(p, args.ui)
   exit_code = 1
@@ -566,6 +589,7 @@ def main():
       title=args.title,
       ui=args.ui,
       scale=args.scale,
+      playback=args.playback,
     )
     exit_code = 0
   except KeyboardInterrupt as e:
