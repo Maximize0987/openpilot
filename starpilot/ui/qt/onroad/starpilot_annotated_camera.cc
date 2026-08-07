@@ -174,8 +174,8 @@ void StarPilotAnnotatedCameraWidget::updateState(const UIState &s, const StarPil
   cachedStoppedTimer           = starpilot_toggles.value("stopped_timer").toBool();
 
   if (scene.is_metric || cachedUseSiMetrics) {
-    leadDistanceUnit = tr(" meters");
-    leadSpeedUnit = cachedUseSiMetrics ? tr(" m/s") : tr(" km/h");
+    leadDistanceUnit = tr(" m");
+    leadSpeedUnit = tr(" mph");  //leadSpeedUnit = cachedUseSiMetrics ? tr(" m/s") : tr(" km/h");
     speedUnit = tr("mph"); // speedUnit = scene.is_metric ? tr("km/h") : tr("mph");
 
     distanceConversion = 1.0f;
