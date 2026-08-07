@@ -51,6 +51,7 @@ def test_galaxy_layout_contains_basic_mode_controls():
     "QOLLongitudinal",
   } <= sections["Longitudinal (Speed & Following)"].keys()
   assert "RedneckCruise" not in sections["Longitudinal (Speed & Following)"].keys()
+  assert sections["Developer"]["RedneckCruise"]["parent_key"] == "GalaxyDeveloperMode"
   assert {"GalaxyDeveloperMode", "UseOldUI"} <= sections["Developer"].keys()
 
 
@@ -121,6 +122,7 @@ def test_requested_simple_and_advanced_settings_tiers():
   assert developer["GalaxyDeveloperMode"]["settings_tier"] == "simple"
   assert developer["UseOldUI"]["settings_tier"] == "simple"
   assert developer["DeveloperUI"]["settings_tier"] == "advanced"
+  assert developer["RedneckCruise"]["settings_tier"] == "advanced"
 
 
 def test_hidden_feature_defaults_remain_enabled():

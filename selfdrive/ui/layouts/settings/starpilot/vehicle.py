@@ -46,7 +46,6 @@ from openpilot.selfdrive.ui.lib.fingerprint_catalog import (
   shorten_model_label,
 )
 from openpilot.starpilot.common.starpilot_variables import migrate_cancel_button_controls
-from openpilot.selfdrive.ui.layouts.settings.common import restart_needed_callback
 
 
 ACTION_OPTIONS = [
@@ -421,13 +420,6 @@ class VehicleSettingsManagerView(PanelManagerView):
         "get_state": lambda: self._controller._params.get_bool("NostalgiaMode"),
         "set_state": lambda s: self._controller._on_toggle("NostalgiaMode"),
       })
-    if cs.redneckCruiseAvailable:
-      toggles.append({
-        "title": tr("Redneck Cruise"),
-        "subtitle": tr("Use RES/SET button presses to match the stock cruise set speed to StarPilot's target."),
-        "get_state": lambda: self._controller._params.get_bool("RedneckCruise"),
-        "set_state": lambda s: self._controller._on_toggle("RedneckCruise"),
-      })
 
     return toggles
 
@@ -686,11 +678,6 @@ class StarPilotVehicleSettingsLayout(_SettingsPage):
       if new_state:
         migrate_cancel_button_controls(self._params)
       starpilot_state.update(force=True)
-      return
-    if param_key == "RedneckCruise":
-      self._params.put_bool("RedneckCruise", not self._params.get_bool("RedneckCruise"))
-      starpilot_state.update(force=True)
-      restart_needed_callback(None)
       return
     current = self._params.get_bool(param_key) if self._params.get(param_key) is not None else False
     self._params.put_bool(param_key, not current)

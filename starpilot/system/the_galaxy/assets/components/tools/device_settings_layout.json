@@ -4067,6 +4067,15 @@
         "settings_tier": "simple"
       },
       {
+        "key": "RedneckCruise",
+        "label": "Redneck Cruise",
+        "description": "On supported Hyundai stock-cruise cars, use RES/SET button presses to match the cluster set speed to StarPilot's target.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "GalaxyDeveloperMode",
+        "settings_tier": "advanced"
+      },
+      {
         "key": "UseOldUI",
         "label": "Use Old UI",
         "description": "Use the old Qt UI instead of the default raylib UI on tici/tizi devices. This setting has no effect on C4/mici devices.",
