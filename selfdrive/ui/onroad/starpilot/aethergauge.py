@@ -36,10 +36,6 @@ ROAD_HALF_SIZE = 40.0 * SCALE
 ROAD_EDGE_INSET = 2.0 * SCALE
 FILL_ALPHA = 90
 
-MIN_SPEED_FOR_TIME = 0.3
-MAX_TIME_DISPLAY = 99.0
-TIME_FACTOR = 2.0
-
 STOP_SNAP_THRESHOLD = 0.5
 STOP_LERP_RATE = 0.25
 STOP_DISTANCE_MAX = 60.0
@@ -76,6 +72,15 @@ def _speed_conversion() -> float:
 def _speed_unit() -> str:
   return "km/h" if ui_state.is_metric else "mph"
 
+def _distance_conversion() -> float:
+  return 1.0 if ui_state.is_metric else CV.METER_TO_FOOT
+
+def _distance_unit() -> str:
+  return "m" if ui_state.is_metric else "ft"
+
+def _to_display_distance(val_m: float) -> tuple[int, str]:
+  return int(round(val_m * _distance_conversion())), _distance_unit()
+
 def _env_truthy(name: str) -> bool:
   return os.getenv(name, "").lower() in {"1", "true", "yes", "on"}
 
@@ -90,12 +95,6 @@ def _get_val(msg: str, attr: str, default=None):
 
 def _sm_valid(key: str) -> bool:
   return key in ui_state.sm.valid and ui_state.sm.valid[key]
-
-def _time_to_stop(distance: float, v_ego: float) -> str:
-  if v_ego > MIN_SPEED_FOR_TIME:
-    t = max(0.0, min(MAX_TIME_DISPLAY, TIME_FACTOR * distance / v_ego))
-    return f"{t:.1f}"
-  return "0.0"
 
 def _calc_reduction(v_cruise: float, target: float) -> int:
   if v_cruise > 0.1 and target > 0.1 and target < v_cruise:
@@ -209,11 +208,11 @@ def _is_force_stop() -> bool:
   return _get_val("starpilotPlan", "forcingStop", False) and not _get_val("starpilotPlan", "redLight", False)
 
 def _force_stop_data() -> AetherGaugeData:
-  v_ego = _get_val("carState", "vEgo", 0.0)
-  dist = _get_val("starpilotPlan", "forcingStopLength", 0.0)
+  dist_m = _get_val("starpilotPlan", "forcingStopLength", 0.0)
+  display_dist, unit = _to_display_distance(dist_m)
   return AetherGaugeData(
-    text=_time_to_stop(dist, v_ego), unit="s", color=COLOR_FORCE_STOP,
-    indicator_type=IndicatorType.FORCE_STOP, indicator_value=dist, is_numeric=True,
+    text=str(display_dist), unit=unit, color=COLOR_FORCE_STOP,
+    indicator_type=IndicatorType.FORCE_STOP, indicator_value=dist_m, is_numeric=True,
   )
 
 
@@ -223,17 +222,15 @@ def _is_stop_light() -> bool:
   return _get_val("starpilotPlan", "experimentalMode", False) and _get_val("starpilotPlan", "redLight", False)
 
 def _stop_light_data() -> AetherGaugeData:
-  dist = 0.0
-  if _sm_valid("modelV2"):
+  dist_m = _get_val("starpilotPlan", "forcingStopLength", 0.0)
+  if dist_m == 0.0 and _sm_valid("modelV2"):
     model = ui_state.sm["modelV2"]
     if len(model.position.x) > 0:
-      dist = model.position.x[min(32, len(model.position.x) - 1)]
-  if dist == 0.0:
-    dist = _get_val("starpilotPlan", "forcingStopLength", 0.0)
-  v_ego = _get_val("carState", "vEgo", 0.0)
+      dist_m = model.position.x[min(32, len(model.position.x) - 1)]
+  display_dist, unit = _to_display_distance(dist_m)
   return AetherGaugeData(
-    text=_time_to_stop(dist, v_ego), unit="s", color=COLOR_FORCE_STOP,
-    indicator_type=IndicatorType.STOP_LIGHT, indicator_value=dist,
+    text=str(display_dist), unit=unit, color=COLOR_FORCE_STOP,
+    indicator_type=IndicatorType.STOP_LIGHT, indicator_value=dist_m,
     indicator_extra="red", is_numeric=True,
   )
 
@@ -316,8 +313,8 @@ def _test_cycle_data() -> AetherGaugeData:
 
   if ind_type in (IndicatorType.STOP_LIGHT, IndicatorType.FORCE_STOP):
     ind_val = max(5.0, 60.0 - anim_t * 55.0)
-    text = f"{max(0.0, (_TEST_CYCLE_SEC - 0.5) - elapsed):.1f}"
-    return AetherGaugeData(text=text, unit="s", color=color,
+    display_dist, unit = _to_display_distance(ind_val)
+    return AetherGaugeData(text=str(display_dist), unit=unit, color=color,
       indicator_type=ind_type, indicator_value=ind_val,
       indicator_extra=extra, reduction_text=reduction, is_numeric=True)
 
@@ -369,10 +366,10 @@ def _cem_demo_data() -> AetherGaugeData:
   if status == CEStatus["STOP_LIGHT"]:
     phase = rl.get_time() % 2.0
     distance = max(6.0, 35.0 - phase * 12.0)
-    v_ego = max(0.1, _get_val("carState", "vEgo", 10.0))
+    display_dist, unit = _to_display_distance(distance)
     return AetherGaugeData(
-      text=_time_to_stop(distance, v_ego),
-      unit="s",
+      text=str(display_dist),
+      unit=unit,
       color=COLOR_FORCE_STOP,
       indicator_type=IndicatorType.STOP_LIGHT,
       indicator_value=distance,
