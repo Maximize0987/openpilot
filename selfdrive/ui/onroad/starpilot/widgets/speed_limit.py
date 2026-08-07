@@ -11,16 +11,29 @@ from openpilot.selfdrive.ui.onroad.starpilot.slc_speed_limit import (
 
 
 class SpeedLimitWidget(LayoutWidget):
+  TOUCH_SLOP = 20
+
   def __init__(self):
     super().__init__("speed_limit", priority=2)
     self._slc_state: dict | None = None
-    self._pill_rect: Optional[rl.Rectangle] = None
+    self._sign_rect: Optional[rl.Rectangle] = None
+
+  @property
+  def _hit_rect(self) -> rl.Rectangle:
+    rect = self._sign_rect or self.rect
+    slop = self.TOUCH_SLOP
+    return rl.Rectangle(
+      rect.x - slop,
+      rect.y - slop,
+      rect.width + 2 * slop,
+      rect.height + 2 * slop,
+    )
 
   @property
   def is_visible(self) -> bool:
     self._slc_state = _get_slc_state()
     if self._slc_state is None:
-      self._pill_rect = None
+      self._sign_rect = None
       return False
     return True
 
@@ -35,12 +48,6 @@ class SpeedLimitWidget(LayoutWidget):
     w = float(EU_SIGN_SIZE if use_vienna else sign_width)
     h = float(EU_SIGN_SIZE if use_vienna else US_SIGN_HEIGHT)
 
-    flashing_pending = self._slc_state['speed_limit_changed'] and self._slc_state['unconfirmed_valid']
-    if not flashing_pending:
-      source = self._slc_state.get('speed_limit_source')
-      if source and source != "None" and source != "":
-        h += 40.0
-
     return w, h
 
   def _render(self, rect: rl.Rectangle) -> None:
@@ -48,25 +55,17 @@ class SpeedLimitWidget(LayoutWidget):
       return
     params = ui_state.ui_params
     expanded = params.get_bool("SpeedLimitSources")
-    self._pill_rect = render_speed_limit_at(self._slc_state, rect, expanded)
+    self._sign_rect = render_speed_limit_at(self._slc_state, rect, expanded)
 
   def _handle_mouse_press(self, mouse_pos) -> None:
-    if self._pill_rect:
-      hit_rect = rl.Rectangle(
-        self._pill_rect.x - 20,
-        self._pill_rect.y - 20,
-        self._pill_rect.width + 40,
-        self._pill_rect.height + 40
-      )
-      if rl.check_collision_point_rec(mouse_pos, hit_rect):
-        params = ui_state.ui_params
-        current = params.get_bool("SpeedLimitSources")
-        params.put_bool("SpeedLimitSources", not current)
-        return
-
-    state = _get_slc_state()
-    if state is None or not (state['speed_limit_changed'] and state['unconfirmed_valid']):
+    state = self._slc_state
+    if state is None or not rl.check_collision_point_rec(mouse_pos, self._hit_rect):
       return
 
-    if rl.check_collision_point_rec(mouse_pos, self.rect):
+    if state['speed_limit_changed'] and state['unconfirmed_valid']:
       Params(memory=True).put_bool("SpeedLimitAccepted", True)
+      return
+
+    params = ui_state.ui_params
+    current = params.get_bool("SpeedLimitSources")
+    params.put_bool("SpeedLimitSources", not current)

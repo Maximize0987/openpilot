@@ -199,10 +199,20 @@ def _get_semi_bold():
   return _font_semi_bold
 
 
+_ACTIVE_SOURCE_LABELS = {title: abbrev.upper() for title, abbrev, _ in SOURCE_DEFS}
+
+
+def _active_source_label(state: dict) -> str:
+  source = state.get("speed_limit_source")
+  if not source or source == "None":
+    return tr("LIMIT")
+  return _ACTIVE_SOURCE_LABELS.get(source, source.upper())
+
+
 # ── US MUTCD Sign ─────────────────────────────────────────────────────
 
 def _draw_us_sign(x: float, y: float, sign_width: float, speed_text: str, offset_str: str,
-                  alpha: int, show_offset: bool, *, pending: bool = False):
+                  source_label: str, alpha: int, show_offset: bool, *, pending: bool = False):
   """Draw US-style speed limit sign at (x, y) with the given width.
 
   Transparent panel (the road shows through) drawn with only an inset
@@ -246,9 +256,9 @@ def _draw_us_sign(x: float, y: float, sign_width: float, speed_text: str, offset
     speed_size = measure_text_cached(font_bold, speed_text, FONT_SPEED)
     rl.draw_text_ex(font_bold, speed_text, rl.Vector2(cx - speed_size.x / 2, y + 85), FONT_SPEED, 0, text_color)
   elif show_offset:
-    # Offset ON: "LIMIT" at y=22, speed at y=51, offset at y=120
-    limit_size = measure_text_cached(font_semi, tr("LIMIT"), FONT_LABEL)
-    rl.draw_text_ex(font_semi, tr("LIMIT"), rl.Vector2(cx - limit_size.x / 2, y + 22), FONT_LABEL, 0, text_color)
+    # Offset ON: source at y=22, speed at y=51, offset at y=120.
+    source_size = measure_text_cached(font_semi, source_label, FONT_LABEL)
+    rl.draw_text_ex(font_semi, source_label, rl.Vector2(cx - source_size.x / 2, y + 22), FONT_LABEL, 0, text_color)
 
     speed_size = measure_text_cached(font_bold, speed_text, FONT_SPEED)
     rl.draw_text_ex(font_bold, speed_text, rl.Vector2(cx - speed_size.x / 2, y + 51), FONT_SPEED, 0, text_color)
@@ -256,12 +266,9 @@ def _draw_us_sign(x: float, y: float, sign_width: float, speed_text: str, offset
     offset_size = measure_text_cached(font_semi, offset_str, FONT_OFFSET)
     rl.draw_text_ex(font_semi, offset_str, rl.Vector2(cx - offset_size.x / 2, y + 120), FONT_OFFSET, 0, text_color)
   else:
-    # Offset OFF: "SPEED" at y=22, "LIMIT" at y=51, speed at y=85
-    speed_label_size = measure_text_cached(font_semi, tr("SPEED"), FONT_LABEL)
-    rl.draw_text_ex(font_semi, tr("SPEED"), rl.Vector2(cx - speed_label_size.x / 2, y + 22), FONT_LABEL, 0, text_color)
-
-    limit_size = measure_text_cached(font_semi, tr("LIMIT"), FONT_LABEL)
-    rl.draw_text_ex(font_semi, tr("LIMIT"), rl.Vector2(cx - limit_size.x / 2, y + 51), FONT_LABEL, 0, text_color)
+    # Offset OFF: source at y=22, speed remains at y=85.
+    source_size = measure_text_cached(font_semi, source_label, FONT_LABEL)
+    rl.draw_text_ex(font_semi, source_label, rl.Vector2(cx - source_size.x / 2, y + 22), FONT_LABEL, 0, text_color)
 
     speed_size = measure_text_cached(font_bold, speed_text, FONT_SPEED)
     rl.draw_text_ex(font_bold, speed_text, rl.Vector2(cx - speed_size.x / 2, y + 85), FONT_SPEED, 0, text_color)
@@ -270,7 +277,7 @@ def _draw_us_sign(x: float, y: float, sign_width: float, speed_text: str, offset
 # ── EU Vienna Sign ────────────────────────────────────────────────────
 
 def _draw_eu_sign(x: float, y: float, speed_text: str, offset_str: str,
-                   text_alpha: int, show_offset: bool, *, pending: bool = False):
+                   source_label: str, text_alpha: int, show_offset: bool, *, pending: bool = False):
   """Draw EU-style (Vienna) speed limit sign at (x, y).
 
   White disk with a pulsable red ring and pulsable black text. The disk
@@ -307,19 +314,32 @@ def _draw_eu_sign(x: float, y: float, speed_text: str, offset_str: str,
   text_color = _speed_limit_pulse_color(base_text, text_alpha)
 
   # Pending: text centered (no offset display)
-  if pending or not show_offset:
+  if pending:
+    speed_size = measure_text_cached(font_bold, speed_text, eu_font)
+    speed_pos = rl.Vector2(center_x - speed_size.x / 2, center_y - speed_size.y / 2)
+    rl.draw_text_ex(font_bold, speed_text, speed_pos, eu_font, 0, text_color)
+  elif not show_offset:
+    font_semi = _get_semi_bold()
+    source_size = measure_text_cached(font_semi, source_label, FONT_LABEL - 4)
+    source_pos = rl.Vector2(center_x - source_size.x / 2, y + 16)
+    rl.draw_text_ex(font_semi, source_label, source_pos, FONT_LABEL - 4, 0, text_color)
+
     speed_size = measure_text_cached(font_bold, speed_text, eu_font)
     speed_pos = rl.Vector2(center_x - speed_size.x / 2, center_y - speed_size.y / 2)
     rl.draw_text_ex(font_bold, speed_text, speed_pos, eu_font, 0, text_color)
   else:
-    # Offset ON: speed shifted up, offset below
+    # Offset ON: source at the top, speed below it, offset at the bottom.
+    font_semi = _get_semi_bold()
+    source_size = measure_text_cached(font_semi, source_label, FONT_LABEL - 4)
+    source_pos = rl.Vector2(center_x - source_size.x / 2, y + 16)
+    rl.draw_text_ex(font_semi, source_label, source_pos, FONT_LABEL - 4, 0, text_color)
+
     speed_size = measure_text_cached(font_bold, speed_text, eu_font)
-    speed_pos = rl.Vector2(center_x - speed_size.x / 2, center_y - speed_size.y / 2 - 25)
+    speed_pos = rl.Vector2(center_x - speed_size.x / 2, center_y - speed_size.y / 2 - 5)
     rl.draw_text_ex(font_bold, speed_text, speed_pos, eu_font, 0, text_color)
 
-    font_semi = _get_semi_bold()
     offset_size = measure_text_cached(font_semi, offset_str, FONT_EU_OFFSET)
-    offset_pos = rl.Vector2(center_x - offset_size.x / 2, y + 100)
+    offset_pos = rl.Vector2(center_x - offset_size.x / 2, y + 122)
     rl.draw_text_ex(font_semi, offset_str, offset_pos, FONT_EU_OFFSET, 0, text_color)
 
 
@@ -339,39 +359,14 @@ def _draw_sign(state: dict, rect: rl.Rectangle, *, pending: bool = False):
     # value.
     text_alpha = 72 if state['slc_overridden_speed'] != 0 else 255
 
+  source_label = _active_source_label(state)
+
   if state['use_vienna']:
-    _draw_eu_sign(rect.x, rect.y, speed_text, state['offset_str'], text_alpha,
+    _draw_eu_sign(rect.x, rect.y, speed_text, state['offset_str'], source_label, text_alpha,
                    state['show_offset'], pending=pending)
   else:
     _draw_us_sign(rect.x, rect.y, rect.width, speed_text, state['offset_str'],
-                   text_alpha, state['show_offset'], pending=pending)
-
-
-# ── Active Source Label (single-line mode when sources panel is off) ──
-
-_SOURCE_ABBREV = {"Dashboard": "Dash", "Map Data": "Maps", "Vision": "Vision",
-                  "Mapbox": "Mapbox", "Upcoming": "Next"}
-
-def _draw_active_source_label(state: dict, cx: float, bottom_y: float, sign_width: float, expanded: bool = False) -> Optional[rl.Rectangle]:
-  """Draw the single active-source pill below the sign. Returns pill rect for hit-testing."""
-  source = state.get('speed_limit_source')
-  if not source or source == "None" or source == "":
-    return None
-  label = _SOURCE_ABBREV.get(source, source.upper())
-  font = _get_semi_bold()
-  font_size = 24
-  sz = measure_text_cached(font, label, font_size)
-  
-  pill_w = sign_width
-  pill_h = 32
-  rect = rl.Rectangle(cx - pill_w / 2, bottom_y + 8, pill_w, pill_h)
-  
-  rl.draw_rectangle_rounded(rect, 0.4, 8, rl.Color(0, 0, 0, 180))
-  rl.draw_rectangle_rounded_lines_ex(rect, 0.4, 8, 1, rl.Color(255, 255, 255, 100))
-  
-  text_y = rect.y + (pill_h - sz.y) / 2
-  rl.draw_text_ex(font, label, rl.Vector2(cx - sz.x / 2, text_y), font_size, 0, rl.WHITE)
-  return rect
+                   source_label, text_alpha, state['show_offset'], pending=pending)
 
 
 # ── Sources Bubble (expandable overlay) ────────────────────────────────
@@ -384,16 +379,42 @@ def _draw_text_outlined(font, text: str, pos: rl.Vector2, font_size: int, fill: 
   rl.draw_text_ex(font, text, pos, font_size, 0, fill)
 
 
-_BUBBLE_PAD_X = 24
-_BUBBLE_ROW_H = 48
+_BUBBLE_WIDTH_EXTRA = 24
+_BUBBLE_RADIUS = 16
+_BUBBLE_BORDER_WIDTH = 3
+_BUBBLE_SEGMENTS = 16
+_BUBBLE_TEXT_PAD_X = 8
+_BUBBLE_PAD_Y = 8
+_BUBBLE_ACTIVE_WIDTH = 3
 _BUBBLE_GAP = 2
 _BUBBLE_FONT = 34
+_BUBBLE_MIN_FONT = 22
 _BUBBLE_BG = rl.Color(0, 0, 0, 200)
 _BUBBLE_BORDER = rl.Color(255, 255, 255, 80)
-_BUBBLE_ACCENT = rl.Color(201, 34, 49, 255)
+_BUBBLE_ACTIVE = rl.Color(255, 255, 255, 220)
+
+
+def _fit_sources_row(font, label: str, value_text: str, row_h: float, available_w: float):
+  font_size = min(_BUBBLE_FONT, max(_BUBBLE_MIN_FONT, int(row_h)))
+  label_size = measure_text_cached(font, label, font_size)
+  value_size = measure_text_cached(font, value_text, font_size)
+  needed_w = label_size.x + value_size.x + _BUBBLE_TEXT_PAD_X
+
+  if needed_w > available_w:
+    font_size = max(_BUBBLE_MIN_FONT, int(font_size * (available_w / needed_w)))
+    label_size = measure_text_cached(font, label, font_size)
+    value_size = measure_text_cached(font, value_text, font_size)
+    while label_size.x + value_size.x + _BUBBLE_TEXT_PAD_X > available_w and font_size > _BUBBLE_MIN_FONT:
+      font_size -= 1
+      label_size = measure_text_cached(font, label, font_size)
+      value_size = measure_text_cached(font, value_text, font_size)
+
+  fits = label_size.x + value_size.x + _BUBBLE_TEXT_PAD_X <= available_w
+  return font_size, value_size, fits
+
 
 def _draw_sources_bubble(state: dict, anchor_rect: rl.Rectangle, sign_rect: rl.Rectangle):
-  """Draw the expanded sources bubble to the right of the anchor pill."""
+  """Draw the expanded sources bubble to the right of the source anchor."""
   font_bold = _get_bold()
   font_semi = _get_semi_bold()
   active_source = state['speed_limit_source']
@@ -403,20 +424,19 @@ def _draw_sources_bubble(state: dict, anchor_rect: rl.Rectangle, sign_rect: rl.R
     value = state[value_key]
     if value == 0:
       continue
-    rows.append((title, abbrev, value, active_source == title and value != 0))
+    rows.append((title, abbrev, value, active_source == title))
 
   if not rows:
     return
 
-  bubble_w = sign_rect.width + 24
-  bubble_h = sign_rect.height + 40
+  bubble_w = sign_rect.width + _BUBBLE_WIDTH_EXTRA
+  bubble_h = sign_rect.height
 
   bubble_x = sign_rect.x + sign_rect.width + 12
   bubble_y = sign_rect.y
 
   bg_rect = rl.Rectangle(bubble_x, bubble_y, bubble_w, bubble_h)
-  rl.draw_rectangle_rounded(bg_rect, 0.25, 8, _BUBBLE_BG)
-  rl.draw_rectangle_rounded_lines_ex(bg_rect, 0.25, 8, 1, _BUBBLE_BORDER)
+  roundness = min(1.0, _BUBBLE_RADIUS / (min(bubble_w, bubble_h) / 2))
 
   arrow_y = int(anchor_rect.y + anchor_rect.height / 2)
   rl.draw_triangle(
@@ -425,40 +445,46 @@ def _draw_sources_bubble(state: dict, anchor_rect: rl.Rectangle, sign_rect: rl.R
     rl.Vector2(bubble_x - 6, arrow_y),
     _BUBBLE_BG,
   )
+  rl.draw_rectangle_rounded(bg_rect, roundness, _BUBBLE_SEGMENTS, _BUBBLE_BG)
+  rl.draw_rectangle_rounded_lines_ex(bg_rect, roundness, _BUBBLE_SEGMENTS,
+                                     _BUBBLE_BORDER_WIDTH, _BUBBLE_BORDER)
 
-  row_h = min(44.0, (bubble_h - 8 - (len(rows) - 1) * _BUBBLE_GAP) / len(rows))
+  content_h = bubble_h - 2 * (_BUBBLE_BORDER_WIDTH + _BUBBLE_PAD_Y)
+  row_h = min(44.0, (content_h - (len(rows) - 1) * _BUBBLE_GAP) / len(rows))
   total_content_h = len(rows) * row_h + (len(rows) - 1) * _BUBBLE_GAP
   y = bubble_y + (bubble_h - total_content_h) / 2
+  content_left = bubble_x + _BUBBLE_BORDER_WIDTH + _BUBBLE_TEXT_PAD_X
+  content_right = bubble_x + bubble_w - _BUBBLE_BORDER_WIDTH - _BUBBLE_TEXT_PAD_X
+  available_w = content_right - content_left
 
   for title, abbrev, value, is_active in rows:
     if is_active:
-      rl.draw_rectangle(int(bubble_x), int(y), 4, int(row_h), _BUBBLE_ACCENT)
+      rl.draw_rectangle(int(bubble_x + _BUBBLE_BORDER_WIDTH), int(y),
+                        _BUBBLE_ACTIVE_WIDTH, int(row_h), _BUBBLE_ACTIVE)
 
     text_font = font_bold if is_active else font_semi
-    abbrev_text = abbrev
+    label_text = title
     value_text = str(int(round(value)))
 
-    abbrev_size = measure_text_cached(text_font, abbrev_text, _BUBBLE_FONT)
-    value_size = measure_text_cached(text_font, value_text, _BUBBLE_FONT)
+    font_size, value_size, fits = _fit_sources_row(
+      text_font, label_text, value_text, row_h, available_w
+    )
+    if not fits:
+      label_text = abbrev
+      font_size, value_size, _ = _fit_sources_row(
+        text_font, label_text, value_text, row_h, available_w
+      )
 
-    font_size = _BUBBLE_FONT
-    available_w = bubble_w - 16
-    needed_w = abbrev_size.x + value_size.x + 8
-    if needed_w > available_w:
-      font_size = max(26, int(_BUBBLE_FONT * (available_w / needed_w)))
-      abbrev_size = measure_text_cached(text_font, abbrev_text, font_size)
-      value_size = measure_text_cached(text_font, value_text, font_size)
-
-    abbrev_pos = rl.Vector2(bubble_x + 8, y + (row_h - font_size) / 2)
-    value_pos = rl.Vector2(bubble_x + bubble_w - 8 - value_size.x, y + (row_h - font_size) / 2)
+    label_pos = rl.Vector2(content_left, y + (row_h - font_size) / 2)
+    value_pos = rl.Vector2(content_right - value_size.x, y + (row_h - font_size) / 2)
 
     text_color = rl.WHITE if is_active else rl.Color(255, 255, 255, 180)
 
     if is_active:
-      _draw_text_outlined(text_font, abbrev_text, abbrev_pos, font_size, text_color, rl.Color(0, 0, 0, 255))
+      _draw_text_outlined(text_font, label_text, label_pos, font_size, text_color, rl.Color(0, 0, 0, 255))
       _draw_text_outlined(text_font, value_text, value_pos, font_size, text_color, rl.Color(0, 0, 0, 255))
     else:
-      rl.draw_text_ex(text_font, abbrev_text, abbrev_pos, font_size, 0, text_color)
+      rl.draw_text_ex(text_font, label_text, label_pos, font_size, 0, text_color)
       rl.draw_text_ex(text_font, value_text, value_pos, font_size, 0, text_color)
 
     y += row_h + _BUBBLE_GAP
@@ -467,8 +493,7 @@ def _draw_sources_bubble(state: dict, anchor_rect: rl.Rectangle, sign_rect: rl.R
 # ── Public API ────────────────────────────────────────────────────────
 
 def render_speed_limit_at(state: dict, rect: rl.Rectangle, expanded: bool = False) -> Optional[rl.Rectangle]:
-  """Render SLC speed limit signs at a specific rect calculated by the layout manager.
-  Returns the pill rect for hit-testing, or None if no pill was drawn."""
+  """Render the SLC sign and optional source bubble at a layout rect."""
   flashing_pending = state['speed_limit_changed'] and state['unconfirmed_valid']
 
   if flashing_pending:
@@ -478,17 +503,16 @@ def render_speed_limit_at(state: dict, rect: rl.Rectangle, expanded: bool = Fals
   _draw_sign(state, rect, pending=False)
 
   use_vienna = state['use_vienna']
-  cx_center = rect.x + rect.width / 2
   sign_h = EU_SIGN_SIZE if use_vienna else US_SIGN_HEIGHT
-  bottom_y = rect.y + sign_h
-  
   visual_w = EU_SIGN_SIZE if use_vienna else rect.width - 2 * US_INSET
   visual_x = rect.x if use_vienna else rect.x + US_INSET
   visual_rect = rl.Rectangle(visual_x, rect.y, visual_w, sign_h)
 
-  pill_rect = _draw_active_source_label(state, cx_center, bottom_y, visual_w, expanded)
+  source = state.get('speed_limit_source')
+  if expanded and source and source != "None" and source != "":
+    source_y = visual_rect.y + (16 if use_vienna else 22)
+    source_h = FONT_LABEL - 4 if use_vienna else FONT_LABEL
+    source_anchor = rl.Rectangle(visual_rect.x, source_y, visual_rect.width, source_h)
+    _draw_sources_bubble(state, source_anchor, visual_rect)
 
-  if expanded and pill_rect:
-    _draw_sources_bubble(state, pill_rect, visual_rect)
-
-  return pill_rect
+  return visual_rect
