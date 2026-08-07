@@ -458,6 +458,12 @@ class LatControlTorque(LatControl):
       output_torque = self.torque_from_lateral_accel(output_lataccel, self.torque_params)
       if bolt_2022_2023_tuned_path_active:
         output_torque *= get_bolt_2022_2023_center_output_scale(setpoint, CS.vEgo)
+        low_speed_center_output_limit = get_bolt_2022_2023_low_speed_center_output_limit(setpoint, CS.vEgo)
+        output_torque = float(np.clip(
+          output_torque,
+          -low_speed_center_output_limit,
+          low_speed_center_output_limit,
+        ))
       elif self.is_bolt_2017:
         output_torque *= get_bolt_2017_torque_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif bolt_2018_2021_tuned_path_active:
@@ -479,7 +485,8 @@ class LatControlTorque(LatControl):
         output_torque *= get_ram_1500_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif self.is_kona_non_scc:
         output_torque *= get_kona_non_scc_center_taper_scale(setpoint, CS.vEgo)
-        if output_torque * setpoint > 0.0:
+        rapid_reversal = setpoint * desired_lateral_jerk < 0.0
+        if output_torque * setpoint > 0.0 or rapid_reversal:
           output_torque *= get_kona_non_scc_highway_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif rav4_prime_active:
         output_torque *= get_rav4_prime_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)

@@ -417,6 +417,13 @@ class ModelState:
       )
     outputs = [output.numpy().flatten() for output in output_tensors]
 
+    # USB GPU failures can produce NaNs/Infs instead of raising. Never publish
+    # one of those frames; the next frame can recover without affecting the
+    # native GPU/CPU model paths.
+    if self.uses_external_gpu and any(not np.isfinite(output).all() for output in outputs):
+      cloudlog.error("external GPU produced non-finite model output, dropping frame")
+      return None
+
     if self.model_type == "supercombo":
       model_output = outputs[0]
       parsed = self.parser.parse_outputs(self.slice_outputs(model_output, self.output_slices))
@@ -456,6 +463,7 @@ def main(demo=False):
   params.put_bool("UsbGpuPresent", usbgpu_present_now)
   params.put_bool("UsbGpuCompiled", external_artifact_ready)
   params.put_bool("UsbGpuActive", False)
+  params.put_bool("UsbGpuLoading", external_gpu_requested)
   if external_gpu_requested:
     from tinygrad.helpers import DEV
     device_config = tinygrad_dev_config(True, TICI)
@@ -502,6 +510,7 @@ def main(demo=False):
   external_gpu_active = model.uses_external_gpu
   params.put_bool("UsbGpuCompiled", external_model_selected and file_chunked_exists(external_artifact))
   params.put_bool("UsbGpuActive", external_gpu_active)
+  params.put_bool("UsbGpuLoading", False)
   cloudlog.warning(f"model loaded in {time.monotonic() - start_time:.1f}s, modeld starting")
 
   # messaging

@@ -49,6 +49,7 @@ def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
     "DEV": "QCOM", "IMAGE": "2", "NOLOCALS": "1", "OPENPILOT_HACKS": "1",
   })
   monkeypatch.setattr(model_compiler.subprocess, "run", lambda command, **kwargs: invocations.append((command, kwargs)))
+  monkeypatch.setattr(model_compiler, "wait_for_external_gpu", lambda _: None)
   files = {"driving_supercombo": tmp_path / "model.onnx"}
 
   model_compiler.compile_driving("normal", files, "supercombo", "v15", tmp_path, "policy")

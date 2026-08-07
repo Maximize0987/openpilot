@@ -50,6 +50,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_bolt_2017_torque_scale,
   get_bolt_2022_2023_ff_scale,
   get_bolt_2022_2023_center_output_scale,
+  get_bolt_2022_2023_low_speed_center_output_limit,
   get_bolt_2022_2023_friction_scale,
   get_bolt_2022_2023_friction_threshold,
   get_trailer_lateral_ff_scale,
@@ -269,6 +270,15 @@ class TestLatControl:
     assert 0.88 < highway_center < 0.91
     assert highway_turn > 0.99
     assert creep_center > 0.99
+
+  def test_bolt_2022_2023_low_speed_center_output_limit(self):
+    low_speed_center = get_bolt_2022_2023_low_speed_center_output_limit(0.05, 4.2)
+    low_speed_turn = get_bolt_2022_2023_low_speed_center_output_limit(0.40, 4.2)
+    normal_speed_center = get_bolt_2022_2023_low_speed_center_output_limit(0.05, 9.0)
+
+    assert 0.40 < low_speed_center < 0.50
+    assert low_speed_turn > 0.98
+    assert normal_speed_center > 0.98
 
   def test_bolt_2022_2023_friction_threshold_curve(self):
     base = get_gm_base_friction_threshold(6.0)

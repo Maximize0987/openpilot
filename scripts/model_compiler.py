@@ -8,6 +8,7 @@ import pickle
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,8 @@ MODEL_RUN_FREQ = 20
 MODEL_CONTEXT_FREQ = 5
 REPOSITORY_FILE_LIMIT = 100 * 1024 * 1024
 DEFAULT_MULTIPART_SIZE = 95 * 1024 * 1024
+USBGPU_PROBE_ATTEMPTS = 3
+USBGPU_PROBE_TIMEOUT = 10
 
 
 def build_compile_env() -> dict[str, str]:
@@ -60,6 +63,44 @@ def build_compile_env() -> dict[str, str]:
     except (TypeError, ValueError):
       env[key] = default
   return env
+
+
+def wait_for_external_gpu(compile_env: dict[str, str]) -> None:
+  """Wait for the USB GPU's PCIe link before starting the large model build.
+
+  The dock can enumerate on USB before its PCIe link has finished training.
+  OpenPilot probes the tinygrad device in a short-lived process and retries;
+  doing the same here avoids making the model compiler lose its one chance at
+  initialization while keeping all non-GPU builds unchanged.
+  """
+  probe = [sys.executable, "-c", "from tinygrad.device import Device; Device[Device.DEFAULT]"]
+  probe_env = {**compile_env, "DEV": "USB+AMD"}
+  diagnostics: list[str] = []
+
+  for attempt in range(USBGPU_PROBE_ATTEMPTS):
+    if attempt:
+      time.sleep(1)
+    try:
+      result = subprocess.run(
+        probe,
+        cwd=REPO_ROOT,
+        env=probe_env,
+        capture_output=True,
+        text=True,
+        timeout=USBGPU_PROBE_TIMEOUT,
+        check=False,
+      )
+    except subprocess.TimeoutExpired:
+      diagnostics.append(f"probe timed out after {USBGPU_PROBE_TIMEOUT}s")
+      continue
+
+    if result.returncode == 0:
+      return
+    detail = (result.stderr or result.stdout).strip()
+    diagnostics.append((detail[-2000:] if detail else f"probe exited with status {result.returncode}"))
+
+  detail = diagnostics[-1] if diagnostics else "unknown error"
+  raise RuntimeError(f"External GPU PCIe link was not ready after {USBGPU_PROBE_ATTEMPTS} probes: {detail}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -509,8 +550,10 @@ def compile_driving(
       "FLOAT16": "1",
       "JIT_BATCH_SIZE": "0",
       "GMMU": "0",
+      "TC_OPT": "2",
     })
     command.append("--out-of-band")
+    wait_for_external_gpu(compile_env)
   subprocess.run(command, cwd=REPO_ROOT, env=compile_env, check=True)
   return output_path
 

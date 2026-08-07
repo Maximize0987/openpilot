@@ -255,6 +255,13 @@ BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED = 4.0
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.5
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 14.0
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_MAX_WIDTH = 2.0
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LIMIT = 0.38
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT = 0.17
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT_WIDTH = 0.04
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED = 2.5
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_WIDTH = 0.7
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX = 7.2
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX_WIDTH = 0.5
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_BUMP = 0.035
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_LAT = 0.18
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.06
@@ -1701,6 +1708,25 @@ def get_bolt_2022_2023_center_output_scale(desired_lateral_accel: float, v_ego: 
   low_speed_reduction = (BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_MAX * low_speed_onset * low_speed_cutoff *
                          low_speed_center_weight)
   return 1.0 - min(highway_reduction + low_speed_reduction, 0.95)
+
+
+def get_bolt_2022_2023_low_speed_center_output_limit(desired_lateral_accel: float, v_ego: float) -> float:
+  """Limit small-signal output while the Bolt is in its low-speed chatter band."""
+  speed_onset = _bolt_2022_2023_sigmoid(
+    (v_ego - BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_WIDTH
+  )
+  speed_cutoff = _bolt_2022_2023_sigmoid(
+    (BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX - v_ego) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX_WIDTH
+  )
+  center_weight = _bolt_2022_2023_sigmoid(
+    (BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT - abs(desired_lateral_accel)) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT_WIDTH
+  )
+  speed_weight = speed_onset * speed_cutoff
+  reduction = (1.0 - BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LIMIT) * speed_weight * center_weight
+  return 1.0 - reduction
 
 
 def get_bolt_2022_2023_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0, desired_lateral_jerk: float = 0.0) -> float:

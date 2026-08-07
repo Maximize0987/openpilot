@@ -155,6 +155,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"UptimeOnroad", {PERSISTENT, FLOAT, "0.0"}},
     {"UsbGpuActive", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, BOOL}},
     {"UsbGpuCompiled", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, BOOL}},
+    {"UsbGpuLoading", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, BOOL}},
     {"UsbGpuPresent", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, BOOL}},
     {"Version", {PERSISTENT, STRING}},
 
@@ -481,6 +482,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OnroadDistanceButtonPressed", {CLEAR_ON_MANAGER_START, BOOL, "0", "0"}},
     {"FavoriteVirtualAccelCruiseCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"FavoriteVirtualDecelCruiseCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
+    {"FavoriteTrafficModeCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"WheelButtonBookmarkCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"openpilotMinutes", {PERSISTENT, INT, "0", "0", 0}},
     {"OverpassRequests", {PERSISTENT, JSON, "{}", "{}"}},

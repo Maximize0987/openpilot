@@ -92,6 +92,7 @@ class UIState:
     self.usbgpu: bool = False
     self.usbgpu_compiled: bool = self.params.get_bool("UsbGpuCompiled")
     self.usbgpu_active: bool = self.params.get_bool("UsbGpuActive")
+    self.usbgpu_loading: bool = self.params.get_bool("UsbGpuLoading")
     self._usbgpu_update_time: float = 0.0
     self._usbgpu_poll_thread: threading.Thread | None = None
     self.started: bool = False
@@ -230,6 +231,7 @@ class UIState:
     self._schedule_usbgpu_poll(now)
     self.usbgpu_compiled = params.get_bool("UsbGpuCompiled")
     self.usbgpu_active = params.get_bool("UsbGpuActive")
+    self.usbgpu_loading = params.get_bool("UsbGpuLoading")
     self.switchback_mode_enabled = self.params_memory.get_bool("SwitchbackModeEnabled") if self.started else False
     self.conditional_status = self.params_memory.get_int("CEStatus", default=0) if self.started else 0
     mark_progress("ui.update.after_state_params")
