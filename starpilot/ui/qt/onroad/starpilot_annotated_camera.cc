@@ -697,7 +697,7 @@ void StarPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p) {
 void StarPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent, QPointF *chevron, const cereal::RadarState::LeadData::Reader &lead_data) {
   float leadDistance = lead_data.getDRel() + (adjacent ? std::abs(lead_data.getYRel()) : 0.0f);
   float leadSpeed = std::max(lead_data.getVLead(), 0.0f);
-  float v_rel = lead_data.getVRel();
+  //float v_rel = lead_data.getVRel();
   
   QString distanceString = QString::number(qRound(leadDistance * distanceConversion));
   QString speedString = QString::number(qRound(leadSpeed * speedConversionMetrics));
