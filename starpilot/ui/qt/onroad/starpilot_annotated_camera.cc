@@ -179,7 +179,7 @@ void StarPilotAnnotatedCameraWidget::updateState(const UIState &s, const StarPil
     speedUnit = tr("mph"); // speedUnit = scene.is_metric ? tr("km/h") : tr("mph");
 
     distanceConversion = 1.0f;
-    speedConversion = scene.is_metric ? MS_TO_KPH : MS_TO_MPH;
+    speedConversion = MS_TO_MPH; //speedConversion = scene.is_metric ? MS_TO_KPH : MS_TO_MPH;
     speedConversionMetrics = MS_TO_MPH; // speedConversionMetrics = cachedUseSiMetrics ? 1.0f : MS_TO_KPH;
   } else {
     leadDistanceUnit = tr(" feet");
@@ -697,7 +697,8 @@ void StarPilotAnnotatedCameraWidget::paintLateralPaused(QPainter &p) {
 void StarPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent, QPointF *chevron, const cereal::RadarState::LeadData::Reader &lead_data) {
   float leadDistance = lead_data.getDRel() + (adjacent ? std::abs(lead_data.getYRel()) : 0.0f);
   float leadSpeed = std::max(lead_data.getVLead(), 0.0f);
-
+  float v_rel = lead_data.getVRel();
+  
   QString distanceString = QString::number(qRound(leadDistance * distanceConversion));
   QString speedString = QString::number(qRound(leadSpeed * speedConversionMetrics));
 
@@ -709,7 +710,7 @@ void StarPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
   } else {
     if (cachedOpenpilotLongitudinal) {
       int desiredDistance = std::max(0, qRound(desiredFollowDistance * distanceConversion));
-      textLines.append(QString("%1 %2 (%3)").arg(distanceString, leadDistanceUnit, tr("Desired: %1").arg(desiredDistance)));
+      textLines.append(QString("%1 %2 (%3)").arg(distanceString, leadDistanceUnit, tr("%1").arg(desiredDistance)));
     } else {
       textLines.append(QString("%1 %2").arg(distanceString, leadDistanceUnit));
     }
@@ -719,7 +720,7 @@ void StarPilotAnnotatedCameraWidget::paintLeadMetrics(QPainter &p, bool adjacent
     textLines.append(QString("%1 %2").arg(QString::number(timeGap, 'f', 2), tr("seconds")));
   }
 
-  p.setFont(InterFont(45, QFont::DemiBold));
+  p.setFont(InterFont(65, QFont::DemiBold));
   p.setPen(whiteColor());
 
   QFontMetrics metrics(p.font());
