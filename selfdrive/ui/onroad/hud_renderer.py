@@ -18,7 +18,7 @@ CRUISE_DISABLED_CHAR = '–'
 
 @dataclass(frozen=True)
 class UIConfig:
-  header_height: int = 300
+  header_height: int = 50
   border_size: int = 30
   button_size: int = 192
   set_speed_width_metric: int = 200
