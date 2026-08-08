@@ -20,7 +20,8 @@ class CarState(CarStateBase):
     cp = can_parsers[Bus.pt]
     cp_cam = can_parsers[Bus.cam]
     cp_alt = can_parsers[Bus.alt]
-    cp_angle = cp_cam if self.CP.flags & SubaruFlags.D_PLATFORM else cp
+    cp_main = can_parsers[Bus.main] if self.CP.flags & SubaruFlags.D_PLATFORM else cp
+    cp_angle = cp_main if self.CP.flags & SubaruFlags.D_PLATFORM else cp
     ret = structs.CarState()
 
     throttle_msg = cp.vl["Throttle"] if not (self.CP.flags & SubaruFlags.HYBRID) else cp_alt.vl["Throttle_Hybrid"]
@@ -55,7 +56,7 @@ class CarState(CarStateBase):
                                                                       cp.vl["Dashlights"]["RIGHT_BLINKER"])
 
     if self.CP.enableBsm:
-      cp_bsm = cp_cam if self.CP.flags & SubaruFlags.D_PLATFORM else cp
+      cp_bsm = cp_main if self.CP.flags & SubaruFlags.D_PLATFORM else cp
       ret.leftBlindspot = (cp_bsm.vl["BSD_RCTA"]["L_ADJACENT"] == 1) or (cp_bsm.vl["BSD_RCTA"]["L_APPROACHING"] == 1)
       ret.rightBlindspot = (cp_bsm.vl["BSD_RCTA"]["R_ADJACENT"] == 1) or (cp_bsm.vl["BSD_RCTA"]["R_APPROACHING"] == 1)
 
@@ -146,8 +147,11 @@ class CarState(CarStateBase):
 
   @staticmethod
   def get_can_parsers(CP):
-    return {
+    parsers = {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CanBus.main_for_cp(CP)),
       Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CanBus.camera),
       Bus.alt: CANParser(DBC[CP.carFingerprint][Bus.pt], [], CanBus.alt_for_cp(CP))
     }
+    if CP.flags & SubaruFlags.D_PLATFORM:
+      parsers[Bus.main] = CANParser(DBC[CP.carFingerprint][Bus.pt], [], CanBus.main)
+    return parsers

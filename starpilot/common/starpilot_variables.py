@@ -1208,13 +1208,13 @@ class StarPilotVariables:
     toggle.recovery_power = self.get_value("RecoveryPower", cast=float, condition=longitudinal_tuning, default=1.0, min=0.5, max=2.0)
     toggle.taco_tune = self.get_value("TacoTune", condition=longitudinal_tuning)
 
-    toggle.model = self.get_value("Model", cast=None, default="sc2")
+    toggle.model = self.get_value("Model", cast=None, default="rdf")
     if not toggle.model:
-      toggle.model = self.get_value("DrivingModel", cast=None, default="sc2")
-    toggle.model_name = self.get_value("DrivingModelName", cast=None, default="South Carolina")
-    toggle.model_version = self.get_value("ModelVersion", cast=None, default="v11")
+      toggle.model = self.get_value("DrivingModel", cast=None, default="rdf")
+    toggle.model_name = self.get_value("DrivingModelName", cast=None, default="Regret Driven Framework")
+    toggle.model_version = self.get_value("ModelVersion", cast=None, default="v15")
     if not toggle.model_version:
-      toggle.model_version = self.get_value("DrivingModelVersion", cast=None, default="v11")
+      toggle.model_version = self.get_value("DrivingModelVersion", cast=None, default="v15")
     if isinstance(toggle.model, bytes):
       toggle.model = toggle.model.decode("utf-8", "ignore")
     if isinstance(toggle.model_name, bytes):

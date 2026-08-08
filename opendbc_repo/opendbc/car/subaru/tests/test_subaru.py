@@ -131,27 +131,35 @@ def test_torque_platform_does_not_enable_angle_safety():
 def test_outback_2023_uses_d_platform_bus_layout():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_OUTBACK_2023)
   parsers = CarState.get_can_parsers(CP)
+  controller = CarController({}, CP)
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.camera
+  assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
+  assert parsers[Bus.main].bus == CanBus.main
+  assert controller.angle_bus == CanBus.main
+  assert controller.status_bus == CanBus.camera
 
 
 def test_legacy_2025_uses_d_platform_bus_layout():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
   parsers = CarState.get_can_parsers(CP)
+  controller = CarController({}, CP)
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.camera
+  assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
+  assert parsers[Bus.main].bus == CanBus.main
+  assert controller.angle_bus == CanBus.main
+  assert controller.status_bus == CanBus.camera
 
 
 def test_other_angle_platforms_keep_existing_bus_layout():

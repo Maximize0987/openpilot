@@ -32,6 +32,7 @@ HYUNDAI_CANFD_SCC_DECEL_STEP = 12.5 / 50.0
 IONIQ_6_RESPONSE_MULTIPLIER = 1.2
 IONIQ_6_CANFD_SCC_ACCEL_STEP = (6.0 / 50.0) * IONIQ_6_RESPONSE_MULTIPLIER
 IONIQ_6_CANFD_SCC_DECEL_STEP = (15.0 / 50.0) * IONIQ_6_RESPONSE_MULTIPLIER
+EV9_CANFD_SCC_DECEL_STEP = 10.0 / 50.0
 GENESIS_G90_STOP_HOLD_SPEED_BP = [0.0, 0.03, 0.08, 0.16, 0.3, 0.5, 0.8, 1.2, 2.0, 3.0]
 GENESIS_G90_STOP_HOLD_ACCEL_V = [-0.10, -0.10, -0.12, -0.18, -0.30, -0.50, -0.75, -1.00, -1.40, -1.80]
 GENESIS_G90_STOP_HOLD_RELAX_SPEED_BP = [0.0, 0.08, 0.16, 0.3, 0.5, 0.8, 1.2, 2.0, 3.0]
@@ -78,6 +79,10 @@ BLINDSPOT_WARNING_SOUND_SAMPLES = 36
 def egmp_dynamic_longitudinal_tuning(CP) -> bool:
   return CP.carFingerprint in (CAR.HYUNDAI_IONIQ_6, CAR.KIA_EV9, CAR.HYUNDAI_IONIQ_5_PE) or \
     kia_ev6_gt_line_longitudinal_tuning(CP.carFingerprint, getattr(CP, "carVin", ""))
+
+
+def get_canfd_scc_decel_step(CP) -> float:
+  return EV9_CANFD_SCC_DECEL_STEP if CP.carFingerprint == CAR.KIA_EV9 else IONIQ_6_CANFD_SCC_DECEL_STEP
 
 
 def should_reset_ev6_gt_line_longitudinal_tuning(CP, long_control_state: LongCtrlState) -> bool:
@@ -627,8 +632,9 @@ class CarController(CarControllerBase):
         accel = self._ioniq_6_long_tuning.actual_accel
         stopping = self._ioniq_6_long_tuning.stopping
       else:
+        decel_step = get_canfd_scc_decel_step(self.CP)
         accel = float(np.clip(accel_cmd,
-                              self.accel_last - IONIQ_6_CANFD_SCC_DECEL_STEP,
+                              self.accel_last - decel_step,
                               self.accel_last + IONIQ_6_CANFD_SCC_ACCEL_STEP))
         self._ioniq_6_long_tuning.desired_accel = accel_cmd
         self._ioniq_6_long_tuning.actual_accel = accel

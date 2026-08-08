@@ -967,6 +967,9 @@ class SafetyTest(SafetyTestBase):
               continue
             if attr.startswith('TestSubaruGen') and current_test.startswith('TestSubaruGen'):
               continue
+            if 'TestSubaruDPlatformAngleSafety' in {attr, current_test} and \
+                'Angle' in attr and 'Angle' in current_test:
+              continue
             if attr.startswith('TestSubaruPreglobal') and current_test.startswith('TestSubaruPreglobal'):
               continue
             if {attr, current_test}.issubset({'TestVolkswagenPqSafety', 'TestVolkswagenPqStockSafety', 'TestVolkswagenPqLongSafety'}):

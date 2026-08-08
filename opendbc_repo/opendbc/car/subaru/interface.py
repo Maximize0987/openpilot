@@ -29,7 +29,7 @@ class CarInterface(CarInterfaceBase):
       ret.enableBsm = 0x25c in fingerprint[0]
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.subaruPreglobal)]
     else:
-      bsm_bus = CanBus.camera if ret.flags & SubaruFlags.D_PLATFORM else CanBus.main
+      bsm_bus = CanBus.main
       ret.enableBsm = 0x228 in fingerprint[bsm_bus]
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.subaru)]
       if ret.flags & SubaruFlags.GLOBAL_GEN2:

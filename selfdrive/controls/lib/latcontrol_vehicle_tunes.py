@@ -821,6 +821,11 @@ CAMRY_CENTER_FRICTION_THRESHOLD_LAT = 0.22
 CAMRY_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.06
 CAMRY_CENTER_FRICTION_THRESHOLD_SPEED = 18.0
 CAMRY_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH = 3.0
+CAMRY_UNWIND_FF_REDUCTION = 0.08
+CAMRY_UNWIND_LAT_ONSET = 0.18
+CAMRY_UNWIND_LAT_WIDTH = 0.07
+CAMRY_UNWIND_SPEED_ONSET = 15.0
+CAMRY_UNWIND_SPEED_WIDTH = 3.0
 
 RAV4_PRIME_PHASE_SCALE = 0.12
 RAV4_PRIME_TURN_IN_FF_BOOST_LEFT = 0.055
@@ -1189,6 +1194,15 @@ def get_camry_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.
   gain = _flm_vehicle_knob("toyota_camry.center_friction_threshold_gain",
                            CAMRY_CENTER_FRICTION_THRESHOLD_GAIN)
   return get_standard_friction_threshold(v_ego) * (1.0 + gain * speed_weight * center_weight)
+
+
+def get_camry_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:
+  phase = math.tanh((desired_lateral_accel * desired_lateral_jerk) / 0.10)
+  unwind_weight = max(-phase, 0.0)
+  lat_weight = _sigmoid((abs(desired_lateral_accel) - CAMRY_UNWIND_LAT_ONSET) / CAMRY_UNWIND_LAT_WIDTH)
+  speed_weight = _sigmoid((v_ego - CAMRY_UNWIND_SPEED_ONSET) / CAMRY_UNWIND_SPEED_WIDTH)
+  reduction = _flm_vehicle_knob("toyota_camry.unwind_ff_reduction", CAMRY_UNWIND_FF_REDUCTION)
+  return 1.0 - reduction * unwind_weight * lat_weight * speed_weight
 
 
 def _rav4_prime_side_value(desired_lateral_accel: float, left_value: float, right_value: float) -> float:
@@ -3319,6 +3333,7 @@ FLM_SUPPORTED_VEHICLE_KNOBS = {
   "toyota_prius.unwind_threshold_increase_right": {"profile": "toyota_prius", "min": 0.0, "max": 0.90, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_UNWIND_THRESHOLD_INCREASE_RIGHT},
   "toyota_prius.center_friction_threshold_gain": {"profile": "toyota_prius", "min": 0.0, "max": 0.20, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_CENTER_FRICTION_THRESHOLD_GAIN},
   "toyota_camry.center_friction_threshold_gain": {"profile": "toyota_camry", "min": 0.0, "max": 0.15, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": CAMRY_CENTER_FRICTION_THRESHOLD_GAIN},
+  "toyota_camry.unwind_ff_reduction": {"profile": "toyota_camry", "min": 0.0, "max": 0.20, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": CAMRY_UNWIND_FF_REDUCTION},
 }
 
 

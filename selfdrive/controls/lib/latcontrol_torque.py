@@ -362,6 +362,7 @@ class LatControlTorque(LatControl):
         friction_scale = get_prius_friction_scale(CS.vEgo, setpoint, desired_lateral_jerk)
         friction_scale = 1.0 + ((friction_scale - 1.0) * prius_center_taper)
       elif camry_active:
+        ff *= get_camry_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
         friction_threshold = get_camry_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
       elif rav4_prime_active:
         ff *= get_rav4_prime_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)

@@ -81,6 +81,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_sienna_4th_gen_friction_threshold,
   get_sienna_4th_gen_high_speed_output_taper_scale,
   get_lexus_is_ff_scale,
+  get_camry_ff_scale,
   get_ioniq_5_ff_scale,
   get_ioniq_5_friction_scale,
   get_ioniq_5_friction_threshold,
@@ -1085,6 +1086,11 @@ class TestLatControl:
     assert turn_in_right > steady_left
     assert unwind_right < unwind_left < steady_left
     assert unwind_right < low_speed_unwind_right < 1.0
+
+  def test_camry_ff_scale_reduces_high_speed_unwind(self):
+    assert get_camry_ff_scale(0.6, 0.0, 22.0) == pytest.approx(1.0)
+    assert get_camry_ff_scale(0.6, -0.5, 22.0) < 1.0
+    assert get_camry_ff_scale(0.6, -0.5, 5.0) > get_camry_ff_scale(0.6, -0.5, 22.0)
 
   def test_volt_plexy_friction_threshold_curve(self):
     base = get_gm_base_friction_threshold(6.0)

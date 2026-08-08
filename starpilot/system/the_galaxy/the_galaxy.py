@@ -5363,14 +5363,14 @@ def setup(app):
 
   def _default_model_key():
     default_key = _param_text(params.get_default_value("Model") or params.get_default_value("DrivingModel"))
-    return canonical_model_key(default_key) or "sc2"
+    return canonical_model_key(default_key) or "rdf"
 
   def _default_model_name():
-    return _param_text(params.get_default_value("DrivingModelName")) or "South Carolina"
+    return _param_text(params.get_default_value("DrivingModelName")) or "Regret Driven Framework"
 
   def _default_model_version():
     default_version = _param_text(params.get_default_value("ModelVersion") or params.get_default_value("DrivingModelVersion"))
-    return default_version or "v11"
+    return default_version or "v15"
 
   def _current_model_key():
     current_model = _param_text(params.get("Model", encoding="utf-8") or params.get("DrivingModel", encoding="utf-8"))

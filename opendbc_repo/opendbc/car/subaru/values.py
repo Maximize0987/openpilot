@@ -113,7 +113,7 @@ class CanBus:
 
   @staticmethod
   def angle_for_cp(CP):
-    return CanBus.camera if CP.flags & SubaruFlags.D_PLATFORM else CanBus.main
+    return CanBus.main
 
 
 class Footnote(Enum):

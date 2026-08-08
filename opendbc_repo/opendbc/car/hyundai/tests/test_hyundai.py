@@ -13,6 +13,7 @@ from opendbc.car.hyundai.carcontroller import CarController, Ioniq6LongitudinalT
                                              reset_egmp_longitudinal_tuning, \
                                              update_ioniq_6_longitudinal_tuning, \
                                              update_genesis_g90_longitudinal_tuning, egmp_dynamic_longitudinal_tuning, \
+                                             get_canfd_scc_decel_step, \
                                              should_reset_ev6_gt_line_longitudinal_tuning, reset_ev6_gt_line_longitudinal_tuning, \
                                              direct_angle_request_allowed, get_angle_smoothing_alpha, \
                                              should_use_ev6_gt_line_stop_direct_tracking
@@ -1318,6 +1319,13 @@ class TestHyundaiFingerprint:
 
     ioniq_6_cp = CarInterface.get_params(CAR.HYUNDAI_IONIQ_6, gen_empty_fingerprint(), [], True, False, False, toggles)
     assert CarInterface.get_pid_accel_limits(ioniq_6_cp, 0.0, 0.0)[1] == pytest.approx(CarControllerParams.ACCEL_MAX)
+
+  def test_ev9_uses_softer_direct_brake_handoff_than_ioniq_6(self):
+    ev9_cp = SimpleNamespace(carFingerprint=CAR.KIA_EV9)
+    ioniq_6_cp = SimpleNamespace(carFingerprint=CAR.HYUNDAI_IONIQ_6)
+
+    assert get_canfd_scc_decel_step(ev9_cp) == pytest.approx(0.20)
+    assert get_canfd_scc_decel_step(ioniq_6_cp) == pytest.approx(0.36)
 
   def test_ioniq_5_pe_longitudinal_params_match_observed_response(self):
     toggles = get_test_toggles()
