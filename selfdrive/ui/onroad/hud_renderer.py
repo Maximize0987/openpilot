@@ -9,6 +9,9 @@ from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import draw_text_with_shadow, measure_text_cached
 from openpilot.system.ui.widgets import Widget
+from openpilot.selfdrive.ui.onroad.starpilot.widget_style import (
+  CONTROL_WIDTH, SET_SPEED_HEIGHT, WIDGET_ANCHOR_OFFSET, draw_control_card,
+)
 
 # Constants
 SET_SPEED_NA = 255
@@ -21,9 +24,9 @@ class UIConfig:
   header_height: int = 50
   border_size: int = 30
   button_size: int = 192
-  set_speed_width_metric: int = 200
-  set_speed_width_imperial: int = 172
-  set_speed_height: int = 204
+  set_speed_width_metric: int = CONTROL_WIDTH
+  set_speed_width_imperial: int = CONTROL_WIDTH
+  set_speed_height: int = SET_SPEED_HEIGHT
   wheel_icon_size: int = 144
 
 
@@ -153,12 +156,11 @@ class HudRenderer(Widget):
   def _draw_set_speed(self, rect: rl.Rectangle) -> None:
     """Draw the MAX speed indicator box."""
     set_speed_width = UI_CONFIG.set_speed_width_metric if ui_state.is_metric else UI_CONFIG.set_speed_width_imperial
-    x = rect.x + 60 + (UI_CONFIG.set_speed_width_imperial - set_speed_width) // 2
+    x = rect.x + WIDGET_ANCHOR_OFFSET - set_speed_width / 2
     y = rect.y + 45
 
     set_speed_rect = rl.Rectangle(x, y, set_speed_width, UI_CONFIG.set_speed_height)
-    rl.draw_rectangle_rounded(set_speed_rect, 0.35, 10, COLORS.BLACK_TRANSLUCENT)
-    rl.draw_rectangle_rounded_lines_ex(set_speed_rect, 0.35, 10, 6, COLORS.BORDER_TRANSLUCENT)
+    draw_control_card(set_speed_rect)
 
     max_color = COLORS.GREY
     set_speed_color = COLORS.DARK_GREY

@@ -3,6 +3,7 @@ from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.selfdrive.ui.onroad.starpilot.widgets.base import LayoutWidget
 from openpilot.selfdrive.ui.onroad.starpilot.aethergauge import AetherGauge, _fade
+from openpilot.selfdrive.ui.onroad.starpilot.widget_style import CONTROL_WIDTH
 
 class AetherGaugeWidget(LayoutWidget):
   def __init__(self, hud_renderer):
@@ -18,8 +19,8 @@ class AetherGaugeWidget(LayoutWidget):
     return self._aethergauge.has_active_source()
 
   def get_size(self) -> tuple[float, float]:
-    # Width 172 aligns with SetSpeedWidget; height 260 covers the road visual and text cradle
-    return 172.0, 260.0
+    # Match the left control width; height covers the road visual and text cradle.
+    return float(CONTROL_WIDTH), 260.0
 
   def _render(self, rect: rl.Rectangle) -> None:
     target = 1.0 if self._aethergauge.has_active_source() else 0.0

@@ -4,10 +4,9 @@ from openpilot.common.params import Params
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.selfdrive.ui.onroad.starpilot.widgets.base import LayoutWidget
 from openpilot.selfdrive.ui.onroad.starpilot.slc_speed_limit import (
-  _get_slc_state, render_speed_limit_at, SIGN_MARGIN,
-  EU_SIGN_SIZE, US_SIGN_HEIGHT,
-  SET_SPEED_WIDTH_MET, SET_SPEED_WIDTH_IMP
+  _get_slc_state, render_speed_limit_at, EU_SIGN_SIZE,
 )
+from openpilot.selfdrive.ui.onroad.starpilot.widget_style import CONTROL_WIDTH, SLC_HEIGHT
 
 
 class SpeedLimitWidget(LayoutWidget):
@@ -42,11 +41,8 @@ class SpeedLimitWidget(LayoutWidget):
       return 0.0, 0.0
 
     use_vienna = self._slc_state['use_vienna']
-    ss_width = SET_SPEED_WIDTH_MET if ui_state.is_metric else SET_SPEED_WIDTH_IMP
-    sign_width = ss_width - 2 * SIGN_MARGIN
-
-    w = float(EU_SIGN_SIZE if use_vienna else sign_width)
-    h = float(EU_SIGN_SIZE if use_vienna else US_SIGN_HEIGHT)
+    w = float(EU_SIGN_SIZE if use_vienna else CONTROL_WIDTH)
+    h = float(EU_SIGN_SIZE if use_vienna else SLC_HEIGHT)
 
     return w, h
 
