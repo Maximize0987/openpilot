@@ -7,10 +7,12 @@ import pyray as rl
 # here prevents the Set Speed and SLC implementations from drifting apart.
 CONTROL_WIDTH = 176
 SET_SPEED_HEIGHT = 196
-SLC_HEIGHT = 216
-CONTROL_RADIUS = 16
-CONTROL_SEGMENTS = 16
-CONTROL_BORDER_WIDTH = 3
+SLC_HEIGHT = SET_SPEED_HEIGHT
+# Stable Raylib shape settings for scaled rendering.
+CONTROL_RADIUS = 31
+CONTROL_ROUNDNESS = 0.35
+CONTROL_SEGMENTS = 10
+CONTROL_BORDER_WIDTH = 6
 CONTROL_BG = rl.Color(0, 0, 0, 166)
 CONTROL_BORDER = rl.Color(196, 205, 208, 180)
 # The layout manager has historically anchored the left controls at x + 146.
@@ -27,6 +29,6 @@ def draw_control_card(rect: rl.Rectangle, *, fill: rl.Color = CONTROL_BG,
                       border: rl.Color = CONTROL_BORDER,
                       border_width: float = CONTROL_BORDER_WIDTH) -> None:
   """Draw the common translucent rounded card used by left-hand controls."""
-  roundness = roundness_for(rect)
+  roundness = CONTROL_ROUNDNESS
   rl.draw_rectangle_rounded(rect, roundness, CONTROL_SEGMENTS, fill)
   rl.draw_rectangle_rounded_lines_ex(rect, roundness, CONTROL_SEGMENTS, border_width, border)
