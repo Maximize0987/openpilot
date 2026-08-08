@@ -792,7 +792,14 @@ class CarController(CarControllerBase):
                                                              steering_msg_active, apply_torque, apply_angle,
                                                              CS.stock_lfa_msg,
                                                              CS.stock_lkas_msg if preserve_stock_lkas else None,
-                                                             lka_icon=lka_icon))
+                                                             lka_icon=lka_icon,
+                                                             send_lfa_status=self.ecu_disable_failed and
+                                                             self.CP.carFingerprint == CAR.KIA_EV9))
+    elif self.ecu_disable_failed and self.CP.carFingerprint == CAR.KIA_EV9:
+      can_sends.extend(hyundaicanfd.create_steering_messages(
+        self.packer, self.CP, self.CAN, CC.enabled, False, 0.0, 0.0,
+        CS.stock_lfa_msg, lka_icon=lka_icon, send_lfa_status=True, lfa_only=True,
+      ))
     direct_steering_active = ccnc_angle_long and drive_gear and CC.latActive and self.direct_angle_request_allowed and not CS.angle_steering_fault
     inactive_steering_angle = float(np.clip(CS.angle_steering_angle,
                                             -self.params.ANGLE_LIMITS.STEER_ANGLE_MAX,

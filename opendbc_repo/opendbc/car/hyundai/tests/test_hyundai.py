@@ -2185,6 +2185,43 @@ class TestHyundaiFingerprint:
       ("LKAS", can_bus.ACAN),
     ]
 
+  def test_ev9_fallback_keeps_lfa_status_without_longitudinal_control(self):
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.KIA_EV9
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CCNC |
+                   HyundaiFlags.CANFD_ANGLE_STEERING | HyundaiFlags.CANFD_LKA_STEERING |
+                   HyundaiFlags.CANFD_LKA_STEERING_ALT)
+    CP.openpilotLongitudinalControl = False
+
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    can_bus = CanBus(CP)
+    msgs = hyundaicanfd.create_steering_messages(
+      packer, CP, can_bus, True, True, 0.44, -31.5, send_lfa_status=True,
+    )
+
+    assert [(packer.dbc.addr_to_msg[addr].name, bus) for addr, _, bus in msgs] == [
+      ("LFA", can_bus.ECAN),
+      ("LKAS_ALT", can_bus.ACAN),
+    ]
+
+  def test_ev9_fallback_lfa_only_does_not_send_lkas_at_standstill(self):
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.KIA_EV9
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CCNC |
+                   HyundaiFlags.CANFD_ANGLE_STEERING | HyundaiFlags.CANFD_LKA_STEERING |
+                   HyundaiFlags.CANFD_LKA_STEERING_ALT)
+    CP.openpilotLongitudinalControl = False
+
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    can_bus = CanBus(CP)
+    msgs = hyundaicanfd.create_steering_messages(
+      packer, CP, can_bus, True, False, 0.0, 0.0, send_lfa_status=True, lfa_only=True,
+    )
+
+    assert [(packer.dbc.addr_to_msg[addr].name, bus) for addr, _, bus in msgs] == [
+      ("LFA", can_bus.ECAN),
+    ]
+
   def test_kia_ev6_lkas_helper_preserves_stock_camera_fields_with_stock_long(self):
     CP = CarParams.new_message()
     CP.carFingerprint = CAR.KIA_EV6

@@ -20,6 +20,7 @@ from openpilot.selfdrive.controls.lib.lead_follow_policy import apply as apply_f
 from openpilot.selfdrive.controls.lib.lead_follow_policy import is_nonurgent_duplicate_vision_follow
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_far_follow_output_slew_rates,
+  is_gm_silverado_early_follow_lead,
   get_toyota_sienna_post_departure_restop_cap,
   get_untracked_slow_lead_decel_scale,
 )
@@ -55,6 +56,7 @@ ALLOW_THROTTLE_ENABLE_THRESHOLD = ALLOW_THROTTLE_THRESHOLD + ALLOW_THROTTLE_HYST
 ALLOW_THROTTLE_DISABLE_THRESHOLD = ALLOW_THROTTLE_THRESHOLD - ALLOW_THROTTLE_HYSTERESIS
 ALLOW_THROTTLE_TRANSITION_CONFIRM_TIME = 0.25
 MIN_ALLOW_THROTTLE_SPEED = 5.0
+FORCE_DECEL_MIN_ACCEL = -0.05
 MODEL_LAUNCH_DISARM_SPEED = 2.0
 MODEL_LAUNCH_COMMIT_TIME = 3.5
 MODEL_LAUNCH_MOVING_SPEED = 1.2
@@ -62,6 +64,8 @@ MODEL_LAUNCH_MAX_ACCEL = 1.5
 RAW_LEAD_SAFETY_MIN_CLOSING_SPEED = 0.5
 RAW_LEAD_SAFETY_TTC = 7.0
 RAW_LEAD_SAFETY_DISTANCE = 40.0
+RAW_RADAR_STOPPED_LEAD_MAX_SPEED = 1.0
+RAW_RADAR_STOPPED_LEAD_MAX_DISTANCE = 120.0
 RAW_LEAD_LOW_SPEED_HOLD_MAX_EGO_SPEED = 4.5
 RAW_LEAD_LOW_SPEED_HOLD_MAX_LEAD_SPEED = 3.5
 RAW_LEAD_LOW_SPEED_HOLD_MAX_DISTANCE = 10.0
@@ -83,7 +87,7 @@ LEAD_DEPART_RELEASE_HOLD_TIME = 1.5
 LEAD_DEPART_RELEASE_HOLD_CONFIRM_TIME = 0.15
 STANDSTILL_STOPPED_LEAD_GUARD_MAX_EGO_SPEED = 0.5
 STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_SPEED = 0.45
-STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_DELTA = 0.35
+STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_DELTA = 0.50
 STANDSTILL_STOPPED_LEAD_GUARD_MIN_MODEL_PROB = 0.95
 STANDSTILL_STOPPED_LEAD_GUARD_MAX_LATERAL_OFFSET = 1.75
 STANDSTILL_STOPPED_LEAD_GUARD_MIN_DISTANCE = 3.0
@@ -1811,6 +1815,11 @@ class LongitudinalPlanner:
       return False
 
     dynamic_distance = max(RAW_LEAD_SAFETY_DISTANCE, 3.0 * float(v_ego))
+    if bool(getattr(lead, "radar", False)) and lead_speed <= RAW_RADAR_STOPPED_LEAD_MAX_SPEED:
+      dynamic_distance = max(
+        dynamic_distance,
+        min(RAW_RADAR_STOPPED_LEAD_MAX_DISTANCE, 5.0 * float(v_ego)),
+      )
     ttc = d_rel / max(closing_speed, 0.1) if closing_speed > 0.1 else float("inf")
     return d_rel < dynamic_distance and (ttc < RAW_LEAD_SAFETY_TTC or lead_braking)
 
@@ -1961,9 +1970,13 @@ class LongitudinalPlanner:
     self.lead_one = sm['radarState'].leadOne
     self.lead_two = sm['radarState'].leadTwo
     raw_close_lead_control = any(self.raw_close_lead_needs_control(lead, scene_v_ego) for lead in (self.lead_one, self.lead_two))
+    early_truck_follow = (
+      not experimental_mode and
+      any(is_gm_silverado_early_follow_lead(self.CP, lead, scene_v_ego) for lead in (self.lead_one, self.lead_two))
+    )
     # StarPilot trackingLead is debounce/model-length based. Keep a raw close-lead
     # safety path so ACC/chill does not ignore a visible lead during that debounce.
-    lead_control_active = tracking_lead or raw_close_lead_control
+    lead_control_active = tracking_lead or raw_close_lead_control or early_truck_follow
     lead_one_active = bool(self.lead_one.status and lead_control_active)
     effective_t_follow = self.get_dynamic_t_follow(sm['starpilotPlan'].tFollow, self.lead_one if lead_one_active else None, v_ego)
 
@@ -2819,6 +2832,12 @@ class LongitudinalPlanner:
     if lc_merge_floor is not None:
       output_a_target = float(min(max(output_a_target, lc_merge_floor), output_accel_max))
       self.a_desired = max(self.a_desired, min(lc_merge_floor, output_accel_max))
+
+    # Force-decel is the driver-monitoring no-response path. Keep a small
+    # braking floor until the vehicle is actually stopped; normal MPC tapering
+    # can otherwise leave it creeping indefinitely at the maneuver-test cutoff.
+    if force_slow_decel and scene_v_ego > 0.1:
+      output_a_target = min(output_a_target, FORCE_DECEL_MIN_ACCEL)
 
     self.output_a_target = output_a_target
     self.output_should_stop = bool(output_should_stop or vision_low_speed_stop_active)

@@ -86,10 +86,24 @@ class TestSubaruFingerprint:
     assert exact
     assert matches == {CAR.SUBARU_OUTBACK_2023}
 
+  def test_legacy_2025_firmware(self):
+    legacy_fw = FW_VERSIONS[CAR.SUBARU_LEGACY_2025]
+    car_fw = [
+      CarParams.CarFw(ecu=CarParams.Ecu.abs, fwVersion=b'\xa1 $\x11\x00', address=0x7b0, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.eps, fwVersion=b'[\xc0\xd1\x10\x00', address=0x746, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\x1a!\x08\x00C\x0e!\x08\x018', address=0x787, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.engine, fwVersion=b'\x08,\xa0p\x07', address=0x7a2, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.transmission, fwVersion=b'\xeb\x17U!r', address=0x7a3, brand="subaru"),
+    ]
+    exact, matches = match_fw_to_car(car_fw, "4S3BWGG67S3011945", allow_fuzzy=False, log=False)
+    assert exact
+    assert matches == {CAR.SUBARU_LEGACY_2025}
+
 
 ANGLE_PLATFORMS = (
   CAR.SUBARU_FORESTER_2022,
   CAR.SUBARU_OUTBACK_2023,
+  CAR.SUBARU_LEGACY_2025,
   CAR.SUBARU_ASCENT_2023,
   CAR.SUBARU_CROSSTREK_2025,
 )
@@ -116,6 +130,19 @@ def test_torque_platform_does_not_enable_angle_safety():
 
 def test_outback_2023_uses_d_platform_bus_layout():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_OUTBACK_2023)
+  parsers = CarState.get_can_parsers(CP)
+
+  assert CP.flags & SubaruFlags.D_PLATFORM
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
+  assert CanBus.main_for_cp(CP) == CanBus.alt
+  assert CanBus.angle_for_cp(CP) == CanBus.camera
+  assert parsers[Bus.pt].bus == CanBus.alt
+  assert parsers[Bus.cam].bus == CanBus.camera
+  assert parsers[Bus.alt].bus == CanBus.alt
+
+
+def test_legacy_2025_uses_d_platform_bus_layout():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
   parsers = CarState.get_can_parsers(CP)
 
   assert CP.flags & SubaruFlags.D_PLATFORM

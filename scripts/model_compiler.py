@@ -73,7 +73,7 @@ def wait_for_external_gpu(compile_env: dict[str, str]) -> None:
   doing the same here avoids making the model compiler lose its one chance at
   initialization while keeping all non-GPU builds unchanged.
   """
-  probe = [sys.executable, "-c", "from tinygrad.device import Device; Device[Device.DEFAULT]"]
+  probe = [sys.executable, "-c", "from tinygrad.device import Device; Device[Device.DEFAULT]; import os; os._exit(0)"]
   probe_env = {**compile_env, "DEV": "USB+AMD"}
   diagnostics: list[str] = []
 
@@ -90,8 +90,14 @@ def wait_for_external_gpu(compile_env: dict[str, str]) -> None:
         timeout=USBGPU_PROBE_TIMEOUT,
         check=False,
       )
-    except subprocess.TimeoutExpired:
-      diagnostics.append(f"probe timed out after {USBGPU_PROBE_TIMEOUT}s")
+    except subprocess.TimeoutExpired as exc:
+      partial = exc.stderr or exc.stdout or ""
+      if isinstance(partial, bytes):
+        partial = partial.decode(errors="replace")
+      partial = partial.strip()
+      diagnostics.append(
+        f"probe timed out after {USBGPU_PROBE_TIMEOUT}s" + (f": {partial[-2000:]}" if partial else "")
+      )
       continue
 
     if result.returncode == 0:

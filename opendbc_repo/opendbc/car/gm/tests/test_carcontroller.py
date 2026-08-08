@@ -871,9 +871,9 @@ def test_shape_truck_positive_accel_keeps_more_highway_follow_authority():
 
 
 def test_smooth_truck_follow_accel_slews_small_highway_commands():
-  shaped = smooth_truck_follow_accel(0.20, -0.20, 30.0, True, True, False)
+  shaped = smooth_truck_follow_accel(0.50, 0.0, 30.0, True, True, False)
 
-  assert shaped == pytest.approx(-0.14)
+  assert shaped == pytest.approx(0.06)
 
 
 def test_smooth_truck_follow_accel_does_not_delay_safety_requests():

@@ -32,6 +32,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
   get_ram_1500_transition_output_scale,
+  get_ram_1500_ff_scale,
   get_subaru_impreza_pid_output_scale,
   normalize_flm_overrides,
   set_flm_runtime_overrides,
@@ -838,6 +839,12 @@ class TestLatControl:
     medium_transition = get_ram_1500_transition_output_scale(1.2, -1.1, 17.0)
     assert 0.6 < center_transition < medium_transition < 1.0
     assert get_ram_1500_transition_output_scale(1.85, 2.5, 17.0) == pytest.approx(1.0)
+
+  def test_ram_1500_phase_feedforward_curve(self):
+    assert get_ram_1500_ff_scale(0.0, 1.0, 15.0) == pytest.approx(1.0)
+    assert get_ram_1500_ff_scale(1.2, 1.1, 17.0) > 1.0
+    assert get_ram_1500_ff_scale(1.2, -1.1, 17.0) < 1.0
+    assert get_ram_1500_ff_scale(1.2, 1.1, 6.0) < get_ram_1500_ff_scale(1.2, 1.1, 17.0)
 
   def test_ram_1500_transition_taper_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(CHRYSLER.RAM_1500_5TH_GEN)

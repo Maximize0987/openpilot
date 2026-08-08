@@ -262,7 +262,7 @@ BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED = 2.5
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_WIDTH = 0.7
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX = 7.2
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX_WIDTH = 0.5
-BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_BUMP = 0.035
+BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_BUMP = 0.050
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_LAT = 0.18
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.06
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_SPEED = 6.7
@@ -895,6 +895,13 @@ RAM_1500_TRANSITION_JERK_ONSET = 0.35
 RAM_1500_TRANSITION_JERK_FULL = 1.10
 RAM_1500_TRANSITION_LAT_FADE_START = 0.65
 RAM_1500_TRANSITION_LAT_FADE_END = 1.85
+RAM_1500_PHASE_SCALE = 0.12
+RAM_1500_PHASE_SPEED_ONSET = 8.0
+RAM_1500_PHASE_SPEED_FULL = 15.0
+RAM_1500_PHASE_LAT_ONSET = 0.25
+RAM_1500_PHASE_LAT_WIDTH = 0.12
+RAM_1500_TURN_IN_FF_BOOST = 0.06
+RAM_1500_UNWIND_FF_REDUCTION = 0.10
 
 # The Kona route is exceptionally accurate below highway speed, but Pop V2
 # reverses the requested lateral acceleration roughly once per second at
@@ -1336,6 +1343,16 @@ def get_ram_1500_transition_output_scale(desired_lateral_accel: float, desired_l
   lat_weight = 1.0 - float(np.interp(abs(desired_lateral_accel),
                                      [RAM_1500_TRANSITION_LAT_FADE_START, RAM_1500_TRANSITION_LAT_FADE_END], [0.0, 1.0]))
   return 1.0 - (RAM_1500_TRANSITION_TAPER_MAX * speed_weight * jerk_weight * lat_weight)
+
+
+def get_ram_1500_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:
+  phase = math.tanh((desired_lateral_accel * desired_lateral_jerk) / RAM_1500_PHASE_SCALE)
+  turn_in_weight = max(phase, 0.0)
+  unwind_weight = max(-phase, 0.0)
+  speed_weight = float(np.interp(v_ego, [RAM_1500_PHASE_SPEED_ONSET, RAM_1500_PHASE_SPEED_FULL], [0.0, 1.0]))
+  lat_weight = _sigmoid((abs(desired_lateral_accel) - RAM_1500_PHASE_LAT_ONSET) / RAM_1500_PHASE_LAT_WIDTH)
+  return 1.0 + ((RAM_1500_TURN_IN_FF_BOOST * turn_in_weight -
+                 RAM_1500_UNWIND_FF_REDUCTION * unwind_weight) * speed_weight * lat_weight)
 
 
 def get_kona_non_scc_highway_transition_output_scale(desired_lateral_accel: float, desired_lateral_jerk: float,

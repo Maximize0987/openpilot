@@ -69,7 +69,8 @@ TRUCK_LONG_SMOOTH_CARS = {
 TRUCK_FRICTION_BRAKE_ENGAGE = 40
 TRUCK_FRICTION_BRAKE_RELEASE = 8
 TRUCK_FRICTION_BRAKE_IMMEDIATE_ACCEL = -0.85
-TRUCK_FOLLOW_MICRO_ACCEL_MAX = 0.30
+TRUCK_FOLLOW_MICRO_ACCEL_MAX = 0.55
+TRUCK_FOLLOW_MICRO_ACCEL_MIN = -0.10
 TRUCK_FOLLOW_MICRO_ACCEL_SLEW = 1.5
 ACC_DASHBOARD_ZERO_RESERVED_CARS = {
   CAR.CHEVROLET_BLAZER,
@@ -238,8 +239,8 @@ def smooth_truck_follow_accel(accel: float, previous_accel: float, v_ego: float,
                               enabled: bool, lead_visible: bool, stopping: bool) -> float:
   if (
     not enabled or not lead_visible or stopping or v_ego < 25.0 or
-    abs(accel) > TRUCK_FOLLOW_MICRO_ACCEL_MAX or accel <= TRUCK_FRICTION_BRAKE_IMMEDIATE_ACCEL or
-    abs(previous_accel) > TRUCK_FOLLOW_MICRO_ACCEL_MAX or previous_accel <= TRUCK_FRICTION_BRAKE_IMMEDIATE_ACCEL
+    accel > TRUCK_FOLLOW_MICRO_ACCEL_MAX or accel < TRUCK_FOLLOW_MICRO_ACCEL_MIN or
+    previous_accel > TRUCK_FOLLOW_MICRO_ACCEL_MAX or previous_accel < TRUCK_FOLLOW_MICRO_ACCEL_MIN
   ):
     return accel
 

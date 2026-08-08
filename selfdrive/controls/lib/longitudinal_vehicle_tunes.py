@@ -4,6 +4,10 @@ import numpy as np
 HONDA_HRV_3G_FAR_FOLLOW_BRAKE_SLEW_RATE = 3.0
 HONDA_HRV_3G_FAR_FOLLOW_RELEASE_SLEW_RATE = 2.0
 HONDA_HRV_3G_UNTRACKED_SLOW_LEAD_DECEL_SCALE = 1.35
+GM_SILVERADO_EARLY_FOLLOW_MIN_EGO_SPEED = 18.0
+GM_SILVERADO_EARLY_FOLLOW_MAX_DISTANCE = 130.0
+GM_SILVERADO_EARLY_FOLLOW_MIN_MODEL_PROB = 0.85
+GM_SILVERADO_EARLY_FOLLOW_MAX_LATERAL_OFFSET = 1.2
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_EGO_SPEED = 2.0
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_LEAD_SPEED = 0.45
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_LEAD_DELTA = 0.35
@@ -27,6 +31,20 @@ def get_untracked_slow_lead_decel_scale(CP):
   if CP.brand == "honda" and str(CP.carFingerprint) == "HONDA_HRV_3G":
     return HONDA_HRV_3G_UNTRACKED_SLOW_LEAD_DECEL_SCALE
   return 1.0
+
+
+def is_gm_silverado_early_follow_lead(CP, lead, v_ego):
+  """Admit a credible centered vision lead before it becomes a close lead."""
+  if (
+    CP.brand != "gm" or str(CP.carFingerprint) not in ("CHEVROLET_SILVERADO", "CHEVROLET_SILVERADO_CC") or
+    lead is None or not bool(getattr(lead, "status", False)) or bool(getattr(lead, "radar", False)) or
+    float(v_ego) < GM_SILVERADO_EARLY_FOLLOW_MIN_EGO_SPEED or
+    float(getattr(lead, "dRel", float("inf"))) > GM_SILVERADO_EARLY_FOLLOW_MAX_DISTANCE or
+    float(getattr(lead, "modelProb", 0.0)) < GM_SILVERADO_EARLY_FOLLOW_MIN_MODEL_PROB or
+    abs(float(getattr(lead, "yRel", 0.0))) > GM_SILVERADO_EARLY_FOLLOW_MAX_LATERAL_OFFSET
+  ):
+    return False
+  return True
 
 
 def get_toyota_sienna_post_departure_restop_cap(CP, lead, v_ego, accel_min,

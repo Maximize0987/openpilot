@@ -594,4 +594,21 @@ FW_VERSIONS = {
       b'\xa9\x17w!r',
     ],
   },
+  CAR.SUBARU_LEGACY_2025: {
+    (Ecu.abs, 0x7b0, None): [
+      b'\xa1 $\x11\x00',
+    ],
+    (Ecu.eps, 0x746, None): [
+      b'[\xc0\xd1\x10\x00',
+    ],
+    (Ecu.fwdCamera, 0x787, None): [
+      b'\x1a!\x08\x00C\x0e!\x08\x018',
+    ],
+    (Ecu.engine, 0x7a2, None): [
+      b'\x08,\xa0p\x07',
+    ],
+    (Ecu.transmission, 0x7a3, None): [
+      b'\xeb\x17U!r',
+    ],
+  },
 }

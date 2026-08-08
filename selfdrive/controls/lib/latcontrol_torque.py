@@ -280,6 +280,8 @@ class LatControlTorque(LatControl):
         ff_scale = np.interp(ff, [-FF_SCALE_BLEND_LAT_ACCEL, 0.0, FF_SCALE_BLEND_LAT_ACCEL],
                              [self.torque_ff_scale_neg, 1.0, self.torque_ff_scale_pos])
       ff *= ff_scale
+      if self.is_ram_1500:
+        ff *= get_ram_1500_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       trailer_load_kg = float(max(getattr(starpilot_toggles, "trailer_load_kg", 0.0) or 0.0, 0.0))
       bolt_2022_2023_tuned_path_active = self.is_bolt_2022_2023
       bolt_2018_2021_tuned_path_active = self.is_bolt_2018_2021
