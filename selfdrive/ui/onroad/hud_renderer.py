@@ -49,7 +49,7 @@ class Colors:
   BLACK_TRANSLUCENT = rl.Color(0, 0, 0, 166)
   WHITE_TRANSLUCENT = rl.Color(255, 255, 255, 200)
   BORDER_TRANSLUCENT = rl.Color(255, 255, 255, 75)
-  EDGE_GRADIENT_START = rl.Color(0, 0, 0, 114)
+  EDGE_GRADIENT_START = rl.Color(0, 0, 0, 50)
   EDGE_GRADIENT_END = rl.BLANK
 
 
