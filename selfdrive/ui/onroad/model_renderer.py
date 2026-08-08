@@ -549,15 +549,17 @@ class ModelRenderer(Widget):
         plan = ui_state.sm["starpilotPlan"]
         desired_follow_distance = float(plan.desiredFollowDistance) if plan and plan.desiredFollowDistance > 0 else 0.0
         desired_distance = max(0, round(desired_follow_distance * distance_conversion))
-        text_lines.append(f"{distance_string} {lead_distance_unit} ({desired_distance})")
+        v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
+        time_gap = lead_distance / max(v_ego, 1.0)
+        text_lines.append(f"{distance_string} {lead_distance_unit} ({desired_distance}) {speed_string} {lead_speed_unit} {time_gap:.2f} s")
       else:
-        text_lines.append(f"{distance_string} {lead_distance_unit}")
+        text_lines.append(f"{distance_string} {lead_distance_unit} {speed_string} {lead_speed_unit} {time_gap:.2f} s")
       
-      text_lines.append(f"{speed_string}{lead_speed_unit}")
+      #text_lines.append(f"{speed_string}{lead_speed_unit}")
 
-      v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
-      time_gap = lead_distance / max(v_ego, 1.0)
-      text_lines.append(f"{time_gap:.2f} s")
+      #v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
+      #time_gap = lead_distance / max(v_ego, 1.0)
+      #text_lines.append(f"{time_gap:.2f} s")
 
     from openpilot.system.ui.lib.application import gui_app, FontWeight
     from openpilot.selfdrive.ui.onroad.starpilot.path import _draw_text_with_outline
