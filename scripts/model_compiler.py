@@ -65,7 +65,7 @@ def build_compile_env() -> dict[str, str]:
   return env
 
 
-def wait_for_external_gpu(compile_env: dict[str, str]) -> None:
+def wait_for_external_gpu(compile_env: dict[str, str]) -> bool:
   """Wait for the USB GPU's PCIe link before starting the large model build.
 
   The dock can enumerate on USB before its PCIe link has finished training.
@@ -101,12 +101,16 @@ def wait_for_external_gpu(compile_env: dict[str, str]) -> None:
       continue
 
     if result.returncode == 0:
-      return
+      return True
     detail = (result.stderr or result.stdout).strip()
     diagnostics.append((detail[-2000:] if detail else f"probe exited with status {result.returncode}"))
 
   detail = diagnostics[-1] if diagnostics else "unknown error"
-  raise RuntimeError(f"External GPU PCIe link was not ready after {USBGPU_PROBE_ATTEMPTS} probes: {detail}")
+  print(
+    f"Warning: external GPU probe did not become ready after {USBGPU_PROBE_ATTEMPTS} probes: {detail}\n"
+    "  Continuing; compile_modeld will perform the authoritative link wait and initialization."
+  )
+  return False
 
 
 def parse_args() -> argparse.Namespace:
