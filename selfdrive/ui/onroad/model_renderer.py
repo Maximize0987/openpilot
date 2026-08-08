@@ -525,8 +525,8 @@ class ModelRenderer(Widget):
     if is_metric or use_si_metrics:
       lead_distance_unit = "m"
       distance_conversion = 1.0
-      lead_speed_unit = " m/s" if use_si_metrics else " km/h"
-      speed_conversion_metrics = 1.0 if use_si_metrics else CV.MS_TO_KPH
+      lead_speed_unit = " mph" # lead_speed_unit = " m/s" if use_si_metrics else " km/h"
+      speed_conversion_metrics = CV.MS_TO_MPH # speed_conversion_metrics = 1.0 if use_si_metrics else CV.MS_TO_KPH
     else:
       lead_distance_unit = "ft"
       distance_conversion = CV.METER_TO_FOOT
@@ -549,7 +549,7 @@ class ModelRenderer(Widget):
         plan = ui_state.sm["starpilotPlan"]
         desired_follow_distance = float(plan.desiredFollowDistance) if plan and plan.desiredFollowDistance > 0 else 0.0
         desired_distance = max(0, round(desired_follow_distance * distance_conversion))
-        text_lines.append(f"{distance_string} {lead_distance_unit} (Desired: {desired_distance})")
+        text_lines.append(f"{distance_string} {lead_distance_unit} ({desired_distance})")
       else:
         text_lines.append(f"{distance_string} {lead_distance_unit}")
       
@@ -557,12 +557,12 @@ class ModelRenderer(Widget):
 
       v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
       time_gap = lead_distance / max(v_ego, 1.0)
-      text_lines.append(f"{time_gap:.2f} seconds")
+      text_lines.append(f"{time_gap:.2f} s")
 
     from openpilot.system.ui.lib.application import gui_app, FontWeight
     from openpilot.selfdrive.ui.onroad.starpilot.path import _draw_text_with_outline
     font = gui_app.font(FontWeight.SEMI_BOLD)
-    font_size = 36
+    font_size = 60
     line_height = font_size + 2
 
     max_text_width = 0.0
