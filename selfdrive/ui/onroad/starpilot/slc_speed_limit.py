@@ -217,7 +217,7 @@ def _source_label_color(alpha: int) -> rl.Color:
 
 # ── US MUTCD Sign ─────────────────────────────────────────────────────
 
-def _draw_offset_chip(rect: rl.Rectangle, offset_str: str, alpha: int) -> None:
+def _draw_offset_chip(rect: rl.Rectangle, offset_str: str, color: rl.Color) -> None:
   """Draw the optional SLC offset as a compact accent chip."""
   font = _get_semi_bold()
   text_size = measure_text_cached(font, offset_str, FONT_OFFSET)
@@ -229,19 +229,17 @@ def _draw_offset_chip(rect: rl.Rectangle, offset_str: str, alpha: int) -> None:
     chip_w,
     chip_h,
   )
-  chip_border = rl.Color(CONTROL_BORDER.r, CONTROL_BORDER.g, CONTROL_BORDER.b,
-                         min(alpha, CONTROL_BORDER.a))
-  chip_fill = rl.Color(0, 0, 0, min(120, alpha))
+  chip_fill = rl.Color(0, 0, 0, min(120, color.a))
   roundness = roundness_for(chip_rect, 18)
   rl.draw_rectangle_rounded(chip_rect, roundness, OFFSET_CHIP_SEGMENTS, chip_fill)
-  rl.draw_rectangle_rounded_lines_ex(chip_rect, roundness, OFFSET_CHIP_SEGMENTS, 2, chip_border)
+  rl.draw_rectangle_rounded_lines_ex(chip_rect, roundness, OFFSET_CHIP_SEGMENTS, 2, color)
   rl.draw_text_ex(
     font,
     offset_str,
     rl.Vector2(chip_rect.x + (chip_w - text_size.x) / 2, chip_rect.y + (chip_h - text_size.y) / 2),
     FONT_OFFSET,
     0,
-    chip_border,
+    color,
   )
 
 
@@ -292,7 +290,7 @@ def _draw_us_sign(x: float, y: float, sign_width: float, sign_height: float,
 
     speed_size = measure_text_cached(font_bold, speed_text, FONT_SPEED)
     rl.draw_text_ex(font_bold, speed_text, rl.Vector2(cx - speed_size.x / 2, y + 44), FONT_SPEED, 0, text_color)
-    _draw_offset_chip(card_rect, offset_str, alpha)
+    _draw_offset_chip(card_rect, offset_str, text_color)
   else:
     # Offset OFF: match Set Speed typography.
     source_size = measure_text_cached(font_semi, source_label, FONT_SOURCE)
