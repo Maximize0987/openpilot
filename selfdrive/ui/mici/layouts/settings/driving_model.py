@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from collections.abc import Callable
 from pathlib import Path
 
+from openpilot.common.file_chunker import get_chunk_name, get_manifest_path
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.mici.widgets.button import BigButton
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigDialog, BigDialogBase, BigMultiOptionDialog
@@ -698,7 +699,23 @@ class DrivingModelBigButton(BigButton):
     if not required_files:
       return False
 
-    return all((MODELS_PATH / filename).is_file() for filename in required_files)
+    return all(self._artifact_installed(filename) for filename in required_files)
+
+  @staticmethod
+  def _artifact_installed(filename: str) -> bool:
+    if (MODELS_PATH / filename).is_file():
+      return True
+
+    manifest = get_manifest_path(filename)
+    if not (MODELS_PATH / manifest).is_file():
+      return False
+
+    try:
+      num_chunks = int((MODELS_PATH / manifest).read_text().strip())
+    except Exception:
+      return False
+
+    return all((MODELS_PATH / get_chunk_name(filename, idx, num_chunks)).is_file() for idx in range(num_chunks))
 
   def _is_builtin_default_model(self, key: str) -> bool:
     default_key = self._params.get_default_value("DrivingModel") or self._params.get_default_value("Model")
