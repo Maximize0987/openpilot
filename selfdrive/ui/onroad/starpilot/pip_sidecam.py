@@ -41,9 +41,14 @@ uniform sampler2D texture0;
 uniform sampler2D texture1;
 uniform vec2 uCropMin;
 uniform vec2 uCropSize;
+uniform int uFlipX;
 out vec4 fragColor;
 void main() {
-  vec2 uv = uCropMin + fragTexCoord * uCropSize;
+  vec2 cropCoord = fragTexCoord;
+  if (uFlipX == 1) {
+    cropCoord.x = 1.0 - cropCoord.x;
+  }
+  vec2 uv = uCropMin + cropCoord * uCropSize;
   float y = texture(texture0, uv).r;
   vec2 c = texture(texture1, uv).ra - 0.5;
   vec3 rgb = vec3(y + 1.402 * c.y, y - 0.344 * c.x - 0.714 * c.y, y + 1.772 * c.x);
@@ -58,6 +63,12 @@ void main() {
 """
 
 UNIFORM_VEC2 = rl.ShaderUniformDataType.SHADER_UNIFORM_VEC2
+UNIFORM_INT = rl.ShaderUniformDataType.SHADER_UNIFORM_INT
+
+IMAGE_TO_VEHICLE_SIDE = {
+  "left": "right",
+  "right": "left",
+}
 
 CONNECTION_RETRY_INTERVAL = 0.2
 PARAM_REFRESH_INTERVAL = 2.0
@@ -95,6 +106,8 @@ class PipSideCamera:
     self._texture1_loc = rl.get_shader_location(self.shader, "texture1")
     self._crop_min_loc = rl.get_shader_location(self.shader, "uCropMin")
     self._crop_size_loc = rl.get_shader_location(self.shader, "uCropSize")
+    self._flip_x_loc = rl.get_shader_location(self.shader, "uFlipX")
+    self._flip_x_value = rl.ffi.new("int[1]", [1])
 
     self_ref = weakref.ref(self)
 
@@ -146,7 +159,12 @@ class PipSideCamera:
       self._mask = {}
 
   def active_sides(self) -> list[str]:
-    """Return the car-side keys ('left'/'right') whose preview bubble should show."""
+    """Return vehicle-side keys whose preview bubble should show.
+
+    The driver camera is not mirrored in the Galaxy snapshot. Its image-left
+    side is the vehicle's right side, so translate the image-relative mask
+    keys before applying vehicle signals and blind-spot state.
+    """
     if not ui_state.started:
       return []
     self._refresh_config()
@@ -165,14 +183,19 @@ class PipSideCamera:
     right_bsm = bool(car_state.rightBlindspot) or vasm_right
 
     sides = []
-    if self._mask.get("center_left") and ((self._show_on_blinker and left_blinker) or (self._show_on_bsm and left_bsm)):
-      sides.append("left")
-    if self._mask.get("center_right") and ((self._show_on_blinker and right_blinker) or (self._show_on_bsm and right_bsm)):
-      sides.append("right")
+    for image_side, vehicle_side, blinker, blindspot in (
+      ("left", IMAGE_TO_VEHICLE_SIDE["left"], right_blinker, right_bsm),
+      ("right", IMAGE_TO_VEHICLE_SIDE["right"], left_blinker, left_bsm),
+    ):
+      if self._mask.get(f"center_{image_side}") and (
+        (self._show_on_blinker and blinker) or (self._show_on_bsm and blindspot)
+      ):
+        sides.append(vehicle_side)
     return sides
 
-  def _crop_rect(self, side: str) -> rl.Rectangle | None:
-    center = self._mask.get(f"center_{side}")
+  def _crop_rect(self, vehicle_side: str) -> rl.Rectangle | None:
+    image_side = IMAGE_TO_VEHICLE_SIDE[vehicle_side]
+    center = self._mask.get(f"center_{image_side}")
     size = self._mask.get("crop_size")
     if not center or len(center) < 2 or not size:
       return None
@@ -248,6 +271,7 @@ class PipSideCamera:
     rl.begin_shader_mode(self.shader)
     rl.set_shader_value(self.shader, self._crop_min_loc, crop_min, UNIFORM_VEC2)
     rl.set_shader_value(self.shader, self._crop_size_loc, crop_size, UNIFORM_VEC2)
+    rl.set_shader_value(self.shader, self._flip_x_loc, self._flip_x_value, UNIFORM_INT)
     rl.set_shader_value_texture(self.shader, self._texture1_loc, self.texture_uv)
     rl.draw_texture_pro(self.texture_y, src_rect, dst_rect, rl.Vector2(0, 0), 0.0, rl.WHITE)
     rl.end_shader_mode()
