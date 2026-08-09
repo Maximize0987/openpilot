@@ -1074,6 +1074,15 @@ class TestLatControl:
     assert right_turn_in == left_turn_in < base < right_unwind == left_unwind
     assert get_kia_ev6_friction_threshold(25.0, 0.0, 0.0) >= get_hkg_canfd_base_friction_threshold(25.0)
 
+  def test_kia_ev6_center_friction_threshold_is_high_speed_only(self):
+    low_speed = get_kia_ev6_friction_threshold(10.0, 0.0, 0.0)
+    high_speed_center = get_kia_ev6_friction_threshold(34.0, 0.0, 0.0)
+    high_speed_curve = get_kia_ev6_friction_threshold(34.0, 0.55, 0.0)
+
+    assert low_speed == pytest.approx(get_hkg_canfd_base_friction_threshold(10.0), abs=0.002)
+    assert high_speed_center > get_hkg_canfd_base_friction_threshold(34.0)
+    assert high_speed_curve < high_speed_center
+
   def test_kia_ev6_friction_scale_curve(self):
     base = get_kia_ev6_friction_scale(25.0, 0.5, 0.8)
     left_turn_in = get_kia_ev6_friction_scale(6.0, 0.5, 0.8)
