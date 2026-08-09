@@ -113,7 +113,8 @@ class CanBus:
 
   @staticmethod
   def angle_for_cp(CP):
-    return CanBus.main
+    # D-platform angle LKAS is exchanged with the camera ECU on the camera bus.
+    return CanBus.camera if CP.flags & SubaruFlags.D_PLATFORM else CanBus.main
 
 
 class Footnote(Enum):

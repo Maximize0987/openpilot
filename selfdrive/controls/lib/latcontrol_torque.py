@@ -323,6 +323,7 @@ class LatControlTorque(LatControl):
       kia_ev6_low_speed_center_taper = get_kia_ev6_low_speed_center_taper_scale(setpoint, CS.vEgo) if kia_ev6_active else 1.0
       kia_carnival_center_taper = get_kia_carnival_center_taper_scale(setpoint, CS.vEgo) if kia_carnival_active else 1.0
       tucson_4th_gen_center_taper = get_tucson_4th_gen_center_taper_scale(setpoint, CS.vEgo) if tucson_4th_gen_active else 1.0
+      palisade_center_taper = get_palisade_center_taper_scale(setpoint, CS.vEgo) if palisade_active else 1.0
       silverado_center_taper = get_silverado_center_taper_scale(setpoint, CS.vEgo) if self.is_silverado else 1.0
       civic_bosch_modified_a_center_taper = get_civic_bosch_modified_a_center_taper_scale(setpoint, CS.vEgo) if (
         self.is_civic_bosch_modified and civic_bosch_modified_a_lateral_testing_ground_active()
@@ -353,9 +354,10 @@ class LatControlTorque(LatControl):
         friction_threshold = get_genesis_g90_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
         friction_scale = get_genesis_g90_friction_scale(CS.vEgo, setpoint, desired_lateral_jerk)
       elif palisade_active:
-        ff *= get_palisade_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+        ff *= get_palisade_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo) * palisade_center_taper
         friction_threshold = get_palisade_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
         friction_scale = get_palisade_friction_scale(CS.vEgo, setpoint, desired_lateral_jerk)
+        friction_scale = 1.0 + ((friction_scale - 1.0) * palisade_center_taper)
       elif prius_active:
         ff *= get_prius_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo) * prius_center_taper
         friction_threshold = get_prius_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)

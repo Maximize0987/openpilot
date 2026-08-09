@@ -61,6 +61,7 @@ INJECTED_SECTION_PARAMS = {
 
 # Keys explicitly hidden from The Galaxy's generic settings UI.
 HIDDEN_KEYS = {
+    "CustomAlerts",
     "HumanAcceleration",
     "HideLeadMarker",
     "HideSpeedLimit",
@@ -199,7 +200,6 @@ PARENT_KEYS_MAPPING = {
     },
     "sounds_settings.cc": {
         "alertVolumeControlKeys": "AlertVolumeControl",
-        "customAlertsKeys": "CustomAlerts"
     },
     "theme_settings.cc": {
         "customThemeKeys": "CustomTheme"

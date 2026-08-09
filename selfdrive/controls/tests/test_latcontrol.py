@@ -66,6 +66,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_gv70_friction_threshold,
   get_elantra_non_scc_ff_scale,
   get_palisade_ff_scale,
+  get_palisade_center_taper_scale,
   get_palisade_friction_scale,
   get_palisade_friction_threshold,
   get_prius_ff_scale,
@@ -655,6 +656,11 @@ class TestLatControl:
     assert left_turn_in > right_turn_in > base
     assert base > left_unwind > right_unwind
 
+  def test_palisade_center_taper_curve(self):
+    assert get_palisade_center_taper_scale(0.0, 25.0) < get_palisade_center_taper_scale(0.0, 8.0)
+    assert get_palisade_center_taper_scale(0.0, 25.0) < get_palisade_center_taper_scale(0.28, 25.0)
+    assert get_palisade_center_taper_scale(0.28, 25.0) < get_palisade_center_taper_scale(0.6, 25.0)
+
   def test_prius_ff_scale_curve(self):
     assert get_prius_ff_scale(0.0, 0.0, 20.0) == 1.0
     steady_left = get_prius_ff_scale(0.7, 0.0, 8.0)
@@ -714,11 +720,14 @@ class TestLatControl:
     base = get_hkg_canfd_base_friction_threshold(12.0)
     center = get_genesis_gv70_friction_threshold(12.0, 0.0, 0.0)
     turn = get_genesis_gv70_friction_threshold(12.0, 0.7, 0.8)
-    high_speed_center = get_genesis_gv70_friction_threshold(40.0, 0.0, 0.0)
+    highway_center = get_genesis_gv70_friction_threshold(25.0, 0.0, 0.0)
+    highway_turn = get_genesis_gv70_friction_threshold(25.0, 0.7, 0.8)
 
     assert center > base
     assert turn == pytest.approx(base, rel=0.01)
-    assert high_speed_center < center
+    assert highway_center > base
+    assert highway_turn == pytest.approx(base, rel=0.01)
+    assert highway_center < center
 
   def test_ioniq_5_ff_scale_curve(self):
     assert get_ioniq_5_ff_scale(0.0, 0.0, 20.0) == 1.0

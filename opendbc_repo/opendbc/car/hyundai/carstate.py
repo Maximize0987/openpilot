@@ -603,13 +603,15 @@ class CarState(CarStateBase):
     msgs = []
     cam_msgs = []
     if not (CP.flags & HyundaiFlags.CANFD_ALT_BUTTONS):
-      # TODO: this can be removed once we add dynamic support to vl_all
+      # The EV9 can stop publishing this during the non-ECU-disabled startup
+      # state. Keep decoding it when present without making CAN invalid.
       msgs += [
-        # this message is 50Hz but the ECU frequently stops transmitting for ~0.5s
-        ("CRUISE_BUTTONS", 1)
+        ("CRUISE_BUTTONS", 0 if CP.carFingerprint == CAR.KIA_EV9 else 1)
       ]
     if CP.flags & HyundaiFlags.CANFD_LKA_STEERING:
-      msgs.append(("FR_CMR_02_100ms", 10))
+      # EV9 camera status can disappear for an extended period when the
+      # documented ECU startup sequence is skipped.
+      msgs.append(("FR_CMR_02_100ms", 0 if CP.carFingerprint == CAR.KIA_EV9 else 10))
       msgs.append(("FR_CMR_03_50ms", 0))
       cam_msgs.append(("LKAS_ALT" if CP.flags & HyundaiFlags.CANFD_LKA_STEERING_ALT else "LKAS", 0))
     else:

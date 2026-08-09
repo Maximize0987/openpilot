@@ -56,7 +56,7 @@
   {MSG_SUBARU_ES_Distance, alt_bus, 8, .check_relay = false}, \
 
 #define SUBARU_D_PLATFORM_ANGLE_TX_MSGS() \
-  {MSG_SUBARU_ES_LKAS_ANGLE,   SUBARU_MAIN_BUS, 8, .check_relay = true}, \
+  {MSG_SUBARU_ES_LKAS_ANGLE,   SUBARU_CAM_BUS, 8, .check_relay = true}, \
   {MSG_SUBARU_ES_DashStatus,   SUBARU_CAM_BUS, 8, .check_relay = true}, \
   {MSG_SUBARU_ES_LKAS_State,   SUBARU_CAM_BUS, 8, .check_relay = true}, \
   {MSG_SUBARU_ES_Infotainment, SUBARU_CAM_BUS, 8, .check_relay = true}, \
@@ -93,8 +93,8 @@
 
 #define SUBARU_D_PLATFORM_ANGLE_RX_CHECKS() \
   {.msg = {{MSG_SUBARU_Throttle,        SUBARU_ALT_BUS, 8, 100U, .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
-  {.msg = {{MSG_SUBARU_Steering_Torque, SUBARU_MAIN_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
-  {.msg = {{MSG_SUBARU_Steering_2,      SUBARU_MAIN_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
+  {.msg = {{MSG_SUBARU_Steering_Torque, SUBARU_CAM_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
+  {.msg = {{MSG_SUBARU_Steering_2,      SUBARU_CAM_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
   {.msg = {{MSG_SUBARU_Wheel_Speeds,    SUBARU_ALT_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
   {.msg = {{MSG_SUBARU_Brake_Status,    SUBARU_ALT_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
   {.msg = {{MSG_SUBARU_ES_Brake,        SUBARU_ALT_BUS, 8, 50U,  .max_counter = 15U, .ignore_quality_flag = true}, { 0 }, { 0 }}}, \
@@ -127,7 +127,7 @@ static uint32_t subaru_compute_checksum(const CANPacket_t *msg) {
 static void subaru_rx_hook(const CANPacket_t *msg) {
   const unsigned int alt_main_bus = subaru_gen2 ? SUBARU_ALT_BUS : SUBARU_MAIN_BUS;
   const unsigned int status_bus = subaru_gen2 ? SUBARU_ALT_BUS : SUBARU_CAM_BUS;
-  const unsigned int steering_bus = SUBARU_MAIN_BUS;
+  const unsigned int steering_bus = subaru_d_platform ? SUBARU_CAM_BUS : SUBARU_MAIN_BUS;
   const unsigned int main_bus = subaru_d_platform ? SUBARU_ALT_BUS : SUBARU_MAIN_BUS;
 
   if ((msg->addr == MSG_SUBARU_Steering_Torque) && (msg->bus == steering_bus)) {

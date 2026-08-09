@@ -136,12 +136,12 @@ def test_outback_2023_uses_d_platform_bus_layout():
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.main
+  assert CanBus.angle_for_cp(CP) == CanBus.camera
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
   assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.main
+  assert controller.angle_bus == CanBus.camera
   assert controller.status_bus == CanBus.camera
 
 
@@ -153,12 +153,12 @@ def test_legacy_2025_uses_d_platform_bus_layout():
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.main
+  assert CanBus.angle_for_cp(CP) == CanBus.camera
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
   assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.main
+  assert controller.angle_bus == CanBus.camera
   assert controller.status_bus == CanBus.camera
 
 

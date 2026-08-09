@@ -370,9 +370,10 @@ class Car:
       # and StarPilotCarParams (pandad ORs both safetyParams together)
       # Use the pre-init longitudinal state here, since Hyundai init() may already
       # flip CP.openpilotLongitudinalControl to False as part of the fallback.
-      if was_openpilot_long and self.params.get_bool("EcuDisableFailed"):
+      if was_openpilot_long and self.CP.brand in ("hyundai", "nissan") and self.params.get_bool("EcuDisableFailed"):
         # ECU disable failed/rejected - switch to lateral-only mode with stock ACC
-        LONG_FLAG = 4  # HyundaiSafetyFlags.LONG
+        # Keep this local to avoid importing every brand's values into card.py.
+        LONG_FLAG = 4 if self.CP.brand == "hyundai" else 2 if self.CP.brand == "nissan" else 0
         for cfg in self.CP.safetyConfigs:
           cfg.safetyParam &= ~LONG_FLAG
         for cfg in self.FPCP.safetyConfigs:

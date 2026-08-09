@@ -1048,7 +1048,8 @@ class SafetyTest(SafetyTestBase):
         msg = make_msg(bus, addr)
         self.safety.set_controls_allowed(1)
         # TODO: this should be blocked
-        if current_test in ["TestNissanSafety", "TestNissanSafetyAltEpsBus", "TestNissanLeafSafety"] and [addr, bus] in self.TX_MSGS:
+        nissan_tests = ["TestNissanSafety", "TestNissanSafetyAltEpsBus", "TestNissanLeafSafety", "TestNissanLeafLongSafety"]
+        if current_test in nissan_tests and [addr, bus] in self.TX_MSGS:
           continue
         self.assertFalse(self._tx(msg), f"transmit of {addr=:#x} {bus=} from {test_name} during {current_test} was allowed")
 

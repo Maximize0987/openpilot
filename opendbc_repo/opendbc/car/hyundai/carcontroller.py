@@ -774,7 +774,11 @@ class CarController(CarControllerBase):
     )
 
     # steering control
-    preserve_stock_lkas = bool(self.CP.flags & HyundaiFlags.CANFD_LKA_STEERING) and not self.long_active_ecu
+    # The first-generation Electrified GV70 expects the synthesized LKAS status
+    # payload. Forwarding its stock status bits leaves lane-safety state asserted
+    # while StarPilot is suppressing the stock LFA path.
+    preserve_stock_lkas = bool(self.CP.flags & HyundaiFlags.CANFD_LKA_STEERING) and \
+      not self.long_active_ecu and self.CP.carFingerprint != CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
     angle_lkas_alt = bool(self.CP.flags & HyundaiFlags.CANFD_ANGLE_STEERING and
                           self.CP.flags & HyundaiFlags.CANFD_LKA_STEERING_ALT)
     ccnc_angle_long = self.CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR and \

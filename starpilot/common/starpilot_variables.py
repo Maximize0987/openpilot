@@ -847,14 +847,13 @@ class StarPilotVariables:
     toggle.csc_no_lead = self.get_value("CurveSpeedControllerNoLead", condition=toggle.curve_speed_controller)
     toggle.csc_status = self.get_value("ShowCSCStatus", condition=toggle.curve_speed_controller) or toggle.debug_mode
 
-    custom_alerts = self.get_value("CustomAlerts")
-    toggle.goat_scream_alert = self.get_value("GoatScream", condition=custom_alerts)
-    toggle.goat_scream_critical_alerts = self.get_value("GoatScreamCriticalAlerts", condition=custom_alerts)
-    toggle.green_light_alert = self.get_value("GreenLightAlert", condition=custom_alerts)
-    toggle.lead_departing_alert = self.get_value("LeadDepartingAlert", condition=custom_alerts)
-    toggle.loud_blindspot_alert = self.get_value("LoudBlindspotAlert", condition=custom_alerts and has_bsm)
-    toggle.loud_blindspot_alert_when_disengaged = self.get_value("LoudBlindspotAlertWhenDisengaged", condition=toggle.loud_blindspot_alert)
-    toggle.speed_limit_changed_alert = self.get_value("SpeedLimitChangedAlert", condition=custom_alerts)
+    toggle.goat_scream_alert = self.get_value("GoatScream")
+    toggle.goat_scream_critical_alerts = self.get_value("GoatScreamCriticalAlerts")
+    toggle.green_light_alert = self.get_value("GreenLightAlert")
+    toggle.lead_departing_alert = self.get_value("LeadDepartingAlert")
+    toggle.loud_blindspot_alert = self.get_value("LoudBlindspotAlert", condition=has_bsm)
+    toggle.loud_blindspot_alert_when_disengaged = self.get_value("LoudBlindspotAlertWhenDisengaged", condition=has_bsm)
+    toggle.speed_limit_changed_alert = self.get_value("SpeedLimitChangedAlert")
 
     toggle.custom_personalities = toggle.openpilot_longitudinal and self.get_value("CustomPersonalities")
     toggle.aggressive_jerk_acceleration = self.get_value("AggressiveJerkAcceleration", cast=float, condition=toggle.custom_personalities, conversion=0.01, min=0.25, max=4.0)

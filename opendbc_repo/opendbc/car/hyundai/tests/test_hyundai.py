@@ -132,6 +132,20 @@ class TestHyundaiFingerprint:
 
     assert "BLINDSPOTS_REAR_CORNERS" in pt_messages
 
+  def test_ev9_startup_status_messages_are_optional(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[CanBus(None, fingerprint).CAM][0x110] = 32
+    radar_config = get_radar_track_config(CAR.KIA_EV9)
+    fingerprint[radar_config.bus][radar_config.start_addr] = radar_config.expected_length
+    car_fw = [CarParams.CarFw(ecu=Ecu.adas, fwVersion=b"", address=0x730, brand="hyundai")]
+
+    CP = CarInterface.get_params(CAR.KIA_EV9, fingerprint, car_fw, False, False, False, None)
+    parsers = CarState(CP, None).get_can_parsers(CP)
+    states = parsers[Bus.pt].message_states
+
+    assert states[0x1CF].ignore_alive
+    assert states[0x1FA].ignore_alive
+
   def test_feature_detection(self):
     # LKA steering
     for candidate in (CAR.KIA_EV6, CAR.HYUNDAI_IONIQ_6):
@@ -1810,6 +1824,50 @@ class TestHyundaiFingerprint:
     assert parser.vl["LKAS_ALT"]["LKAS_ANGLE_ACTIVE"] == 2
     assert parser.vl["LKAS_ALT"]["ADAS_ACIAnglTqRedcGainVal"] == pytest.approx(0.0)
     assert parser.vl["LKAS_ALT"]["ADAS_StrAnglReqVal"] == pytest.approx(8.5)
+
+  def test_gv70_electrified_synthesizes_lkas_status_payload(self):
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CANFD_LKA_STEERING)
+    CP.openpilotLongitudinalControl = False
+
+    controller = CarController(DBC[CP.carFingerprint], CP)
+    controller.frame = 1
+    can_bus = CanBus(CP)
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS", 0)], can_bus.ACAN)
+    stock_lkas = {
+      "CHECKSUM": 1234,
+      "COUNTER": 42,
+      "LKA_MODE": 2,
+      "LKA_AVAILABLE": 0,
+      "LKA_WARNING": 0,
+      "LKA_ICON": 1,
+      "FCA_SYSWARN": 0,
+      "TORQUE_REQUEST": 17,
+      "STEER_REQ": 1,
+      "LFA_BUTTON": 0,
+      "LKA_ASSIST": 0,
+      "STEER_MODE": 2,
+      "NEW_SIGNAL_2": 3,
+      "HAS_LANE_SAFETY": 1,
+      "DAMP_FACTOR": 100,
+    }
+    cc = SimpleNamespace(enabled=True, latActive=True,
+                         actuators=SimpleNamespace(longControlState=LongCtrlState.off),
+                         leftBlinker=False, rightBlinker=False,
+                         hudControl=SimpleNamespace())
+    cs = SimpleNamespace(stock_lfa_msg=None, stock_lkas_msg=stock_lkas,
+                         out=SimpleNamespace(steeringAngleDeg=0.0,
+                                             gearShifter=structs.CarState.GearShifter.drive))
+
+    msgs = controller.create_canfd_msgs(0, True, 0.44, 0.0, 0.0, 0.0, False,
+                                        cc.hudControl, cs, cc, get_test_toggles(), lka_icon=2, lfa_icon=2)
+    lkas_msgs = [msg for msg in msgs if msg[0] == 0x50]
+    assert len(lkas_msgs) == 1
+
+    parser.update([(1, lkas_msgs)])
+    assert parser.can_valid
+    assert parser.vl["LKAS"]["HAS_LANE_SAFETY"] == 0
 
   def test_ev9_inactive_angle_steering_lets_safety_forward_stock_lkas(self):
     CP = CarParams.new_message()
