@@ -535,6 +535,7 @@ class ModelRenderer(Widget):
 
     y_rel = getattr(lead_data, "yRel", 0.0)
     v_rel = getattr(lead_data, "vRel", 0.0)
+    vrel_string = f"{round(v_rel * speed_conversion_metrics)}"
     lead_distance = lead_data.dRel + (abs(y_rel) if adjacent else 0.0)
     lead_speed = max(getattr(lead_data, "vLead", 0.0), 0.0)
 
@@ -556,7 +557,7 @@ class ModelRenderer(Widget):
       else:
         text_lines.append(f"{distance_string} {lead_distance_unit} {speed_string} {lead_speed_unit} {time_gap:.2f} s")
 
-      text_lines.append(f"{v_rel}")
+      text_lines.append(f"{vrel_string}")
       #text_lines.append(f"{speed_string}{lead_speed_unit}")
 
       #v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
