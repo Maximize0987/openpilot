@@ -43,8 +43,32 @@ uniform vec2 uCropMin;
 uniform vec2 uCropSize;
 uniform int uFlipX;
 out vec4 fragColor;
+
+const float BUBBLE_REFRACTION = 0.016;
+const float BUBBLE_EDGE_DARKEN = 0.15;
+const float BUBBLE_HIGHLIGHT = 0.12;
+const float BUBBLE_RIM = 0.10;
+const float BUBBLE_EDGE_TRANSPARENCY = 0.12;
+
 void main() {
-  vec2 cropCoord = fragTexCoord;
+  // Calculate the mask before sampling: fragments outside the bubble do no texture work.
+  vec2 p = fragTexCoord * 2.0 - 1.0;
+  float radius = length(p);
+  float aa = max(fwidth(radius), 0.00001);
+  float alpha = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, radius);
+  if (radius > 1.0 + aa) {
+    discard;
+  }
+
+  // A shallow hemisphere gives the image a convex bubble surface without a mesh or pass.
+  float z = sqrt(max(0.0, 1.0 - dot(p, p)));
+  vec2 sampleCoord = clamp(
+    fragTexCoord + p * BUBBLE_REFRACTION * (1.0 - z),
+    0.001,
+    0.999
+  );
+
+  vec2 cropCoord = sampleCoord;
   if (uFlipX == 1) {
     cropCoord.x = 1.0 - cropCoord.x;
   }
@@ -53,12 +77,19 @@ void main() {
   vec2 c = texture(texture1, uv).ra - 0.5;
   vec3 rgb = vec3(y + 1.402 * c.y, y - 0.344 * c.x - 0.714 * c.y, y + 1.772 * c.x);
 
-  vec2 p = fragTexCoord - 0.5;
-  float dist = length(p);
-  float edge = 0.02;
-  float alpha = 1.0 - smoothstep(0.5 - edge, 0.5, dist);
+  // Keep the interior gradient and use cheap analytic lighting instead of specular math.
+  float edgeShade = smoothstep(0.22, 0.98, radius);
+  rgb *= mix(1.0, 1.0 - BUBBLE_EDGE_DARKEN, edgeShade);
 
-  fragColor = vec4(rgb, alpha);
+  vec2 highlightOffset = p - vec2(-0.28, -0.34);
+  float highlight = 1.0 - smoothstep(0.0, 0.22, dot(highlightOffset, highlightOffset));
+  rgb += vec3(1.0) * highlight * z * BUBBLE_HIGHLIGHT;
+
+  // Let the rim blend into the camera image and the UI underneath it.
+  float rim = smoothstep(0.60, 0.99, radius);
+  rgb = mix(rgb, vec3(0.48, 0.70, 1.0), rim * BUBBLE_RIM);
+  float surfaceAlpha = alpha * (1.0 - rim * BUBBLE_EDGE_TRANSPARENCY);
+  fragColor = vec4(rgb, surfaceAlpha);
 }
 """
 
@@ -253,13 +284,6 @@ class PipSideCamera:
       self._draw_bubble(bubble, crop)
 
   def _draw_bubble(self, bubble: rl.Rectangle, crop: rl.Rectangle):
-    cx = bubble.x + bubble.width / 2
-    cy = bubble.y + bubble.height / 2
-    radius = bubble.width / 2
-
-    rl.draw_circle(int(round(cx)), int(round(cy)), radius, rl.BLACK)
-    rl.draw_circle_lines(int(round(cx)), int(round(cy)), radius, rl.Color(255, 255, 255, 120))
-
     tex_w = float(self.texture_y.width)
     tex_h = float(self.texture_y.height)
     crop_min = rl.Vector2(crop.x / tex_w, crop.y / tex_h)
