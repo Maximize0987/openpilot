@@ -24,8 +24,8 @@ DEFAULT_LANE_LINES_WIDTH = 4.0
 DEFAULT_PATH_EDGE_WIDTH = 20.0
 DEFAULT_PATH_WIDTH = 6.1
 DEFAULT_ROAD_EDGES_WIDTH = 2.0
-RADAR_MARKER_RADIUS = 8.0
-RADAR_MARKER_OUTLINE_RADIUS = 10.0
+RADAR_MARKER_RADIUS = 10.0
+RADAR_MARKER_OUTLINE_RADIUS = 11.0
 RADAR_MARKER_TEXTURE_SIZE = 22
 RADAR_MARKER_TEXTURE_CENTER = RADAR_MARKER_TEXTURE_SIZE / 2.0
 RADAR_MARKER_TEXTURE_KEY = "onroad-radar-marker-v1"
@@ -553,11 +553,11 @@ class ModelRenderer(Widget):
         plan = ui_state.sm["starpilotPlan"]
         desired_follow_distance = float(plan.desiredFollowDistance) if plan and plan.desiredFollowDistance > 0 else 0.0
         desired_distance = max(0, round(desired_follow_distance * distance_conversion))
-        text_lines.append(f"{distance_string} {lead_distance_unit} ({desired_distance}) {speed_string} {lead_speed_unit} {time_gap:.2f} s")
+        text_lines.append(f"{distance_string} {lead_distance_unit} ({desired_distance}) {vrel_string} {lead_speed_unit} {time_gap:.2f} s")
       else:
-        text_lines.append(f"{distance_string} {lead_distance_unit} {speed_string} {lead_speed_unit} {time_gap:.2f} s")
+        text_lines.append(f"{distance_string} {lead_distance_unit} {vrel_string} {lead_speed_unit} {time_gap:.2f} s")
 
-      text_lines.append(f"{vrel_string}")
+      #text_lines.append(f"{vrel_string}")
       #text_lines.append(f"{speed_string}{lead_speed_unit}")
 
       #v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
