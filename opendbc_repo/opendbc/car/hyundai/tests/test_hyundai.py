@@ -759,6 +759,34 @@ class TestHyundaiFingerprint:
     assert CP.pcmCruise
     assert not (CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.LONG)
 
+  @pytest.mark.parametrize("candidate", (CAR.KIA_EV9, CAR.HYUNDAI_IONIQ_5_PE))
+  def test_angle_longitudinal_ready_state_skips_ecu_disable(self, candidate, monkeypatch):
+    toggles = get_test_toggles()
+    radar_config = get_radar_track_config(candidate)
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[CanBus(None, fingerprint).CAM][0x110] = 32
+    fingerprint[radar_config.bus][radar_config.start_addr] = radar_config.expected_length
+    car_fw = [CarParams.CarFw(ecu=Ecu.adas, fwVersion=b"", address=0x730, brand="hyundai")]
+    CP = CarInterface.get_params(candidate, fingerprint, car_fw, True, False, False, toggles)
+    bus = CanBus(CP).ECAN
+    disable_calls = []
+
+    def fake_disable_ecu(*args, **kwargs):
+      disable_calls.append(kwargs)
+      return True
+
+    def can_recv(*, wait_for_one=True):
+      ready_msg = SimpleNamespace(address=0x35, src=bus, dat=bytes([0, 0, 0, 0x40]))
+      return [[ready_msg]]
+
+    monkeypatch.setattr("opendbc.car.hyundai.interface.disable_ecu", fake_disable_ecu)
+    CarInterface.init(CP, can_recv, None)
+
+    assert not any(call.get("addr") in (0x730, 0x7D0) for call in disable_calls)
+    assert not CP.openpilotLongitudinalControl
+    assert CP.pcmCruise
+    assert not (CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.LONG)
+
   def test_xceed_phev_alpha_long_is_isolated_legacy_experiment(self):
     toggles = get_test_toggles()
 
