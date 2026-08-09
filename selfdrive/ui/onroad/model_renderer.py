@@ -534,6 +534,7 @@ class ModelRenderer(Widget):
       speed_conversion_metrics = CV.MS_TO_MPH
 
     y_rel = getattr(lead_data, "yRel", 0.0)
+    v_rel = getattr(lead_data, "vRel", 0.0)
     lead_distance = lead_data.dRel + (abs(y_rel) if adjacent else 0.0)
     lead_speed = max(getattr(lead_data, "vLead", 0.0), 0.0)
 
@@ -554,7 +555,8 @@ class ModelRenderer(Widget):
         text_lines.append(f"{distance_string} {lead_distance_unit} ({desired_distance}) {speed_string} {lead_speed_unit} {time_gap:.2f} s")
       else:
         text_lines.append(f"{distance_string} {lead_distance_unit} {speed_string} {lead_speed_unit} {time_gap:.2f} s")
-      
+
+      text_lines.append(f"{v_rel}")
       #text_lines.append(f"{speed_string}{lead_speed_unit}")
 
       #v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
