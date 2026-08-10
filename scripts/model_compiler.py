@@ -57,22 +57,27 @@ class _UsbdevfsControl(ctypes.Structure):
               ("data", ctypes.c_void_p)]
 
 
-def build_compile_env() -> dict[str, str]:
+def build_compile_env(*, supercombo: bool = False) -> dict[str, str]:
   env = os.environ.copy()
-  pythonpath = env.get("PYTHONPATH", "")
-  env["PYTHONPATH"] = f"{REPO_ROOT}:{pythonpath}" if pythonpath else str(REPO_ROOT)
-  for key, default in {
+  existing_pythonpath = env.get("PYTHONPATH", "")
+  env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(REPO_ROOT)
+  defaults = {} if supercombo else {
     "DEBUG": "0",
     "FLOAT16": "1",
     "IMAGE": "2",
     "JIT_BATCH_SIZE": "0",
     "NOLOCALS": "1",
     "OPENPILOT_HACKS": "1",
-  }.items():
+  }
+  for key, default in defaults.items():
     try:
       int(str(env.get(key)), 0)
     except (TypeError, ValueError):
       env[key] = default
+  if supercombo:
+    # Unified supercombo artifacts must use upstream compile defaults. The
+    # legacy QCOM tuning causes a reproducible HCQ timeline failure here.
+    env.pop("QCOM_PRIORITY", None)
   return env
 
 
@@ -576,7 +581,7 @@ def compile_driving(
   ]
   if version:
     command += ["--behavior-version", version]
-  compile_env = build_compile_env()
+  compile_env = build_compile_env(supercombo=input_format == "supercombo")
   if external_gpu:
     for qcom_only_flag in ("IMAGE", "NOLOCALS", "OPENPILOT_HACKS"):
       compile_env.pop(qcom_only_flag, None)

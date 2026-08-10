@@ -518,6 +518,11 @@ PALISADE_CENTER_TAPER_LAT = 0.28
 PALISADE_CENTER_TAPER_LAT_WIDTH = 0.055
 PALISADE_CENTER_TAPER_SPEED = 12.0
 PALISADE_CENTER_TAPER_SPEED_WIDTH = 2.5
+PALISADE_CENTER_OUTPUT_TAPER_MAX = 0.10
+PALISADE_CENTER_OUTPUT_TAPER_LAT = 0.28
+PALISADE_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.055
+PALISADE_CENTER_OUTPUT_TAPER_SPEED = 18.0
+PALISADE_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 2.5
 
 GENESIS_G90_LATERAL_TESTING_GROUND_ID = testing_ground.id_4
 GENESIS_G90_FF_GAIN_LEFT = 0.32
@@ -743,7 +748,7 @@ IONIQ_6_FRICTION_CENTER_FADE_SPEED_WIDTH = 2.5
 # Newer Ioniq 6 highway center-chatter correction; activation is firmware-gated.
 IONIQ_6_2025_FRICTION_SCALE_MULT = 0.80
 IONIQ_6_2025_FRICTION_JERK_DEADZONE = 0.45
-IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX = 0.18
+IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX = 0.20
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT = 0.35
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.10
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_SPEED = 22.0
@@ -810,6 +815,11 @@ KIA_EV6_LOW_SPEED_CENTER_TAPER_LAT = 0.08
 KIA_EV6_LOW_SPEED_CENTER_TAPER_LAT_WIDTH = 0.02
 KIA_EV6_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 8.5
 KIA_EV6_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.4
+KIA_EV6_CENTER_OUTPUT_TAPER_MAX = 0.12
+KIA_EV6_CENTER_OUTPUT_TAPER_LAT = 0.30
+KIA_EV6_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.08
+KIA_EV6_CENTER_OUTPUT_TAPER_SPEED = 12.0
+KIA_EV6_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 2.4
 
 VOLT_PLEXY_LATERAL_TESTING_GROUND_ID = testing_ground.id_7
 VOLT_PLEXY_FF_EXTRA_MULT_LEFT = 1.07
@@ -841,7 +851,7 @@ PRIUS_TURN_IN_FRICTION_BOOST_LEFT = 0.06
 PRIUS_TURN_IN_FRICTION_BOOST_RIGHT = 0.06
 PRIUS_UNWIND_FRICTION_REDUCTION_LEFT = 0.22
 PRIUS_UNWIND_FRICTION_REDUCTION_RIGHT = 0.30
-PRIUS_CENTER_TAPER_MAX = 0.15
+PRIUS_CENTER_TAPER_MAX = 0.155
 PRIUS_CENTER_TAPER_LAT = 0.24
 PRIUS_CENTER_TAPER_LAT_WIDTH = 0.035
 PRIUS_CENTER_TAPER_SPEED = 18.0
@@ -2406,6 +2416,15 @@ def get_palisade_center_taper_scale(desired_lateral_accel: float, v_ego: float) 
   return 1.0 - (PALISADE_CENTER_TAPER_MAX * speed_weight * center_weight)
 
 
+def get_palisade_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  """Reduce high-speed center corrections without reducing normal turn authority."""
+  speed_weight = _palisade_sigmoid((v_ego - PALISADE_CENTER_OUTPUT_TAPER_SPEED) /
+                                    PALISADE_CENTER_OUTPUT_TAPER_SPEED_WIDTH)
+  center_weight = _palisade_sigmoid((PALISADE_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
+                                    PALISADE_CENTER_OUTPUT_TAPER_LAT_WIDTH)
+  return 1.0 - (PALISADE_CENTER_OUTPUT_TAPER_MAX * speed_weight * center_weight)
+
+
 def genesis_g90_lateral_testing_ground_active() -> bool:
   return testing_ground.use(GENESIS_G90_LATERAL_TESTING_GROUND_ID)
 
@@ -3070,6 +3089,15 @@ def get_kia_ev6_low_speed_center_taper_scale(desired_lateral_accel: float, v_ego
   return 1.0 - reduction
 
 
+def get_kia_ev6_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  speed_weight = _kia_ev6_sigmoid((v_ego - KIA_EV6_CENTER_OUTPUT_TAPER_SPEED) /
+                                  KIA_EV6_CENTER_OUTPUT_TAPER_SPEED_WIDTH)
+  center_weight = _kia_ev6_sigmoid((KIA_EV6_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
+                                   KIA_EV6_CENTER_OUTPUT_TAPER_LAT_WIDTH)
+  reduction = _flm_vehicle_knob("hyundai_kia_ev6.center_output_taper_max", KIA_EV6_CENTER_OUTPUT_TAPER_MAX) * speed_weight * center_weight
+  return 1.0 - reduction
+
+
 def volt_plexy_lateral_testing_ground_active() -> bool:
   return testing_ground.use(VOLT_PLEXY_LATERAL_TESTING_GROUND_ID)
 
@@ -3431,6 +3459,7 @@ FLM_SUPPORTED_VEHICLE_KNOBS = {
   "hyundai_kia_ev6.unwind_threshold_increase_left": {"profile": "hyundai_kia_ev6", "min": 0.0, "max": 0.80, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": KIA_EV6_UNWIND_THRESHOLD_INCREASE_LEFT},
   "hyundai_kia_ev6.unwind_threshold_increase_right": {"profile": "hyundai_kia_ev6", "min": 0.0, "max": 0.80, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": KIA_EV6_UNWIND_THRESHOLD_INCREASE_RIGHT},
   "hyundai_kia_ev6.center_friction_threshold_gain": {"profile": "hyundai_kia_ev6", "min": 0.0, "max": 0.20, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": KIA_EV6_CENTER_FRICTION_THRESHOLD_GAIN},
+  "hyundai_kia_ev6.center_output_taper_max": {"profile": "hyundai_kia_ev6", "min": 0.0, "max": 0.20, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": KIA_EV6_CENTER_OUTPUT_TAPER_MAX},
   "toyota_prius.ff_gain_left": {"profile": "toyota_prius", "min": 0.0, "max": 0.25, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_FF_GAIN_LEFT},
   "toyota_prius.ff_gain_right": {"profile": "toyota_prius", "min": 0.0, "max": 0.25, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_FF_GAIN_RIGHT},
   "toyota_prius.turn_in_boost_left": {"profile": "toyota_prius", "min": -0.10, "max": 0.60, "precision": 0.001, "deltaType": "absolute", "safeLiveTrial": True, "defaultValue": PRIUS_TURN_IN_BOOST_LEFT},

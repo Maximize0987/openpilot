@@ -1033,7 +1033,7 @@ class SafetyTest(SafetyTestBase):
             if attr.startswith('TestHyundaiCanfdCCNC') and current_test.startswith('TestSubaruPreglobal'):
               tx = list(filter(lambda m: m[0] not in [0x161], tx))
 
-            if current_test == 'TestSubaruDPlatformAngleSafety' and attr.startswith('TestRivian'):
+            if current_test.startswith('TestSubaruDPlatform') and attr.startswith('TestRivian'):
               tx = list(filter(lambda m: not (m[1] == 2 and m[0] in [0x321, 0x322, 0x323]), tx))
 
             if attr.startswith('TestHyundaiLongitudinal') or attr in ('TestHyundaiSafetyFCEVLong',

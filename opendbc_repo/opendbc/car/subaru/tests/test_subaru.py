@@ -67,7 +67,10 @@ class TestSubaruFingerprint:
       for (ecu, _, _), fws in fws_per_ecu.items():
         fw_size = len(fws[0])
         for fw in fws:
-          assert len(fw) == fw_size, f"{platform} {ecu}: {len(fw)} {fw_size}"
+          if platform in (CAR.SUBARU_ASCENT_2023, CAR.SUBARU_LEGACY_2025) and ecu == CarParams.Ecu.fwdCamera:
+            assert len(fw) > 0, f"{platform} {ecu}: empty firmware response"
+          else:
+            assert len(fw) == fw_size, f"{platform} {ecu}: {len(fw)} {fw_size}"
 
   def test_outback_2024_firmware(self):
     outback_fw = FW_VERSIONS[CAR.SUBARU_OUTBACK_2023]
@@ -92,6 +95,7 @@ class TestSubaruFingerprint:
       CarParams.CarFw(ecu=CarParams.Ecu.abs, fwVersion=b'\xa1 $\x11\x00', address=0x7b0, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.eps, fwVersion=b'[\xc0\xd1\x10\x00', address=0x746, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\x1a!\x08\x00C\x0e!\x08\x018', address=0x787, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\x20\x02\x0e', address=0x787, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.engine, fwVersion=b'\x08,\xa0p\x07', address=0x7a2, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.transmission, fwVersion=b'\xeb\x17U!r', address=0x7a3, brand="subaru"),
     ]
@@ -104,7 +108,9 @@ class TestSubaruFingerprint:
       CarParams.CarFw(ecu=CarParams.Ecu.abs, fwVersion=b'\xa5 %\x03\x01', address=0x7b0, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.eps, fwVersion=b'\x55\xc0\xd0\x10', address=0x746, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\x17!\x08\x01A\x12!\x08\x00;', address=0x787, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\x20\x02\x0e', address=0x787, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.engine, fwVersion=b'\x11,\xa00\x07', address=0x7a2, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.transmission, fwVersion=b'\x05\xfe\xe7\x00\x00', address=0x7a3, brand="subaru"),
     ]
     exact, matches = match_fw_to_car(car_fw, "4S4WMAAD9S3414980", allow_fuzzy=False, log=False)
     assert exact
@@ -163,14 +169,16 @@ def test_legacy_2025_uses_d_platform_bus_layout():
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
+  assert CP.flags & SubaruFlags.D_PLATFORM_CAMERA
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.main
+  assert CanBus.angle_for_cp(CP) == CanBus.camera
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
   assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.main
-  assert controller.status_bus == CanBus.main
+  assert controller.angle_bus == CanBus.camera
+  assert controller.status_bus == CanBus.camera
 
 
 def test_ascent_2023_uses_d_platform_bus_layout():
@@ -180,14 +188,16 @@ def test_ascent_2023_uses_d_platform_bus_layout():
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
+  assert CP.flags & SubaruFlags.D_PLATFORM_CAMERA
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.main
+  assert CanBus.angle_for_cp(CP) == CanBus.camera
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
   assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.main
-  assert controller.status_bus == CanBus.main
+  assert controller.angle_bus == CanBus.camera
+  assert controller.status_bus == CanBus.camera
 
 
 def test_other_angle_platforms_keep_existing_bus_layout():

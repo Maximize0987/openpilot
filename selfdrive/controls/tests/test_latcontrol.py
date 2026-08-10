@@ -30,6 +30,8 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   get_kona_non_scc_center_taper_scale,
   get_kona_non_scc_friction_threshold,
   get_kona_non_scc_highway_transition_output_scale,
+  get_kia_ev6_center_output_scale,
+  get_prius_center_taper_scale,
   KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_MAX_LAT_JERK_UP,
@@ -68,6 +70,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_gv70_friction_threshold,
   get_elantra_non_scc_ff_scale,
   get_palisade_ff_scale,
+  get_palisade_center_output_scale,
   get_palisade_center_taper_scale,
   get_palisade_friction_scale,
   get_palisade_friction_threshold,
@@ -497,6 +500,26 @@ class TestLatControl:
     assert get_sonata_hybrid_center_taper_scale(0.0, 3.0) < get_sonata_hybrid_center_taper_scale(0.0, 10.0)
     assert get_sonata_hybrid_center_taper_scale(0.0, 30.0) < get_sonata_hybrid_center_taper_scale(0.20, 30.0) <= 1.0
 
+  def test_sonata_hybrid_center_taper_applies_to_output(self, monkeypatch):
+    monkeypatch.setattr(latcontrol_torque, "get_sonata_hybrid_ff_scale", lambda *_args: 0.0)
+    monkeypatch.setattr(latcontrol_torque, "get_sonata_hybrid_center_taper_scale", lambda *_args: 1.0)
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_SONATA_HYBRID)
+    CS.vEgo = 3.0
+    base_output, _, _ = controller.update(True, CS, VM, params, False, 0.0002, False, 0.2, None, None, starpilot_toggles)
+
+    monkeypatch.setattr(latcontrol_torque, "get_sonata_hybrid_center_taper_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(
+      HYUNDAI.HYUNDAI_SONATA_HYBRID,
+    )
+    tapered_CS.vEgo = 3.0
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.0002, False, 0.2, None, None, tapered_toggles,
+    )
+
+    assert controller.is_sonata_hybrid
+    assert base_output != 0.0
+    assert tapered_output == pytest.approx(base_output * 0.5)
+
   def test_sonata_ff_scale_curve(self):
     assert get_sonata_ff_scale(0.0, 0.0, 20.0) == 1.0
     steady_left = get_sonata_ff_scale(0.45, 0.0, 8.0)
@@ -667,6 +690,15 @@ class TestLatControl:
     assert get_palisade_center_taper_scale(0.0, 25.0) < get_palisade_center_taper_scale(0.28, 25.0)
     assert get_palisade_center_taper_scale(0.28, 25.0) < get_palisade_center_taper_scale(0.6, 25.0)
 
+  def test_palisade_center_output_taper_curve(self):
+    low_speed_center = get_palisade_center_output_scale(0.0, 8.0)
+    highway_center = get_palisade_center_output_scale(0.0, 30.0)
+    highway_turn = get_palisade_center_output_scale(0.45, 30.0)
+
+    assert low_speed_center > highway_center
+    assert highway_center < highway_turn <= 1.0
+    assert highway_center > 0.89
+
   def test_prius_ff_scale_curve(self):
     assert get_prius_ff_scale(0.0, 0.0, 20.0) == 1.0
     steady_left = get_prius_ff_scale(0.7, 0.0, 8.0)
@@ -710,6 +742,8 @@ class TestLatControl:
 
     assert get_prius_friction_jerk_deadzone(30.0, 0.0) > get_prius_friction_jerk_deadzone(30.0, 0.8)
     assert get_prius_friction_jerk_deadzone(8.0, 0.0) < 0.05
+    assert get_prius_center_taper_scale(0.0, 30.0) < get_prius_center_taper_scale(0.8, 30.0)
+    assert get_prius_center_taper_scale(0.0, 8.0) > 0.99
     assert get_prius_high_speed_output_taper_scale(30.0, 0.0) > get_prius_high_speed_output_taper_scale(30.0, 0.8)
     assert get_prius_high_speed_output_taper_scale(15.0, 0.8) > 0.99
 
@@ -1237,6 +1271,26 @@ class TestLatControl:
     assert lac_log.active
     assert controller.torque_params.latAccelFactor == pytest.approx(CP.lateralTuning.torque.latAccelFactor * 0.98)
 
+  def test_palisade_center_output_taper_update_path(self, monkeypatch):
+    monkeypatch.setattr(latcontrol_torque, "get_palisade_center_output_scale", lambda *_args: 1.0)
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_PALISADE_2023)
+    CS.vEgo = 30.0
+    base_output, _, _ = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_palisade_center_output_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(
+      HYUNDAI.HYUNDAI_PALISADE_2023,
+    )
+    tapered_CS.vEgo = 30.0
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.0025, False, 0.2, None, None, tapered_toggles,
+    )
+
+    assert base_output != 0.0
+    assert tapered_output == pytest.approx(base_output * 0.5)
+
   def test_sonata_default_update_path(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_SONATA)
     CarInterface = interfaces[HYUNDAI.HYUNDAI_SONATA]
@@ -1651,6 +1705,25 @@ class TestLatControl:
   def test_kia_ev6_center_taper_curve(self):
     assert get_kia_ev6_center_taper_scale(0.0, 25.0) < get_kia_ev6_center_taper_scale(0.0, 10.0)
     assert get_kia_ev6_center_taper_scale(0.0, 25.0) < get_kia_ev6_center_taper_scale(0.20, 25.0) <= 1.0
+
+  def test_kia_ev6_center_output_taper_curve(self):
+    assert get_kia_ev6_center_output_scale(0.0, 10.0) > get_kia_ev6_center_output_scale(0.0, 20.0)
+    assert get_kia_ev6_center_output_scale(0.0, 20.0) < get_kia_ev6_center_output_scale(0.5, 20.0)
+    assert get_kia_ev6_center_output_scale(0.0, 20.0) > 0.87
+
+  def test_kia_ev6_center_output_taper_update_path(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.KIA_EV6)
+    base_output, _, _ = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_kia_ev6_center_output_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(HYUNDAI.KIA_EV6)
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.0025, False, 0.2, None, None, tapered_toggles,
+    )
+
+    assert abs(tapered_output) < abs(base_output)
 
   def test_volt_plexy_testing_ground_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.CHEVROLET_VOLT_CC)

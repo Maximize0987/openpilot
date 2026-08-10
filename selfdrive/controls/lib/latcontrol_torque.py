@@ -522,11 +522,16 @@ class LatControlTorque(LatControl):
         output_torque *= volt_plexy_center_taper
       elif kia_ev6_active:
         output_torque *= kia_ev6_low_speed_center_taper
+        output_torque *= get_kia_ev6_center_output_scale(setpoint, CS.vEgo)
       elif kia_carnival_active:
         output_torque *= kia_carnival_center_taper
         output_torque *= get_kia_carnival_highway_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+      elif palisade_active:
+        output_torque *= get_palisade_center_output_scale(setpoint, CS.vEgo)
       elif tucson_4th_gen_active:
         output_torque *= tucson_4th_gen_center_taper
+      elif sonata_hybrid_active:
+        output_torque *= sonata_hybrid_center_taper
       elif self.is_silverado:
         output_torque *= silverado_center_taper
       elif kia_niro_phev_2022_active:

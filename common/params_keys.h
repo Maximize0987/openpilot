@@ -209,6 +209,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"CECurvesLead", {PERSISTENT, BOOL, "0", "0", 1}},
     {"CELead", {PERSISTENT, BOOL, "1", "0", 1, SETTINGS_SIMPLE}},
     {"CEModelStopTime", {PERSISTENT, FLOAT, "7.7", "0.0", 2, SETTINGS_SIMPLE}},
+    {"CEOpenRoad", {PERSISTENT, BOOL, "0", "0", 1, SETTINGS_SIMPLE}},
     {"CESignalLaneDetection", {PERSISTENT, BOOL, "1", "0", 2}},
     {"CESignalSpeed", {PERSISTENT, FLOAT, "0.0", "0.0", 2, SETTINGS_SIMPLE}},
     {"CESlowerLead", {PERSISTENT, BOOL, "1", "0", 1, SETTINGS_SIMPLE}},
