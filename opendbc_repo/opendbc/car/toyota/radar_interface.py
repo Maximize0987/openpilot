@@ -12,7 +12,7 @@ KPH_TO_MS = 1. / 3.6
 TSSP_RADAR_EGO_SPEED_SCALE = 0.922
 
 xdistance = np.array([0, 230], dtype=np.float32)
-yoffset = np.array([0.0, 0.18], dtype=np.float32)
+yoffset = np.array([0.0, 0.2], dtype=np.float32)
 ydistin = np.array([-2.0, -0.5, 0.0, 0.5, 2], dtype=np.float32)
 ydistout = np.array([-3.0, -0.7, 0.0, 0.7, 3.0], dtype=np.float32)
 
