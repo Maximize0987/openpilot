@@ -113,8 +113,9 @@ class CanBus:
 
   @staticmethod
   def angle_for_cp(CP):
-    # D-platform angle LKAS is exchanged with the camera ECU on the camera bus.
-    return CanBus.camera if CP.flags & SubaruFlags.D_PLATFORM else CanBus.main
+    # D-platform angle commands reach the EPS through the main bus. The camera
+    # bus still carries the stock angle message and remains receive-only.
+    return CanBus.main
 
 
 class Footnote(Enum):
@@ -244,9 +245,9 @@ class CAR(Platforms):
     flags=SubaruFlags.LKAS_ANGLE | SubaruFlags.D_PLATFORM,
   )
   SUBARU_ASCENT_2023 = SubaruGen2PlatformConfig(
-    [SubaruCarDocs("Subaru Ascent 2023", "All", car_parts=CarParts.common([CarHarness.subaru_d]))],
+    [SubaruCarDocs("Subaru Ascent 2023-25", "All", car_parts=CarParts.common([CarHarness.subaru_d]))],
     SUBARU_ASCENT.specs,
-    flags=SubaruFlags.LKAS_ANGLE,
+    flags=SubaruFlags.LKAS_ANGLE | SubaruFlags.D_PLATFORM,
   )
   SUBARU_CROSSTREK_2025 = SubaruGen2PlatformConfig(
     [SubaruCarDocs("Subaru Crosstrek 2025", "All", car_parts=CarParts.common([CarHarness.subaru_d]))],

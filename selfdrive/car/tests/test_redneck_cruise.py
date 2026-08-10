@@ -170,8 +170,8 @@ class TestRedneckCruise(unittest.TestCase):
     )
     self.assertAlmostEqual(104.4 * CV.KPH_TO_MS, target_speed)
 
-  def test_target_speed_follows_resolved_slc_target(self):
-    for internal_mph, slc_mph in ((55.0, 65.0), (65.0, 55.0)):
+  def test_target_speed_respects_manual_lower_set_speed_with_slc(self):
+    for internal_mph, slc_mph, expected_mph in ((55.0, 65.0, 55.0), (65.0, 55.0, 55.0)):
       with self.subTest(internal_mph=internal_mph, slc_mph=slc_mph):
         target_speed = select_redneck_target_speed(
           internal_mph * CV.MPH_TO_KPH,
@@ -182,7 +182,20 @@ class TestRedneckCruise(unittest.TestCase):
           allow_plan_decrease=False,
           slc_target_speed_ms=slc_mph * CV.MPH_TO_MS,
         )
-        self.assertAlmostEqual(slc_mph * CV.MPH_TO_MS, target_speed)
+        self.assertAlmostEqual(expected_mph * CV.MPH_TO_MS, target_speed)
+
+  def test_target_speed_keeps_slc_limit_when_manual_set_speed_is_higher(self):
+    target_speed = select_redneck_target_speed(
+      75.0 * CV.MPH_TO_KPH,
+      65.0 * CV.MPH_TO_MS,
+      0.0,
+      [],
+      10,
+      allow_plan_decrease=False,
+      slc_target_speed_ms=65.0 * CV.MPH_TO_MS,
+    )
+
+    self.assertAlmostEqual(65.0 * CV.MPH_TO_MS, target_speed)
 
   def test_card_target_speed_uses_longitudinal_acceleration(self):
     sm = MagicMock()

@@ -17,7 +17,8 @@ from opendbc.car.hyundai.carcontroller import CarController, Ioniq6LongitudinalT
                                              should_reset_ev6_gt_line_longitudinal_tuning, reset_ev6_gt_line_longitudinal_tuning, \
                                              direct_angle_request_allowed, get_angle_smoothing_alpha, \
                                              should_use_ev6_gt_line_stop_direct_tracking
-from opendbc.car.hyundai.carstate import CarState, decode_canfd_camera_lead, decode_ioniq_6_blindspot_radar_state
+from opendbc.car.hyundai.carstate import CarState, decode_canfd_camera_lead, decode_ioniq_6_blindspot_radar_state, \
+                                             get_canfd_cruise_available
 from opendbc.car.hyundai.interface import CarInterface, KIA_EV9_ACCEL_MAX
 from opendbc.car.hyundai import hyundaican, hyundaicanfd
 from opendbc.car.hyundai.hyundaicanfd import CanBus
@@ -480,12 +481,34 @@ class TestHyundaiFingerprint:
     CC = SimpleNamespace(enabled=True, cruiseControl=SimpleNamespace(cancel=False, resume=False))
     actuators = SimpleNamespace(longControlState=LongCtrlState.off)
 
-    msgs = controller.create_can_msgs(True, 100, False, 0.0, 0.0, False, hud_control, actuators, CS, CC, 2)
+    msgs = controller.create_can_msgs(True, 100, False, 0.0, 0.0, False, hud_control, actuators, CS, CC, 2, 2)
     msg_addrs_buses = {(addr, bus) for addr, _, bus in msgs}
 
     assert (0x50, 0) in msg_addrs_buses
     assert (0x2A4, 0) in msg_addrs_buses
     assert not ({0x340, 0x364} & {addr for addr, _, _ in msgs})
+
+  def test_g70_aol_uses_active_lkas_icon(self):
+    CP = CarInterface.get_params(CAR.GENESIS_G70_2020, gen_empty_fingerprint(), [], False, False, False, None)
+    controller = CarController(DBC[CP.carFingerprint], CP)
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
+
+    hud_control = SimpleNamespace(
+      visualAlert=CarControl.HUDControl.VisualAlert.none,
+      leftLaneVisible=True,
+      rightLaneVisible=True,
+      leftLaneDepart=False,
+      rightLaneDepart=False,
+    )
+    CS = SimpleNamespace(lkas11=parser.vl["LKAS11"])
+    CC = SimpleNamespace(enabled=False, cruiseControl=SimpleNamespace(cancel=False, resume=False))
+    actuators = SimpleNamespace(longControlState=LongCtrlState.off)
+
+    msgs = controller.create_can_msgs(True, 100, False, 0.0, 0.0, False, hud_control, actuators, CS, CC, 2, 0)
+    lkas11 = next(msg for msg in msgs if msg[0] == 0x340)
+    parser.update([(1, [lkas11])])
+
+    assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 2
 
   @pytest.mark.parametrize("candidate", (CAR.HYUNDAI_ELANTRA_2024, CAR.HYUNDAI_ELANTRA_HEV_2024))
   def test_hyundai_can_refresh_platforms_use_refresh_dbc_and_safety_param(self, candidate):
@@ -727,6 +750,18 @@ class TestHyundaiFingerprint:
 
     ret.buttonEvents = [structs.CarState.ButtonEvent(pressed=True, type=ButtonType.mainCruise)]
     assert not CarState.update_main_cruise(car_state, ret)
+
+  def test_ev9_stock_fallback_uses_tcs_cruise_availability(self):
+    CP = SimpleNamespace(carFingerprint=CAR.KIA_EV9, openpilotLongitudinalControl=False)
+    cp = SimpleNamespace(vl={"TCS": {"ACCEnable": 0}})
+
+    assert get_canfd_cruise_available(CP, cp, False)
+
+    cp.vl["TCS"]["ACCEnable"] = 1
+    assert not get_canfd_cruise_available(CP, cp, True)
+
+    other_cp = SimpleNamespace(carFingerprint=CAR.HYUNDAI_IONIQ_6, openpilotLongitudinalControl=False)
+    assert not get_canfd_cruise_available(other_cp, cp, False)
 
   def test_palisade_2023_cancel_release_enables_from_standby(self):
     toggles = get_test_toggles()

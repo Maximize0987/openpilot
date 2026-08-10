@@ -970,6 +970,10 @@ class SafetyTest(SafetyTestBase):
             if 'TestSubaruDPlatformAngleSafety' in {attr, current_test} and \
                 'Angle' in attr and 'Angle' in current_test:
               continue
+            if 'TestSubaruDPlatformAngleSafety' in {attr, current_test}:
+              # D-platform uses the same main-bus HUD messages as the other
+              # Subaru modes, so those modes cannot be distinguished by ID.
+              tx = list(filter(lambda m: not (m[1] == 0 and m[0] in [0x321, 0x322, 0x323]), tx))
             if attr.startswith('TestSubaruPreglobal') and current_test.startswith('TestSubaruPreglobal'):
               continue
             if {attr, current_test}.issubset({'TestVolkswagenPqSafety', 'TestVolkswagenPqStockSafety', 'TestVolkswagenPqLongSafety'}):
