@@ -13,6 +13,8 @@ TSSP_RADAR_EGO_SPEED_SCALE = 0.922
 
 xdistance = np.array([0, 230], dtype=np.float32)
 yoffset = np.array([0.0, 0.18], dtype=np.float32)
+ydistin = np.array([-2.0, -0.5, 0.0, 0.5, 2], dtype=np.float32)
+ydistout = np.array([-3.0, -0.7, 0.0, 0.7, 3.0], dtype=np.float32)
 
 def _create_radar_can_parser(car_fingerprint):
   if car_fingerprint in TSS2_CAR:
@@ -161,8 +163,9 @@ class RadarInterface(RadarInterfaceBase):
           xinput = int(cpt['LONG_DIST'])
           yinput = float(cpt['LAT_DIST'])
           yprint = round(yinput,2)
-          yoffsetoutput = float(np.interp(xinput, xdistance, yoffset)) 
-          yOO = (round(yoffsetoutput,2))
+          yoffsetoutput1 = float(np.interp(xinput, xdistance, yoffset)) 
+          yoffsetoutput2 = float(np.interp(yoffsetoutput1, ydistin, ydistout)) 
+          yOO = (round(yoffsetoutput2,4))
           #print(f"Long: {xinput} Lat: {yprint} Score: {score}")
           cpt['LAT_DIST'] = cpt['LAT_DIST'] - yOO        # + shifts to the right
           self.pts[ii].dRel = cpt['LONG_DIST']  # from front of car
