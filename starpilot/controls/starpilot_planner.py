@@ -108,6 +108,7 @@ class StarPilotPlanner:
     self.radarless_follow_hold_until = 0.0
 
   def shutdown(self):
+    self.starpilot_vcruise.csc.flush_data()
     self.starpilot_vcruise.slc.shutdown()
     self.starpilot_weather.executor.shutdown(wait=False, cancel_futures=True)
 

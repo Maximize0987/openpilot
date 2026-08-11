@@ -9,9 +9,8 @@ Quick start:
 * set `SCALE=1.5` to scale the entire UI by 1.5x
 * set `BURN_IN=1` to get a burn-in heatmap version of the UI
 * burn-in prevention shifts the UI by 2 pixels every 3 minutes on device; set `BURN_IN_PREVENTION=0` to disable it
-  or tune it with `BURN_IN_SHIFT_PIXELS` and `BURN_IN_SHIFT_INTERVAL` (seconds); on TICI/TIZI, near-white pixels are also softly capped
-  at 95% luminance and can be tuned or disabled with `WHITE_LUMINANCE_CAP` (set it to `1.0` to disable). MICI uses direct shifting
-  by default, while enabling a luminance cap or forced render texture opts it into the offscreen path.
+  or tune it with `BURN_IN_SHIFT_PIXELS` and `BURN_IN_SHIFT_INTERVAL` (seconds). TICI/TIZI and MICI use direct shifting
+  by default; setting `WHITE_LUMINANCE_CAP` below `1.0` enables the optional luminance cap and offscreen presentation path.
 * set `MICI_FORCE_RENDER_TEXTURE=1` to force the C4 UI through the offscreen presentation path for diagnostics
 * set `GRID=50` to show a 50-pixel alignment grid overlay
 * set `MAGIC_DEBUG=1` to show every dropped frames (only on device)

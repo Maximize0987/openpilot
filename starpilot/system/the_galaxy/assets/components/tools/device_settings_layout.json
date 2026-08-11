@@ -4070,6 +4070,28 @@
         "settings_tier": "simple"
       },
       {
+        "key": "AlphaLongitudinalEnabled",
+        "label": "openpilot Longitudinal Control (Alpha)",
+        "description": "Enable openpilot longitudinal control for vehicles that support it. This replaces the vehicle's stock ACC and may disable automatic emergency braking. Changing this setting restarts the driving stack.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "GalaxyDeveloperMode",
+        "requires_offroad": true,
+        "confirm_message": "Enable openpilot Longitudinal Control? This is an alpha feature, replaces the vehicle's stock ACC, and may disable automatic emergency braking.",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "ForceOffroad",
+        "label": "Force Offroad",
+        "description": "Temporarily switch the device to the offroad state for remote updates when the vehicle is parked. This control is only available while the vehicle reports Park.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "GalaxyDeveloperMode",
+        "requires_parked": true,
+        "confirm_message": "Force the device offroad? Only use this while the vehicle is in Park.",
+        "settings_tier": "advanced"
+      },
+      {
         "key": "RedneckCruise",
         "label": "Redneck Cruise",
         "description": "On supported Hyundai stock-cruise cars, use RES/SET button presses to match the cluster set speed to StarPilot's target.",

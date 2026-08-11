@@ -77,6 +77,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g70_low_speed_angle_damping,
   get_genesis_g70_low_speed_output_limit,
   get_genesis_gv70_friction_threshold,
+  get_genesis_gv70_unwind_ff_scale,
   get_elantra_non_scc_ff_scale,
   get_palisade_ff_scale,
   get_palisade_center_output_scale,
@@ -660,6 +661,14 @@ class TestLatControl:
     right_unwind = get_genesis_g90_friction_scale(6.0, -0.7, 0.8)
     assert left_turn_in > right_turn_in > base
     assert base > left_unwind > right_unwind
+
+  def test_genesis_gv70_unwind_ff_scale(self):
+    assert get_genesis_gv70_unwind_ff_scale(-0.3, -0.3, 0.8, 15.0) == 1.0
+    assert get_genesis_gv70_unwind_ff_scale(-0.3, 0.1, 0.8, 15.0) == 1.0
+
+    reduced = get_genesis_gv70_unwind_ff_scale(-0.2, -1.0, 1.0, 20.0)
+    assert 0.6 < reduced < 1.0
+    assert get_genesis_gv70_unwind_ff_scale(-0.2, -1.0, -1.0, 20.0) == 1.0
 
   def test_palisade_ff_scale_curve(self):
     assert get_palisade_ff_scale(0.0, 0.0, 20.0) == 1.0

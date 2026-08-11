@@ -38,6 +38,10 @@ TRACK_CROP_PADDING_RATIO = 0.06
 TRACK_REPEAT_CONFIDENCE_BONUS = 0.12
 # Keep optional vision work responsive while giving realtime processes more headroom.
 BUSY_INFERENCE_INTERVAL = 1.5
+# Do not schedule another expensive inference before the previous one has given
+# the rest of the device enough time to run. This matters on Mici, where a
+# detector/classifier pass can take several hundred milliseconds.
+PROCESSING_THROTTLE_RATIO = 2.5
 MEMORY_PRESSURE_INFERENCE_INTERVAL = 2.0
 MEMORY_PRESSURE_CLASSIFICATION_INTERVAL = 0.75
 MEMORY_PRESSURE_AVAILABLE_KB = 512 * 1024
@@ -982,17 +986,26 @@ class SpeedLimitVisionDaemon:
     elif memory_pressure == "pressure":
       interval = max(interval, MEMORY_PRESSURE_INFERENCE_INTERVAL)
       reason = "memory_pressure"
-    elif self.coexistence_mode:
-      cpu_usage = list(self.sm["deviceState"].cpuUsagePercent) if self.sm is not None and self.sm.valid.get("deviceState", False) else []
-      factor = device_cpu_throttle_factor(cpu_usage, name="SpeedLimit")
-      if factor > 1.05:
+    else:
+      processing_interval = min(
+        BUSY_INFERENCE_INTERVAL,
+        self.last_frame_process_duration_s * PROCESSING_THROTTLE_RATIO,
+      )
+      if processing_interval > interval:
+        interval = processing_interval
+        reason = "processing_cost"
+
+      if self.coexistence_mode:
+        cpu_usage = list(self.sm["deviceState"].cpuUsagePercent) if self.sm is not None and self.sm.valid.get("deviceState", False) else []
+        factor = device_cpu_throttle_factor(cpu_usage, name="SpeedLimit")
+        if factor > 1.05:
+          self.last_cpu_busy = True
+          interval *= factor
+          reason = f"cpu_{factor:.1f}x"
+      elif self._device_cpu_busy():
         self.last_cpu_busy = True
-        interval *= factor
-        reason = f"cpu_{factor:.1f}x"
-    elif self._device_cpu_busy():
-      self.last_cpu_busy = True
-      interval = max(interval, BUSY_INFERENCE_INTERVAL)
-      reason = "cpu_busy"
+        interval = max(interval, BUSY_INFERENCE_INTERVAL)
+        reason = "cpu_busy"
     self.last_inference_interval = interval
     self.last_inference_interval_reason = reason
     return interval

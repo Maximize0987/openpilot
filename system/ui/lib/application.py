@@ -43,7 +43,7 @@ BURN_IN_PREVENTION = os.getenv("BURN_IN_PREVENTION", "0" if PC else "1") == "1"
 BURN_IN_SHIFT_INTERVAL = max(1.0, float(os.getenv("BURN_IN_SHIFT_INTERVAL", "180")))
 BURN_IN_SHIFT_PIXELS = max(0, int(os.getenv("BURN_IN_SHIFT_PIXELS", "2")))
 WHITE_LUMINANCE_CAP = min(1.0, max(0.0, float(os.getenv(
-  "WHITE_LUMINANCE_CAP", "0.95" if BURN_IN_PREVENTION and DEVICE_TYPE != "mici" else "1.0"
+  "WHITE_LUMINANCE_CAP", "1.0"
 ))))
 SHOW_FPS = os.getenv("SHOW_FPS") == "1"
 SHOW_TOUCHES = os.getenv("SHOW_TOUCHES") == "1"
@@ -618,7 +618,7 @@ class GuiApplication:
 
       needs_render_texture = ((self._scale != 1.0 and not PC) or BURN_IN_MODE or RECORD or
                               MICI_FORCE_RENDER_TEXTURE or
-                              (BURN_IN_PREVENTION and DEVICE_TYPE != "mici") or WHITE_LUMINANCE_CAP < 1.0)
+                              WHITE_LUMINANCE_CAP < 1.0)
       if PC and self._scale != 1.0:
         rl.set_mouse_scale(1 / self._scale, 1 / self._scale)
       if PC:
@@ -806,6 +806,10 @@ class GuiApplication:
   def _mark_progress(self, phase: str) -> None:
     if self._progress_hook is not None:
       self._progress_hook(phase)
+
+  def mark_progress(self, phase: str) -> None:
+    """Expose lightweight phase markers to complex widgets."""
+    self._mark_progress(phase)
 
   def set_should_render(self, should_render: bool):
     self._should_render = should_render

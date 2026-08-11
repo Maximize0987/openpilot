@@ -2418,6 +2418,8 @@ def _get_favorite_slot_options():
           continue
         if param_data.get("ui_type") != "toggle" or param_data.get("data_type") != "bool":
           continue
+        if key == "AlphaLongitudinalEnabled" and not _get_alpha_longitudinal_available():
+          continue
 
         seen.add(key)
         options.append({
@@ -3211,6 +3213,30 @@ def _get_has_radar():
   try:
     with car.CarParams.from_bytes(cp_bytes) as cp:
       return not bool(getattr(cp, "radarUnavailable", False))
+  except Exception:
+    return False
+
+def _get_vehicle_parked():
+  try:
+    sm = messaging.SubMaster(["carState"], poll="carState")
+    sm.update(100)
+    if not sm.seen["carState"] or not sm.alive["carState"] or not sm.valid["carState"]:
+      return False
+
+    gear_shifter = getattr(getattr(car, "CarState", None), "GearShifter", None)
+    park_value = getattr(gear_shifter, "park", None)
+    return park_value is not None and getattr(sm["carState"], "gearShifter", None) == park_value
+  except Exception:
+    return False
+
+def _get_alpha_longitudinal_available():
+  cp_bytes = _safe_params_get_live_raw("CarParamsPersistent")
+  if not cp_bytes:
+    return False
+
+  try:
+    with car.CarParams.from_bytes(cp_bytes) as cp:
+      return bool(getattr(cp, "alphaLongitudinalAvailable", False))
   except Exception:
     return False
 
@@ -4492,6 +4518,34 @@ def setup(app):
           "updated": updated,
         }), 200
 
+      if key == "AlphaLongitudinalEnabled":
+        if not _get_alpha_longitudinal_available():
+          return jsonify({"error": "Alpha Longitudinal is not available for the detected vehicle."}), 403
+        if params.get_bool("IsOnroad"):
+          return jsonify({"error": "Cannot change Alpha Longitudinal while driving."}), 403
+
+        enabled = str_val.strip() in ("1", "true", "True")
+        params.put_bool(key, enabled)
+        params.put_bool("OnroadCycleRequested", True)
+        update_starpilot_toggles()
+        return jsonify({
+          "message": f"Parameter '{key}' updated successfully. The driving stack will restart shortly.",
+          "updated": {key: enabled},
+        }), 200
+
+      if key == "ForceOffroad":
+        if not _get_vehicle_parked():
+          return jsonify({"error": "Force Offroad is only available while the vehicle is in Park."}), 403
+
+        enabled = str_val.strip() in ("1", "true", "True")
+        params.put_bool("ForceOffroad", enabled)
+        params.put_bool("ForceOnroad", False)
+        update_starpilot_toggles()
+        return jsonify({
+          "message": f"Force Offroad {'enabled' if enabled else 'disabled'}.",
+          "updated": {"ForceOffroad": enabled, "ForceOnroad": False},
+        }), 200
+
       # 1. Prevent changing the model or reboot-required toggles while the car is actively driving
       reboot_keys = {"Model", "DrivingModel", "AlwaysOnLateral", "DisableOpenpilotLongitudinal", "ForceTorqueController", "NNFF", "NNFFLite"}
       if key in reboot_keys and params.get_bool("IsOnroad"):
@@ -4861,6 +4915,8 @@ def setup(app):
         result[key] = None
 
     result["HasRadar"] = _get_has_radar()
+    result["VehicleParked"] = _get_vehicle_parked()
+    result["AlphaLongitudinalAvailable"] = _get_alpha_longitudinal_available()
 
     return jsonify(_sanitize_json_value(result)), 200
 

@@ -462,6 +462,10 @@ class LatControlTorque(LatControl):
         friction_scale *= get_ioniq_6_2025_low_speed_center_friction_scale(
           setpoint, desired_lateral_jerk, CS.vEgo,
         )
+      if self.is_genesis_gv70:
+        ff *= get_genesis_gv70_unwind_ff_scale(
+          setpoint, measurement, desired_lateral_jerk, CS.vEgo,
+        )
       if ioniq_6_active:
         vehicle_friction_jerk_deadzone = (
           IONIQ_6_2025_FRICTION_JERK_DEADZONE if self.is_ioniq_6_2025 else IONIQ_6_FRICTION_JERK_DEADZONE

@@ -50,6 +50,7 @@ USBGPU_PROBE_ATTEMPTS = 10
 USBGPU_PROBE_TIMEOUT = 2
 USBDEVFS_CONTROL = 0xC0185500
 USBGPU_VID_PIDS = (("add1", "0001"), ("3801", "0001"))
+USBGPU_FIRMWARE_PRODUCT = "custom ed4e39b7-CLEAN"
 
 
 class _UsbdevfsControl(ctypes.Structure):
@@ -91,6 +92,8 @@ def _probe_external_gpu_link_once() -> tuple[bool, str]:
   diagnostics: list[str] = []
   for path in glob.glob("/sys/bus/usb/devices/*"):
     try:
+      if not Path(path, "idVendor").is_file():
+        continue
       vendor = Path(path, "idVendor").read_text().strip().lower()
       product = Path(path, "idProduct").read_text().strip().lower()
       if (vendor, product) not in USBGPU_VID_PIDS:
@@ -98,6 +101,9 @@ def _probe_external_gpu_link_once() -> tuple[bool, str]:
       bus = int(Path(path, "busnum").read_text())
       device = int(Path(path, "devnum").read_text())
       location = f"usb:{bus}-{device}"
+      firmware = Path(path, "product").read_text().strip()
+      if firmware and firmware != USBGPU_FIRMWARE_PRODUCT:
+        return False, f"{location}: firmware {firmware!r}, expected {USBGPU_FIRMWARE_PRODUCT!r}"
       fd = os.open(f"/dev/bus/usb/{bus:03d}/{device:03d}", os.O_RDWR)
     except (OSError, ValueError) as exc:
       diagnostics.append(f"{path}: open failed ({exc})")
@@ -138,6 +144,12 @@ def wait_for_external_gpu(compile_env: dict[str, str]) -> bool:
       ready, detail = False, str(exc)
     if ready:
       return True
+    if "firmware" in detail and "expected" in detail:
+      raise RuntimeError(
+        f"External GPU firmware is out of date: {detail}. "
+        "Wait for hardwared to flash the dock, or run "
+        "sudo python3 system/hardware/chestnut/flash.py ed4e39b7."
+      )
     diagnostics.append(detail)
 
   detail = diagnostics[-1] if diagnostics else "unknown error"

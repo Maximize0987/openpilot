@@ -6,7 +6,7 @@ from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 
 from openpilot.starpilot.common.starpilot_variables import CITY_SPEED_LIMIT, CRUISING_SPEED
-from openpilot.starpilot.controls.lib.curve_speed_controller import CurveSpeedController
+from openpilot.starpilot.controls.lib.curve_speed_controller import CurveSpeedController, is_manual_speed_control
 from openpilot.starpilot.controls.lib.speed_limit_controller import SpeedLimitController
 
 CSC_MIN_SPEED = CITY_SPEED_LIMIT * CV.MPH_TO_MS
@@ -479,8 +479,10 @@ class StarPilotVCruise:
 
     # FrogsGoMoo's Curve Speed Controller
     following_lead = bool(getattr(self.starpilot_planner.starpilot_following, "following_lead", False))
+    manual_speed_control = is_manual_speed_control(sm)
     csc_available = (
       long_control_active and
+      not manual_speed_control and
       v_ego > CRUISING_SPEED and
       starpilot_toggles.curve_speed_controller and
       (not getattr(starpilot_toggles, "csc_no_lead", False) or not following_lead)

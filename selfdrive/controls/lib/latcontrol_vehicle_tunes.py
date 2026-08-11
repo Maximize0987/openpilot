@@ -200,6 +200,13 @@ GENESIS_GV70_FRICTION_CENTER_LAT = 0.28
 GENESIS_GV70_FRICTION_CENTER_LAT_WIDTH = 0.12
 GENESIS_GV70_FRICTION_CALM_JERK = 0.35
 GENESIS_GV70_FRICTION_CALM_JERK_WIDTH = 0.10
+GENESIS_GV70_UNWIND_FF_REDUCTION_MAX = 0.35
+GENESIS_GV70_UNWIND_FF_OVERSHOOT = 0.15
+GENESIS_GV70_UNWIND_FF_OVERSHOOT_WIDTH = 0.18
+GENESIS_GV70_UNWIND_FF_JERK = 0.10
+GENESIS_GV70_UNWIND_FF_JERK_WIDTH = 0.10
+GENESIS_GV70_UNWIND_FF_SPEED = 10.0 * CV.MPH_TO_MS
+GENESIS_GV70_UNWIND_FF_SPEED_WIDTH = 4.0 * CV.MPH_TO_MS
 
 GENESIS_G70_FRICTION_THRESHOLD_GAIN = 0.10
 GENESIS_G70_FRICTION_SPEED_ONSET = 10.0
@@ -2581,6 +2588,24 @@ def get_genesis_gv70_friction_threshold(v_ego: float, desired_lateral_accel: flo
   gain = (GENESIS_GV70_FRICTION_THRESHOLD_GAIN * speed_onset * speed_cutoff *
           center_weight * calm_jerk_weight)
   return base_threshold * (1.0 + gain)
+
+
+def get_genesis_gv70_unwind_ff_scale(setpoint: float, measured_lateral_accel: float,
+                                     desired_lateral_jerk: float, v_ego: float) -> float:
+  """Remove old-turn feedforward when the GV70 has already over-rotated."""
+  if setpoint * desired_lateral_jerk >= 0.0 or setpoint * measured_lateral_accel <= 0.0:
+    return 1.0
+
+  overshoot = max(abs(measured_lateral_accel) - abs(setpoint), 0.0)
+  if overshoot <= 0.0:
+    return 1.0
+  overshoot_weight = _sigmoid((overshoot - GENESIS_GV70_UNWIND_FF_OVERSHOOT) /
+                              GENESIS_GV70_UNWIND_FF_OVERSHOOT_WIDTH)
+  jerk_weight = _sigmoid((abs(desired_lateral_jerk) - GENESIS_GV70_UNWIND_FF_JERK) /
+                         GENESIS_GV70_UNWIND_FF_JERK_WIDTH)
+  speed_weight = _sigmoid((v_ego - GENESIS_GV70_UNWIND_FF_SPEED) /
+                          GENESIS_GV70_UNWIND_FF_SPEED_WIDTH)
+  return 1.0 - GENESIS_GV70_UNWIND_FF_REDUCTION_MAX * overshoot_weight * jerk_weight * speed_weight
 
 
 def get_genesis_g70_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,

@@ -703,7 +703,9 @@ class AugmentedRoadView(CameraView):
     if camera_view_none:
       rl.draw_rectangle_rec(self._content_rect, rl.BLACK)
     else:
+      gui_app.mark_progress("mici.onroad.before_camera")
       super()._render(self._content_rect)
+      gui_app.mark_progress("mici.onroad.after_camera")
 
     waiting_for_controls = ui_state.started and not self._controls_ready()
     if waiting_for_controls:
@@ -728,7 +730,9 @@ class AugmentedRoadView(CameraView):
 
     # Draw all UI overlays
     if draw_road_overlays:
+      gui_app.mark_progress("mici.onroad.before_model")
       self._model_renderer.render(self._content_rect)
+      gui_app.mark_progress("mici.onroad.after_model")
 
     # Fade out bottom of overlays for looks
     rl.draw_texture_ex(self._fade_texture, rl.Vector2(self._content_rect.x, self._content_rect.y), 0.0, 1.0, rl.WHITE)
@@ -752,7 +756,9 @@ class AugmentedRoadView(CameraView):
     if ui_state.started:
       self._alert_renderer.render(self._content_rect)
     if draw_hud_controls:
+      gui_app.mark_progress("mici.onroad.before_hud")
       self._hud_renderer.render_foreground()
+      gui_app.mark_progress("mici.onroad.after_hud")
     rendered_standstill_timer = False
     if draw_hud_controls:
       rendered_standstill_timer = self._standstill_timer.render(self._content_rect, in_reverse)
@@ -765,10 +771,12 @@ class AugmentedRoadView(CameraView):
     # Custom UI extension point - add custom overlays here
     # Use self._content_rect for positioning within camera bounds
     if draw_road_overlays:
+      gui_app.mark_progress("mici.onroad.before_sidebar")
       if ui_state.ui_params.get_bool("StockConfidenceBallWidget") and not self._sidebar_widgets.demo_active:
         self._confidence_ball.render(self.rect)
       else:
         self._sidebar_widgets.render(self.rect)
+      gui_app.mark_progress("mici.onroad.after_sidebar")
     if draw_hud_controls and (camera_view_none or is_driver_stream or not in_reverse):
       self._favorite_slots.render(self._content_rect)
     if camera_view_none or is_driver_stream or not in_reverse:
@@ -832,9 +840,9 @@ class AugmentedRoadView(CameraView):
 
   @staticmethod
   def _camera_view() -> int:
-    camera_view = ui_state.ui_params.get_int("CameraView", return_default=True, default=CAMERA_VIEW_WIDE)
+    camera_view = ui_state.ui_params.get_int("CameraView", return_default=True, default=CAMERA_VIEW_STANDARD)
     if camera_view not in (CAMERA_VIEW_AUTO, CAMERA_VIEW_DRIVER, CAMERA_VIEW_STANDARD, CAMERA_VIEW_WIDE, CAMERA_VIEW_NONE):
-      return CAMERA_VIEW_WIDE
+      return CAMERA_VIEW_STANDARD
     return camera_view
 
   def _switch_stream_if_needed(self, sm, camera_view: int):
@@ -846,12 +854,12 @@ class AugmentedRoadView(CameraView):
 
     reentry_selection_pending = (getattr(self, "_onroad_reentry_pending", False) and
                                  not getattr(self, "_reentry_stream_selected", False))
-    if reentry_selection_pending:
-      self._refresh_available_streams()
-
     if self._update_reverse_driver_camera_state():
       self.switch_stream(DRIVER_CAM)
       return
+
+    if reentry_selection_pending or not self.available_streams:
+      self._refresh_available_streams()
 
     wide_available = WIDE_CAM in self.available_streams
     if camera_view == CAMERA_VIEW_DRIVER:
@@ -867,8 +875,10 @@ class AugmentedRoadView(CameraView):
       elif v_ego > ROAD_CAM_MIN_SPEED:
         target = ROAD_CAM
       else:
-        # Hysteresis zone - keep the current road camera selection.
-        target = WIDE_CAM if self.stream_type == WIDE_CAM and wide_available else ROAD_CAM
+        # Hysteresis zone - keep the current or pending road camera selection.
+        current_road_stream = (self._target_stream_type if self._switching and
+                               self._target_stream_type in (ROAD_CAM, WIDE_CAM) else self.stream_type)
+        target = WIDE_CAM if current_road_stream == WIDE_CAM and wide_available else ROAD_CAM
     else:
       target = ROAD_CAM
 

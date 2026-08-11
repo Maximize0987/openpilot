@@ -106,6 +106,7 @@ function isSettingVisible(section, param) {
   // This policy controls Galaxy rendering only; hidden params retain their stored values.
   if (HIDDEN_SETTING_KEYS.has(param.key) || !isVehicleSettingVisible(section, param)) return false
   if (RADAR_REQUIRED_KEYS.has(param.key) && !state.values.HasRadar) return false
+  if (param.key === "AlphaLongitudinalEnabled" && !state.values.AlphaLongitudinalAvailable) return false
   if (state.values[GALAXY_DEVELOPER_MODE_KEY]) return true
   return section.name === "Favorites" || param.settings_tier === "simple"
 }
@@ -1101,6 +1102,11 @@ async function updateParam(key, elType) {
     return
   }
 
+  if (elType === "checkbox" && formattedVal && param.confirm_message && !window.confirm(param.confirm_message)) {
+    revertInput(key, current, elType)
+    return
+  }
+
   try {
     const res = await fetch("/api/params", {
       method: "PUT",
@@ -1231,6 +1237,12 @@ function clearSearchFilter() {
 const cancelButtonKeys = new Set(["CancelButtonControl", "LongCancelButtonControl", "VeryLongCancelButtonControl"])
 
 function getSettingLockReason(param) {
+  if (param?.requires_offroad && state.values.IsOnroad) {
+    return "This setting can only be changed while parked."
+  }
+  if (param?.requires_parked && !state.values.VehicleParked) {
+    return "This setting can only be changed while the vehicle is in Park."
+  }
   if (param?.disabled_when_key_true && state.values[param.disabled_when_key_true]) {
     return param.disabled_reason || "Disabled by another setting."
   }
