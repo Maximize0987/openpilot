@@ -1152,6 +1152,20 @@ def test_toyota_sienna_target_filter_smooths_mild_high_speed_handoffs():
   assert -0.20 < filtered < 0.30
 
 
+def test_toyota_sienna_target_filter_ramps_low_speed_acceleration():
+  CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+
+  first = tuning.shape_toyota_sienna_accel_target(1.5, 2.0, False)
+  assert 0.0 < first < 1.5
+
+  for _ in range(100):
+    filtered = tuning.shape_toyota_sienna_accel_target(1.5, 3.0, False)
+  assert filtered < 1.5
+
+  assert tuning.shape_toyota_sienna_accel_target(-1.5, 3.0, False) == pytest.approx(-1.5)
+
+
 def test_toyota_sienna_target_filter_bypasses_stop_and_urgent_braking():
   CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
   tuning = vehicle_tunes.LongControlVehicleTuning(CP)

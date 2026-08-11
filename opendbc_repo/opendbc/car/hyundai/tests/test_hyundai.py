@@ -1404,6 +1404,15 @@ class TestHyundaiFingerprint:
     assert get_canfd_scc_decel_step(ev9_cp) == pytest.approx(0.20)
     assert get_canfd_scc_decel_step(ioniq_6_cp) == pytest.approx(0.36)
 
+  def test_ev9_longitudinal_decel_jerk_is_bounded(self):
+    state = Ioniq6LongitudinalTuningState(actual_accel=-1.0, accel_last=-1.0)
+    state = update_ioniq_6_longitudinal_tuning(
+      state, accel_cmd=-3.0, v_ego=20.0, a_ego=-3.0,
+      long_control_state=LongCtrlState.pid, long_active=True, ev9=True,
+    )
+    assert state.jerk_lower == pytest.approx(2.0)
+    assert state.actual_accel == pytest.approx(-1.1)
+
   def test_ioniq_5_pe_longitudinal_params_match_observed_response(self):
     toggles = get_test_toggles()
     CP = CarInterface.get_params(CAR.HYUNDAI_IONIQ_5_PE, gen_empty_fingerprint(), [], True, False, False, toggles)

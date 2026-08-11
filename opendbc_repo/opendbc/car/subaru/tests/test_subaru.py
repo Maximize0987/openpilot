@@ -116,6 +116,16 @@ class TestSubaruFingerprint:
     assert exact
     assert matches == {CAR.SUBARU_ASCENT_2023}
 
+  def test_ascent_2025_firmware_without_engine_response(self):
+    car_fw = [
+      CarParams.CarFw(ecu=CarParams.Ecu.abs, fwVersion=b'\xa5 %\x03\x01', address=0x7b0, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.eps, fwVersion=b'\x55\xc0\xd0\x10', address=0x746, brand="subaru"),
+      CarParams.CarFw(ecu=CarParams.Ecu.fwdCamera, fwVersion=b'\x17!\x08\x01A\x00\x00\x00\x00\x00', address=0x787, brand="subaru"),
+    ]
+    exact, matches = match_fw_to_car(car_fw, "4S4WMAAD9S3414980", allow_fuzzy=False, log=False)
+    assert exact
+    assert matches == {CAR.SUBARU_ASCENT_2023}
+
 
 ANGLE_PLATFORMS = (
   CAR.SUBARU_FORESTER_2022,
@@ -169,16 +179,14 @@ def test_legacy_2025_uses_d_platform_bus_layout():
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
-  assert CP.flags & SubaruFlags.D_PLATFORM_CAMERA
-  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.camera
+  assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
   assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.camera
-  assert controller.status_bus == CanBus.camera
+  assert controller.angle_bus == CanBus.main
+  assert controller.status_bus == CanBus.main
 
 
 def test_ascent_2023_uses_d_platform_bus_layout():
@@ -188,16 +196,14 @@ def test_ascent_2023_uses_d_platform_bus_layout():
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
-  assert CP.flags & SubaruFlags.D_PLATFORM_CAMERA
-  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA
   assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.camera
+  assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.alt
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
   assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.camera
-  assert controller.status_bus == CanBus.camera
+  assert controller.angle_bus == CanBus.main
+  assert controller.status_bus == CanBus.main
 
 
 def test_other_angle_platforms_keep_existing_bus_layout():

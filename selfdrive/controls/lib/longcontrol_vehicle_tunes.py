@@ -26,6 +26,7 @@ GM_TRUCK_TARGET_FILTER_DROP_BYPASS = 0.45
 TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED = 12.0
 TOYOTA_SIENNA_TARGET_FILTER_UP_TAU = 0.18
 TOYOTA_SIENNA_TARGET_FILTER_DOWN_TAU = 0.24
+TOYOTA_SIENNA_LOW_SPEED_ACCEL_UP_TAU = 0.35
 TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS = -0.75
 TOYOTA_SIENNA_TARGET_FILTER_DROP_BYPASS = 0.65
 TOYOTA_SIENNA_COMFORT_FILTER_MIN_SPEED = 5.0
@@ -109,7 +110,7 @@ class LongControlVehicleTuning:
     )
     self.is_toyota_sienna_4g = bool(
       CP.brand == "toyota" and
-      getattr(CP, "carFingerprint", None) == TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN
+      str(getattr(CP, "carFingerprint", "")) == str(TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
     )
     self.is_toyota_corolla_tss2 = bool(
       CP.brand == "toyota" and
@@ -211,12 +212,22 @@ class LongControlVehicleTuning:
         lead_brake <= TOYOTA_SIENNA_COMFORT_FILTER_MAX_LEAD_BRAKE
       )
 
-    # Keep the legacy high-speed filter unchanged. The lower-speed entry is only
-    # for a centered lead with enough room to soften a comfort response.
     if v_ego < TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED and not comfort_filter_active:
+      if a_target > 0.0:
+        if not self.toyota_sienna_target_filter_initialized or self.toyota_sienna_filtered_a_target < 0.0:
+          self.toyota_sienna_filtered_a_target = 0.0
+          self.toyota_sienna_target_filter_initialized = True
+        alpha = DT_CTRL / (TOYOTA_SIENNA_LOW_SPEED_ACCEL_UP_TAU + DT_CTRL)
+        self.toyota_sienna_filtered_a_target += alpha * (
+          float(a_target) - self.toyota_sienna_filtered_a_target
+        )
+        return self.toyota_sienna_filtered_a_target
+
       self.toyota_sienna_target_filter_initialized = False
       return a_target
 
+    # Keep the legacy high-speed filter unchanged. The lower-speed entry is only
+    # for a centered lead with enough room to soften a comfort response.
     if comfort_filter_active:
       bypass_filter = a_target <= TOYOTA_SIENNA_COMFORT_FILTER_BRAKE_BYPASS
     else:

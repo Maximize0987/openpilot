@@ -75,7 +75,6 @@ class SubaruSafetyFlags(IntFlag):
   STOP_AND_GO = 8
   LKAS_ANGLE = 16
   D_PLATFORM = 32
-  D_PLATFORM_CAMERA = 64
 
 
 class SubaruFlags(IntFlag):
@@ -93,7 +92,6 @@ class SubaruFlags(IntFlag):
   HYBRID = 32
   LKAS_ANGLE = 64
   D_PLATFORM = 128
-  D_PLATFORM_CAMERA = 256
 
 
 GLOBAL_ES_ADDR = 0x787
@@ -115,8 +113,8 @@ class CanBus:
 
   @staticmethod
   def angle_for_cp(CP):
-    # This Ascent variant receives angle commands through EyeSight's camera bus.
-    return CanBus.camera if CP.flags & SubaruFlags.D_PLATFORM_CAMERA else CanBus.main
+    # D-platform angle commands reach the EPS through the main bus.
+    return CanBus.main
 
 
 class Footnote(Enum):
@@ -243,12 +241,12 @@ class CAR(Platforms):
   SUBARU_LEGACY_2025 = SubaruGen2PlatformConfig(
     [SubaruCarDocs("Subaru Legacy 2025", "All", car_parts=CarParts.common([CarHarness.subaru_d]))],
     SUBARU_OUTBACK.specs,
-    flags=SubaruFlags.LKAS_ANGLE | SubaruFlags.D_PLATFORM | SubaruFlags.D_PLATFORM_CAMERA,
+    flags=SubaruFlags.LKAS_ANGLE | SubaruFlags.D_PLATFORM,
   )
   SUBARU_ASCENT_2023 = SubaruGen2PlatformConfig(
     [SubaruCarDocs("Subaru Ascent 2023-25", "All", car_parts=CarParts.common([CarHarness.subaru_d]))],
     SUBARU_ASCENT.specs,
-    flags=SubaruFlags.LKAS_ANGLE | SubaruFlags.D_PLATFORM | SubaruFlags.D_PLATFORM_CAMERA,
+    flags=SubaruFlags.LKAS_ANGLE | SubaruFlags.D_PLATFORM,
   )
   SUBARU_CROSSTREK_2025 = SubaruGen2PlatformConfig(
     [SubaruCarDocs("Subaru Crosstrek 2025", "All", car_parts=CarParts.common([CarHarness.subaru_d]))],
@@ -318,6 +316,8 @@ FW_QUERY_CONFIG = FwQueryConfig(
   # We don't get the EPS from non-OBD queries on GEN2 cars. Note that we still attempt to match when it exists
   non_essential_ecus={
     Ecu.eps: list(CAR.with_flags(SubaruFlags.GLOBAL_GEN2)),
+    # Some 2023+ Ascent firmware queries return the engine only from a logging request.
+    Ecu.engine: [CAR.SUBARU_ASCENT_2023],
   }
 )
 

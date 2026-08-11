@@ -42,7 +42,9 @@ MEDMODEL_INPUT_SIZE = (512, 256)
 DM_INPUT_SIZE = (1440, 960)
 MODEL_RUN_FREQ = 20
 MODEL_CONTEXT_FREQ = 5
-REPOSITORY_FILE_LIMIT = 100 * 1024 * 1024
+# GitHub/GitLab advertise a 100 MB per-file limit. Use the decimal limit so
+# artifacts such as a 104.4 MB PKL are split before they reach the remote.
+REPOSITORY_FILE_LIMIT = 100_000_000
 DEFAULT_MULTIPART_SIZE = 95 * 1024 * 1024
 USBGPU_PROBE_ATTEMPTS = 10
 USBGPU_PROBE_TIMEOUT = 2
@@ -61,14 +63,15 @@ def build_compile_env(*, supercombo: bool = False) -> dict[str, str]:
   env = os.environ.copy()
   existing_pythonpath = env.get("PYTHONPATH", "")
   env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else str(REPO_ROOT)
-  defaults = {} if supercombo else {
-    "DEBUG": "0",
+  defaults = {
     "FLOAT16": "1",
-    "IMAGE": "2",
+    "IMAGE": "1" if supercombo else "2",
     "JIT_BATCH_SIZE": "0",
     "NOLOCALS": "1",
     "OPENPILOT_HACKS": "1",
-  }
+  } | ({} if supercombo else {
+    "DEBUG": "0",
+  })
   for key, default in defaults.items():
     try:
       int(str(env.get(key)), 0)
@@ -720,7 +723,7 @@ def main() -> int:
   else:
     multipart_outputs = split_oversized_artifact(output)
     if multipart_outputs:
-      print("  artifact exceeds 100 MiB; created repository-safe multipart files:")
+      print("  artifact exceeds 100 MB; created repository-safe multipart files:")
       for multipart_output in multipart_outputs:
         print(f"    {multipart_output.name} ({multipart_output.stat().st_size} bytes)")
       output.unlink()

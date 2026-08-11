@@ -14,8 +14,28 @@ from openpilot.starpilot.assets.model_manager import MANIFEST_CANDIDATES, ModelM
 from openpilot.starpilot.common.model_versions import UNIFIED_ARTIFACT_FORMAT
 
 
-def test_v22_is_the_only_manifest_candidate():
-  assert MANIFEST_CANDIDATES == ("v22",)
+def test_v23_is_the_only_manifest_candidate():
+  assert MANIFEST_CANDIDATES == ("v23",)
+
+
+def test_v23_manifest_is_loaded_from_models_checkout():
+  assert ModelManager._manifest_paths("v23") == ("Models/model_names_v23.json",)
+
+
+def test_old_manifest_ids_resolve_to_v23_namespace():
+  manager = object.__new__(ModelManager)
+  manager.available_models = ["pop223", "tr14223"]
+  assert manager._resolve_manifest_model_key("pop22") == "pop223"
+  assert manager._resolve_manifest_model_key("tr1422") == "tr14223"
+  assert manager._resolve_manifest_model_key("missing") == "missing"
+
+
+def test_model_cleanup_matches_legacy_split_artifacts():
+  assert model_manager.is_driving_artifact_file("pop223_driving_tinygrad.pkl")
+  assert model_manager.is_driving_artifact_file("driving_vision_tinygrad.pkl")
+  assert model_manager.is_driving_artifact_file("driving_off_policy_tinygrad.pkl.p00")
+  assert not model_manager.is_driving_artifact_file("dmonitoring_model_tinygrad.pkl")
+  assert not model_manager.is_driving_artifact_file("local-test_driving_tinygrad.pkl")
 
 
 def test_behavior_version_does_not_control_artifact_layout():

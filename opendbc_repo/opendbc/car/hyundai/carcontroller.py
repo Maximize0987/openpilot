@@ -43,6 +43,7 @@ GENESIS_G90_RELEASE_DECEL_STEP_V = [0.16, 0.18, 0.18]
 GENESIS_G90_RELEASE_MAX_SPEED = 0.8
 IONIQ_6_LONG_MIN_JERK = 0.5 * IONIQ_6_RESPONSE_MULTIPLIER
 IONIQ_6_LONG_JERK_LIMIT = 4.8 * IONIQ_6_RESPONSE_MULTIPLIER
+EV9_LONG_DECEL_JERK = 2.0
 IONIQ_6_LONG_LOOKAHEAD_JERK_BP = [2.0, 5.0, 20.0]
 IONIQ_6_LONG_LOOKAHEAD_JERK_V = [0.3 / IONIQ_6_RESPONSE_MULTIPLIER,
                                  0.45 / IONIQ_6_RESPONSE_MULTIPLIER,
@@ -238,7 +239,8 @@ def reset_egmp_longitudinal_tuning(state: Ioniq6LongitudinalTuningState) -> Ioni
 
 def update_ioniq_6_longitudinal_tuning(state: Ioniq6LongitudinalTuningState, accel_cmd: float, v_ego: float, a_ego: float,
                                        long_control_state: LongCtrlState, long_active: bool,
-                                       ev6_gt_line: bool = False, low_speed_stop_brake_cap: bool = False) -> Ioniq6LongitudinalTuningState:
+                                       ev6_gt_line: bool = False, low_speed_stop_brake_cap: bool = False,
+                                       ev9: bool = False) -> Ioniq6LongitudinalTuningState:
   starting = long_control_state == LongCtrlState.starting
   stopping = long_control_state == LongCtrlState.stopping
   restart_from_stop = state.long_control_state_last in (LongCtrlState.stopping, LongCtrlState.starting) and \
@@ -278,6 +280,8 @@ def update_ioniq_6_longitudinal_tuning(state: Ioniq6LongitudinalTuningState, acc
   dynamic_lower_jerk = _calculate_ioniq_6_dynamic_lower_jerk(dynamic_accel_error)
   state.jerk_upper = desired_jerk_upper
   state.jerk_lower = min(dynamic_lower_jerk, lower_speed_limit)
+  if ev9:
+    state.jerk_lower = min(state.jerk_lower, EV9_LONG_DECEL_JERK)
 
   if state.stopping:
     stop_brake_cap_max_speed = EV6_GT_LINE_STOP_BRAKE_CAP_MAX_SPEED if ev6_gt_line or low_speed_stop_brake_cap else \
@@ -615,11 +619,13 @@ class CarController(CarControllerBase):
                                                                       CS.out.vEgo, CS.out.aEgo,
                                                                       actuators.longControlState, self.long_active_ecu,
                                                                       ev6_gt_line=is_ev6_gt_line,
-                                                                      low_speed_stop_brake_cap=is_ccnc_angle_long)
+                                                                      low_speed_stop_brake_cap=is_ccnc_angle_long,
+                                                                      ev9=self.CP.carFingerprint == CAR.KIA_EV9)
     use_egmp_smoothed_accel = use_egmp_dynamic_long_tuning and (
       accel_cmd >= self._ioniq_6_long_tuning.actual_accel or
       self._ioniq_6_long_tuning.launch_active or
-      self._ioniq_6_long_tuning.stopping
+      self._ioniq_6_long_tuning.stopping or
+      self.CP.carFingerprint == CAR.KIA_EV9
     )
     if should_use_ev6_gt_line_stop_direct_tracking(is_ev6_gt_line, self._ioniq_6_long_tuning.stopping,
                                                    CS.out.vEgo, accel_cmd, self._ioniq_6_long_tuning.actual_accel):

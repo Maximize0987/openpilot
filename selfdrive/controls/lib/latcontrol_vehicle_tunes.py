@@ -87,6 +87,9 @@ SILVERADO_CARS = (
 GENESIS_G90_CARS = (
   HYUNDAI_CAR.GENESIS_G90,
 )
+GENESIS_G70_CARS = (
+  HYUNDAI_CAR.GENESIS_G70_2020,
+)
 GENESIS_GV70_CARS = (
   HYUNDAI_CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN,
 )
@@ -197,6 +200,31 @@ GENESIS_GV70_FRICTION_CENTER_LAT = 0.28
 GENESIS_GV70_FRICTION_CENTER_LAT_WIDTH = 0.12
 GENESIS_GV70_FRICTION_CALM_JERK = 0.35
 GENESIS_GV70_FRICTION_CALM_JERK_WIDTH = 0.10
+
+GENESIS_G70_FRICTION_THRESHOLD_GAIN = 0.10
+GENESIS_G70_FRICTION_SPEED_ONSET = 10.0
+GENESIS_G70_FRICTION_SPEED_ONSET_WIDTH = 3.0
+GENESIS_G70_FRICTION_SPEED_CUTOFF = 35.0
+GENESIS_G70_FRICTION_SPEED_CUTOFF_WIDTH = 6.0
+GENESIS_G70_FRICTION_CENTER_LAT = 0.28
+GENESIS_G70_FRICTION_CENTER_LAT_WIDTH = 0.10
+GENESIS_G70_FRICTION_CALM_JERK = 0.35
+GENESIS_G70_FRICTION_CALM_JERK_WIDTH = 0.10
+GENESIS_G70_FRICTION_JERK_DEADZONE_MAX = 0.24
+GENESIS_G70_FRICTION_JERK_DEADZONE_LAT = 0.30
+GENESIS_G70_FRICTION_JERK_DEADZONE_LAT_WIDTH = 0.08
+GENESIS_G70_FRICTION_JERK_DEADZONE_SPEED = 12.0
+GENESIS_G70_FRICTION_JERK_DEADZONE_SPEED_WIDTH = 3.5
+GENESIS_G70_CENTER_OUTPUT_TAPER_MAX = 0.10
+GENESIS_G70_CENTER_OUTPUT_TAPER_LAT = 0.30
+GENESIS_G70_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.10
+GENESIS_G70_CENTER_OUTPUT_TAPER_SPEED = 18.0
+GENESIS_G70_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 3.0
+GENESIS_G70_LOW_SPEED_CENTER_TAPER_MAX = 0.06
+GENESIS_G70_LOW_SPEED_CENTER_TAPER_LAT = 0.14
+GENESIS_G70_LOW_SPEED_CENTER_TAPER_LAT_WIDTH = 0.05
+GENESIS_G70_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 7.5
+GENESIS_G70_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.2
 
 BOLT_2017_LATERAL_TESTING_GROUND_ID = testing_ground.id_3
 BOLT_2017_STEER_RATIO_TEST_SCALE = 1.045
@@ -353,6 +381,11 @@ SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_LAT = 0.10
 SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_LAT_WIDTH = 0.02
 SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 7.5
 SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.0
+SONATA_HYBRID_CENTER_OUTPUT_TAPER_MAX = 0.06
+SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT = 0.18
+SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.05
+SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED = 12.5
+SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 2.5
 
 SONATA_FF_REDUCTION_LEFT = 0.04
 SONATA_FF_REDUCTION_RIGHT = 0.26
@@ -748,7 +781,7 @@ IONIQ_6_FRICTION_CENTER_FADE_SPEED_WIDTH = 2.5
 # Newer Ioniq 6 highway center-chatter correction; activation is firmware-gated.
 IONIQ_6_2025_FRICTION_SCALE_MULT = 0.80
 IONIQ_6_2025_FRICTION_JERK_DEADZONE = 0.45
-IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX = 0.20
+IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX = 0.24
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT = 0.35
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.10
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_SPEED = 22.0
@@ -939,8 +972,11 @@ SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED = 27.0
 SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED_WIDTH = 3.0
 
 LEXUS_IS_PHASE_SCALE = 0.10
-LEXUS_IS_TURN_IN_FF_BOOST_LEFT = 0.04
-LEXUS_IS_TURN_IN_FF_BOOST_RIGHT = 0.04
+# The Lexus route still fell short during a clean high-speed turn-in while
+# already at the controller limit. Keep this correction small and phase-gated
+# so straight-line behavior and unwind tuning are unchanged.
+LEXUS_IS_TURN_IN_FF_BOOST_LEFT = 0.06
+LEXUS_IS_TURN_IN_FF_BOOST_RIGHT = 0.06
 LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.10
 LEXUS_IS_UNWIND_FF_REDUCTION_RIGHT = 0.16
 LEXUS_IS_UNWIND_LAT_ONSET = 0.18
@@ -2040,6 +2076,14 @@ def get_sonata_hybrid_center_taper_scale(desired_lateral_accel: float, v_ego: fl
   return 1.0 - reduction
 
 
+def get_sonata_hybrid_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  speed_weight = _sonata_hybrid_sigmoid((v_ego - SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED) /
+                                        SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED_WIDTH)
+  center_weight = _sonata_hybrid_sigmoid((SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
+                                         SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT_WIDTH)
+  return 1.0 - SONATA_HYBRID_CENTER_OUTPUT_TAPER_MAX * speed_weight * center_weight
+
+
 def _sonata_sigmoid(x: float) -> float:
   return _sigmoid(x)
 
@@ -2509,6 +2553,42 @@ def get_genesis_gv70_friction_threshold(v_ego: float, desired_lateral_accel: flo
   gain = (GENESIS_GV70_FRICTION_THRESHOLD_GAIN * speed_onset * speed_cutoff *
           center_weight * calm_jerk_weight)
   return base_threshold * (1.0 + gain)
+
+
+def get_genesis_g70_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,
+                                       desired_lateral_jerk: float = 0.0) -> float:
+  base_threshold = get_standard_friction_threshold(v_ego)
+  speed_onset = _sigmoid((v_ego - GENESIS_G70_FRICTION_SPEED_ONSET) / GENESIS_G70_FRICTION_SPEED_ONSET_WIDTH)
+  speed_cutoff = _sigmoid((GENESIS_G70_FRICTION_SPEED_CUTOFF - v_ego) / GENESIS_G70_FRICTION_SPEED_CUTOFF_WIDTH)
+  center_weight = _sigmoid((GENESIS_G70_FRICTION_CENTER_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_G70_FRICTION_CENTER_LAT_WIDTH)
+  calm_jerk_weight = _sigmoid((GENESIS_G70_FRICTION_CALM_JERK - abs(desired_lateral_jerk)) /
+                              GENESIS_G70_FRICTION_CALM_JERK_WIDTH)
+  gain = (GENESIS_G70_FRICTION_THRESHOLD_GAIN * speed_onset * speed_cutoff *
+          center_weight * calm_jerk_weight)
+  return base_threshold * (1.0 + gain)
+
+
+def get_genesis_g70_friction_jerk_deadzone(v_ego: float, desired_lateral_accel: float) -> float:
+  speed_weight = _sigmoid((v_ego - GENESIS_G70_FRICTION_JERK_DEADZONE_SPEED) /
+                          GENESIS_G70_FRICTION_JERK_DEADZONE_SPEED_WIDTH)
+  center_weight = _sigmoid((GENESIS_G70_FRICTION_JERK_DEADZONE_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_G70_FRICTION_JERK_DEADZONE_LAT_WIDTH)
+  return GENESIS_G70_FRICTION_JERK_DEADZONE_MAX * speed_weight * center_weight
+
+
+def get_genesis_g70_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  speed_weight = _sigmoid((v_ego - GENESIS_G70_CENTER_OUTPUT_TAPER_SPEED) /
+                          GENESIS_G70_CENTER_OUTPUT_TAPER_SPEED_WIDTH)
+  center_weight = _sigmoid((GENESIS_G70_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_G70_CENTER_OUTPUT_TAPER_LAT_WIDTH)
+  reduction = GENESIS_G70_CENTER_OUTPUT_TAPER_MAX * speed_weight * center_weight
+  low_speed_weight = _sigmoid((GENESIS_G70_LOW_SPEED_CENTER_TAPER_SPEED_MAX - v_ego) /
+                               GENESIS_G70_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH)
+  low_speed_center_weight = _sigmoid((GENESIS_G70_LOW_SPEED_CENTER_TAPER_LAT - abs(desired_lateral_accel)) /
+                                     GENESIS_G70_LOW_SPEED_CENTER_TAPER_LAT_WIDTH)
+  reduction += GENESIS_G70_LOW_SPEED_CENTER_TAPER_MAX * low_speed_weight * low_speed_center_weight
+  return 1.0 - reduction
 
 
 def _ioniq_5_sigmoid(x: float) -> float:
@@ -3532,13 +3612,13 @@ def get_flm_capabilities(car_fingerprint, brand: str = "", hyundai_canfd: bool =
   dedicated_friction = car_fingerprint in (
     set(BOLT_2022_2023_CARS) | set(BOLT_2018_2021_CARS) | set(VOLT_STANDARD_CARS) | set(PALISADE_CARS) |
     set(PRIUS_CARS) | set(RAV4_PRIME_CARS) | set(SIENNA_4TH_GEN_CARS) | set(IONIQ_5_CARS) | set(IONIQ_6_CARS) | set(KIA_EV6_CARS) | set(KIA_FORTE_CARS) |
-    set(KIA_NIRO_PHEV_2022_CARS) | set(KIA_CARNIVAL_CARS) | set(GENESIS_G90_CARS) | set(CAMRY_CARS)
+    set(KIA_NIRO_PHEV_2022_CARS) | set(KIA_CARNIVAL_CARS) | set(GENESIS_G90_CARS) | set(GENESIS_G70_CARS) | set(CAMRY_CARS)
   )
   dedicated_center_taper = car_fingerprint in (
     set(PRIUS_CARS) | set(SIENNA_4TH_GEN_CARS) | set(BOLT_CARS) | set(VOLT_STANDARD_CARS) | set(IONIQ_5_CARS) |
     set(IONIQ_EV_OLD_CARS) | set(IONIQ_6_CARS) | set(SONATA_CARS) | set(SONATA_HYBRID_CARS) |
     set(KIA_XCEED_CARS) | set(KIA_NIRO_PHEV_2022_CARS) | set(KIA_FORTE_CARS) | set(KIA_EV6_CARS) |
-    set(KIA_CARNIVAL_CARS) | set(TUCSON_4TH_GEN_CARS) | set(SILVERADO_CARS)
+    set(KIA_CARNIVAL_CARS) | set(TUCSON_4TH_GEN_CARS) | set(GENESIS_G70_CARS) | set(SILVERADO_CARS)
   )
   rich_knobs = [name for name, meta in FLM_SUPPORTED_VEHICLE_KNOBS.items() if meta["profile"] == profile_key]
   return {
