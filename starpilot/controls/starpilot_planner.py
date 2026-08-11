@@ -18,6 +18,7 @@ from openpilot.selfdrive.controls.lib.lead_behavior import (
   should_track_lead,
 )
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import A_CHANGE_COST, DANGER_ZONE_COST, J_EGO_COST, STOP_DISTANCE
+from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import get_lead_follow_jerk_scale
 
 from openpilot.starpilot.common.starpilot_utilities import calculate_lane_width, calculate_road_curvature
 from openpilot.starpilot.common.starpilot_variables import CRUISING_SPEED, MINIMUM_LATERAL_ACCELERATION, PLANNER_TIME, THRESHOLD
@@ -300,12 +301,19 @@ class StarPilotPlanner:
 
     # While committed to a Force Stop, cut the MPC's accel-change penalty so terminal
     # braking can ramp faster. 0.32 lands near 40, what long_mpc uses in blended mode.
+    try:
+      car_params = sm["carParams"]
+    except (KeyError, IndexError, TypeError, AttributeError):
+      car_params = None
+
     if self.starpilot_vcruise.forcing_stop:
-      try:
-        car_params = sm["carParams"]
-      except (KeyError, IndexError, TypeError, AttributeError):
-        car_params = None
       jerk_scale = get_force_stop_jerk_scale(car_params)
+    elif self.tracking_lead:
+      # Elantra vision leads can hand off from cruise to lead0 while closing
+      # quickly. A slightly higher accel-change cost makes that handoff begin
+      # earlier instead of arriving as a sharp brake request, without changing
+      # the safety stop distance or the force-stop path.
+      jerk_scale = get_lead_follow_jerk_scale(car_params)
     else:
       jerk_scale = 1.0
     starpilotPlan.accelerationJerk = float(A_CHANGE_COST * self.starpilot_following.acceleration_jerk * jerk_scale)

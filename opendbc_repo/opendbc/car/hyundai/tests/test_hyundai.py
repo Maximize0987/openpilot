@@ -16,7 +16,9 @@ from opendbc.car.hyundai.carcontroller import CarController, Ioniq6LongitudinalT
                                              get_canfd_scc_decel_step, \
                                              should_reset_ev6_gt_line_longitudinal_tuning, reset_ev6_gt_line_longitudinal_tuning, \
                                              direct_angle_request_allowed, get_angle_smoothing_alpha, \
-                                             should_use_ev6_gt_line_stop_direct_tracking
+                                             should_use_ev6_gt_line_stop_direct_tracking, \
+                                             should_track_stop_accel_directly_for_car, \
+                                             preserve_stock_canfd_lfa_status
 from opendbc.car.hyundai.carstate import CarState, decode_canfd_camera_lead, decode_ioniq_6_blindspot_radar_state, \
                                              get_canfd_cruise_available
 from opendbc.car.hyundai.interface import CarInterface, KIA_EV9_ACCEL_MAX
@@ -122,6 +124,29 @@ def get_test_toggles() -> SimpleNamespace:
 
 
 class TestHyundaiFingerprint:
+  def test_carnival_2024_uses_clean_canfd_lfa_status(self):
+    assert not preserve_stock_canfd_lfa_status(CAR.KIA_CARNIVAL_4TH_GEN)
+    assert preserve_stock_canfd_lfa_status(CAR.KIA_CARNIVAL_2025)
+    assert preserve_stock_canfd_lfa_status(CAR.KIA_CARNIVAL_HEV_4TH_GEN)
+    assert preserve_stock_canfd_lfa_status(CAR.HYUNDAI_IONIQ_6)
+
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.KIA_CARNIVAL_4TH_GEN
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.RADAR_SCC)
+    CP.openpilotLongitudinalControl = True
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    can_bus = CanBus(CP)
+
+    stock_lfa = {"HAS_LANE_SAFETY": 1, "NEW_SIGNAL_4": 8, "DAMP_FACTOR": 100}
+    lfa_base = stock_lfa if preserve_stock_canfd_lfa_status(CP.carFingerprint) else None
+    lfa_msg = hyundaicanfd.create_steering_messages(packer, CP, can_bus, False, False, 0, 0.0, lfa_base)[0]
+    assert lfa_msg[1] == bytes.fromhex("05100002400008000000000000640000")
+
+    stock_cluster = {"NEW_SIGNAL_5": 1}
+    cluster_base = stock_cluster if preserve_stock_canfd_lfa_status(CP.carFingerprint) else None
+    cluster_msg = hyundaicanfd.create_lfahda_cluster(packer, can_bus, False, cluster_base)
+    assert cluster_msg[1] == bytes.fromhex("8e040000000000000000000000000000")
+
   def test_canfd_torque_bsm_parser_registers_rear_blindspots(self):
     CP = CarParams.new_message()
     CP.carFingerprint = CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
@@ -1416,6 +1441,14 @@ class TestHyundaiFingerprint:
 
     assert get_canfd_scc_decel_step(ev9_cp) == pytest.approx(0.20)
     assert get_canfd_scc_decel_step(ioniq_6_cp) == pytest.approx(0.36)
+
+  def test_ev9_keeps_low_speed_stop_brake_cap(self):
+    assert not should_track_stop_accel_directly_for_car(
+      CAR.KIA_EV9, stopping=True, v_ego=1.8, accel_cmd=-3.5, actual_accel=-0.4,
+    )
+    assert should_track_stop_accel_directly_for_car(
+      CAR.HYUNDAI_IONIQ_5_PE, stopping=True, v_ego=1.8, accel_cmd=-3.5, actual_accel=-0.4,
+    )
 
   def test_ev9_longitudinal_decel_jerk_is_bounded(self):
     state = Ioniq6LongitudinalTuningState(actual_accel=-1.0, accel_last=-1.0)

@@ -66,7 +66,7 @@ def test_external_gpu_requirement_is_cached_from_manifest(tmp_path, monkeypatch)
 
 def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
   invocations = []
-  monkeypatch.setattr(model_compiler, "build_compile_env", lambda: {
+  monkeypatch.setattr(model_compiler, "build_compile_env", lambda **_: {
     "DEV": "QCOM", "IMAGE": "2", "NOLOCALS": "1", "OPENPILOT_HACKS": "1",
   })
   monkeypatch.setattr(model_compiler.subprocess, "run", lambda command, **kwargs: invocations.append((command, kwargs)))
@@ -88,7 +88,7 @@ def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
 
 
 def test_compile_clears_only_selected_model_outputs(tmp_path, monkeypatch):
-  monkeypatch.setattr(model_compiler, "build_compile_env", lambda: {})
+  monkeypatch.setattr(model_compiler, "build_compile_env", lambda **_: {})
   monkeypatch.setattr(model_compiler.subprocess, "run", lambda *args, **kwargs: None)
   (tmp_path / "normal_driving_tinygrad.pkl").write_bytes(b"old")
   (tmp_path / "normal_driving_tinygrad.pkl.p00").write_bytes(b"old")

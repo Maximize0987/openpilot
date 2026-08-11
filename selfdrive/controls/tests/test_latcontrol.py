@@ -74,6 +74,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g70_curve_unwind_output_scale,
   get_genesis_g70_friction_jerk_deadzone,
   get_genesis_g70_friction_threshold,
+  get_genesis_g70_high_speed_error_scale,
   get_genesis_g70_low_speed_angle_damping,
   get_genesis_g70_low_speed_output_limit,
   get_genesis_gv70_friction_threshold,
@@ -286,9 +287,9 @@ class TestLatControl:
     highway_turn = get_bolt_2022_2023_center_output_scale(0.40, 31.0)
     creep_center = get_bolt_2022_2023_center_output_scale(0.04, 1.0)
 
-    assert 0.92 < low_speed_center < 0.95
+    assert 0.88 < low_speed_center < 0.92
     assert low_speed_turn > 0.99
-    assert middle_speed_center > 0.98
+    assert 0.96 < middle_speed_center < 0.98
     assert 0.88 < highway_center < 0.91
     assert highway_turn > 0.99
     assert creep_center > 0.99
@@ -811,6 +812,10 @@ class TestLatControl:
     assert get_genesis_g70_low_speed_angle_damping(0.0, 20.0, 0.0, 2.0) > 0.0
     assert get_genesis_g70_curve_unwind_output_scale(0.7, -0.5, 25.0) > 1.0
     assert get_genesis_g70_curve_unwind_output_scale(0.7, 0.5, 25.0) == 1.0
+
+    assert get_genesis_g70_high_speed_error_scale(0.2, 0.2, 0.8, 20.0) == 1.0
+    assert get_genesis_g70_high_speed_error_scale(0.2, 0.9, 0.8, 20.0) < 1.0
+    assert get_genesis_g70_high_speed_error_scale(0.2, 0.9, 0.8, 10.0) > get_genesis_g70_high_speed_error_scale(0.2, 0.9, 0.8, 20.0)
 
   def test_sonata_hybrid_center_output_taper_is_mid_speed_and_center_gated(self):
     low_speed = get_sonata_hybrid_center_output_scale(0.0, 8.0)

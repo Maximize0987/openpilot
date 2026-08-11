@@ -1,14 +1,18 @@
+import inspect
+from collections import defaultdict
 from types import SimpleNamespace
 
 import pytest
 
+from opendbc.can import CANPacker, CANParser
 from opendbc.car import Bus
+from opendbc.car.subaru import subarucan
 from opendbc.car.subaru.carcontroller import CarController
 from opendbc.car.subaru.carstate import CarState
 from opendbc.car.subaru.fingerprints import FW_VERSIONS
 from opendbc.car.fw_versions import match_fw_to_car
 from opendbc.car.subaru.interface import CarInterface
-from opendbc.car.subaru.values import CAR, CanBus, SubaruFlags, SubaruSafetyFlags
+from opendbc.car.subaru.values import CAR, DBC, CanBus, SubaruFlags, SubaruSafetyFlags
 from opendbc.car.structs import CarParams
 
 
@@ -90,7 +94,6 @@ class TestSubaruFingerprint:
     assert matches == {CAR.SUBARU_OUTBACK_2023}
 
   def test_legacy_2025_firmware(self):
-    legacy_fw = FW_VERSIONS[CAR.SUBARU_LEGACY_2025]
     car_fw = [
       CarParams.CarFw(ecu=CarParams.Ecu.abs, fwVersion=b'\xa1 $\x11\x00', address=0x7b0, brand="subaru"),
       CarParams.CarFw(ecu=CarParams.Ecu.eps, fwVersion=b'[\xc0\xd1\x10\x00', address=0x746, brand="subaru"),
@@ -172,23 +175,23 @@ def test_outback_2023_uses_d_platform_bus_layout():
   assert controller.status_bus == CanBus.main
 
 
-def test_legacy_2025_uses_d_platform_bus_layout():
+def test_legacy_2025_uses_gen2_angle_bus_layout():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
   parsers = CarState.get_can_parsers(CP)
   controller = CarController({}, CP)
 
-  assert CP.flags & SubaruFlags.D_PLATFORM
-  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
-  assert CP.flags & SubaruFlags.D_PLATFORM_CAMERA
-  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA
-  assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.camera
-  assert parsers[Bus.pt].bus == CanBus.alt
+  assert not (CP.flags & SubaruFlags.D_PLATFORM)
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM)
+  assert not (CP.flags & SubaruFlags.D_PLATFORM_CAMERA)
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA)
+  assert CanBus.main_for_cp(CP) == CanBus.main
+  assert CanBus.angle_for_cp(CP) == CanBus.main
+  assert parsers[Bus.pt].bus == CanBus.main
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
-  assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.camera
-  assert controller.status_bus == CanBus.camera
+  assert Bus.main not in parsers
+  assert controller.angle_bus == CanBus.main
+  assert controller.status_bus == CanBus.main
 
 
 def test_ascent_2023_uses_d_platform_bus_layout():
@@ -232,3 +235,26 @@ def test_angle_controller_tracks_driver_override():
   assert controller.driver_override
   assert controller.apply_steer_last == CS.out.steeringAngleDeg
   assert msg[0] == 0x124
+
+
+def test_lkas_hud_state_uses_lateral_active():
+  update_source = inspect.getsource(CarController.update)
+
+  assert "create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, CC.latActive" in update_source
+  assert "create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, CC.enabled" not in update_source
+
+
+@pytest.mark.parametrize(("enabled", "expected"), ((False, 0), (True, 1)))
+def test_lkas_hud_active_bit_follows_lateral_state(enabled, expected):
+  dbc = DBC[CAR.SUBARU_LEGACY_2025][Bus.pt]
+  packer = CANPacker(dbc)
+  parser = CANParser(dbc, [("ES_LKAS_State", 0)], CanBus.main)
+  stock_lkas_state = defaultdict(int, {"LKAS_ACTIVE": 1})
+
+  msg = subarucan.create_es_lkas_state(
+    packer, 0, stock_lkas_state, enabled, 0, False, False, False, False, CanBus.main,
+  )
+  parser.update([(1, [msg])])
+
+  assert parser.can_valid
+  assert parser.vl["ES_LKAS_State"]["LKAS_ACTIVE"] == expected

@@ -160,7 +160,7 @@ class CarController(CarControllerBase):
                                                         self.CP.openpilotLongitudinalControl, CC.longActive, hud_control.leadVisible,
                                                         self.status_bus))
 
-        can_sends.append(subarucan.create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, CC.enabled, hud_control.visualAlert,
+        can_sends.append(subarucan.create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, CC.latActive, hud_control.visualAlert,
                                                         hud_control.leftLaneVisible, hud_control.rightLaneVisible,
                                                         hud_control.leftLaneDepart, hud_control.rightLaneDepart, self.status_bus))
 

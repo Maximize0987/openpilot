@@ -42,6 +42,10 @@ MICI_FORCE_RENDER_TEXTURE = os.getenv("MICI_FORCE_RENDER_TEXTURE", "0") == "1"
 BURN_IN_PREVENTION = os.getenv("BURN_IN_PREVENTION", "0" if PC else "1") == "1"
 BURN_IN_SHIFT_INTERVAL = max(1.0, float(os.getenv("BURN_IN_SHIFT_INTERVAL", "180")))
 BURN_IN_SHIFT_PIXELS = max(0, int(os.getenv("BURN_IN_SHIFT_PIXELS", "2")))
+BURN_IN_SHIFT_TRANSITION_SECONDS = min(
+  BURN_IN_SHIFT_INTERVAL,
+  max(0.1, float(os.getenv("BURN_IN_SHIFT_TRANSITION_SECONDS", "1"))),
+)
 WHITE_LUMINANCE_CAP = min(1.0, max(0.0, float(os.getenv(
   "WHITE_LUMINANCE_CAP", "1.0"
 ))))
@@ -616,8 +620,11 @@ class GuiApplication:
       self._render_texture_width = max(1, int(round(self._scaled_width * self._pixel_scale_x)))
       self._render_texture_height = max(1, int(round(self._scaled_height * self._pixel_scale_y)))
 
+      # Keep raybig burn-in movement in final-frame composition. Translating the live EGL
+      # camera/widget pass can corrupt the camera presentation instead of shifting the UI.
       needs_render_texture = ((self._scale != 1.0 and not PC) or BURN_IN_MODE or RECORD or
                               MICI_FORCE_RENDER_TEXTURE or
+                              (BURN_IN_PREVENTION and DEVICE_TYPE != "mici") or
                               WHITE_LUMINANCE_CAP < 1.0)
       if PC and self._scale != 1.0:
         rl.set_mouse_scale(1 / self._scale, 1 / self._scale)
@@ -1138,13 +1145,25 @@ class GuiApplication:
     except KeyboardInterrupt:
       pass
 
-  def _burn_in_shift(self, now: float | None = None) -> tuple[int, int]:
+  def _burn_in_shift(self, now: float | None = None) -> tuple[float, float]:
     if not BURN_IN_PREVENTION or BURN_IN_SHIFT_PIXELS == 0:
-      return 0, 0
+      return 0.0, 0.0
 
     elapsed = (time.monotonic() if now is None else now) - self._burn_in_start_time
-    pattern_index = int(max(0.0, elapsed) // BURN_IN_SHIFT_INTERVAL) % len(BURN_IN_SHIFT_PATTERN)
-    x, y = BURN_IN_SHIFT_PATTERN[pattern_index]
+    elapsed = max(0.0, elapsed)
+    pattern_count = len(BURN_IN_SHIFT_PATTERN)
+    cycle_elapsed = elapsed % (BURN_IN_SHIFT_INTERVAL * pattern_count)
+    pattern_index = int(cycle_elapsed // BURN_IN_SHIFT_INTERVAL)
+    segment_elapsed = cycle_elapsed - pattern_index * BURN_IN_SHIFT_INTERVAL
+
+    # Blend into the next position at the end of each interval. This keeps the
+    # burn-in protection active without teleporting the entire UI by two pixels.
+    transition_start = BURN_IN_SHIFT_INTERVAL - BURN_IN_SHIFT_TRANSITION_SECONDS
+    transition = min(1.0, max(0.0, (segment_elapsed - transition_start) / BURN_IN_SHIFT_TRANSITION_SECONDS))
+    start_x, start_y = BURN_IN_SHIFT_PATTERN[pattern_index]
+    end_x, end_y = BURN_IN_SHIFT_PATTERN[(pattern_index + 1) % pattern_count]
+    x = start_x + (end_x - start_x) * transition
+    y = start_y + (end_y - start_y) * transition
     return x * BURN_IN_SHIFT_PIXELS, y * BURN_IN_SHIFT_PIXELS
 
   def font(self, font_weight: FontWeight = FontWeight.NORMAL) -> rl.Font:

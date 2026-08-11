@@ -252,6 +252,13 @@ GENESIS_G70_CURVE_UNWIND_LAT = 0.25
 GENESIS_G70_CURVE_UNWIND_LAT_WIDTH = 0.12
 GENESIS_G70_CURVE_UNWIND_JERK = 0.08
 GENESIS_G70_CURVE_UNWIND_JERK_WIDTH = 0.08
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_MAX = 0.15
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED = 50.0 * CV.MPH_TO_MS
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED_WIDTH = 8.0 * CV.MPH_TO_MS
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR = 0.18
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR_WIDTH = 0.15
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK = 0.15
+GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK_WIDTH = 0.10
 
 BOLT_2017_LATERAL_TESTING_GROUND_ID = testing_ground.id_3
 BOLT_2017_STEER_RATIO_TEST_SCALE = 1.045
@@ -321,12 +328,14 @@ BOLT_2022_2023_CENTER_TAPER_LAT = 0.18
 BOLT_2022_2023_CENTER_TAPER_LAT_WIDTH = 0.03
 BOLT_2022_2023_CENTER_TAPER_SPEED = 25.0
 BOLT_2022_2023_CENTER_TAPER_SPEED_WIDTH = 2.5
-BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_MAX = 0.07
+BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_MAX = 0.12
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_LAT = 0.14
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_LAT_WIDTH = 0.04
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED = 4.0
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.5
-BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 14.0
+BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_FLOOR = 2.0
+BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_FLOOR_WIDTH = 0.7
+BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 16.5
 BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_MAX_WIDTH = 2.0
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LIMIT = 0.38
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT = 0.17
@@ -1903,10 +1912,14 @@ def get_bolt_2022_2023_center_output_scale(desired_lateral_accel: float, v_ego: 
                                               BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_SPEED_MAX_WIDTH)
   low_speed_center_weight = _bolt_2022_2023_sigmoid((BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_LAT - abs(desired_lateral_accel)) /
                                                      BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_LAT_WIDTH)
+  low_speed_floor = _bolt_2022_2023_sigmoid(
+    (v_ego - BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_FLOOR) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_FLOOR_WIDTH
+  )
   highway_reduction = (_flm_vehicle_knob("gm_bolt_2022_2023.center_taper_max", BOLT_2022_2023_CENTER_TAPER_MAX) *
                        highway_speed_weight * highway_center_weight)
   low_speed_reduction = (BOLT_2022_2023_LOW_SPEED_CENTER_TAPER_MAX * low_speed_onset * low_speed_cutoff *
-                         low_speed_center_weight)
+                         low_speed_center_weight * low_speed_floor)
   return 1.0 - min(highway_reduction + low_speed_reduction, 0.95)
 
 
@@ -2683,6 +2696,23 @@ def get_genesis_g70_curve_unwind_output_scale(desired_lateral_accel: float, desi
   jerk_weight = _sigmoid((abs(desired_lateral_jerk) - GENESIS_G70_CURVE_UNWIND_JERK) /
                           GENESIS_G70_CURVE_UNWIND_JERK_WIDTH)
   return 1.0 + GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST * speed_weight * lateral_weight * jerk_weight
+
+
+def get_genesis_g70_high_speed_error_scale(setpoint: float, measured_lateral_accel: float,
+                                            desired_lateral_jerk: float, v_ego: float) -> float:
+  tracking_error = abs(measured_lateral_accel - setpoint)
+  if tracking_error <= 0.0:
+    return 1.0
+  speed_weight = _sigmoid((v_ego - GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED) /
+                          GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED_WIDTH)
+  error_weight = _sigmoid((tracking_error - GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR) /
+                          GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR_WIDTH)
+  jerk_weight = _sigmoid((abs(desired_lateral_jerk) - GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK) /
+                         GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK_WIDTH)
+  phase_weight = 1.0 if setpoint * desired_lateral_jerk < 0.0 else 0.45
+  reduction = (GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_MAX * speed_weight * error_weight *
+               (0.35 + (0.65 * jerk_weight)) * phase_weight)
+  return 1.0 - reduction
 
 
 def _ioniq_5_sigmoid(x: float) -> float:

@@ -158,6 +158,15 @@ def should_track_stop_accel_directly(stopping: bool, v_ego: float,
   return bool(stopping and v_ego > EV6_GT_LINE_STOP_BRAKE_CAP_MAX_SPEED and accel_cmd < actual_accel)
 
 
+def should_track_stop_accel_directly_for_car(car_fingerprint, stopping: bool, v_ego: float,
+                                             accel_cmd: float, actual_accel: float) -> bool:
+  # EV9 uses the low-speed stop cap to avoid a harsh lead re-brake handoff.
+  # Keep direct tracking for the other CCNC angle-steering platform.
+  return car_fingerprint != CAR.KIA_EV9 and should_track_stop_accel_directly(
+    stopping, v_ego, accel_cmd, actual_accel,
+  )
+
+
 def should_use_ev6_gt_line_stop_direct_tracking(ev6_gt_line: bool, stopping: bool, v_ego: float,
                                                  accel_cmd: float, actual_accel: float) -> bool:
   return bool(ev6_gt_line and stopping and v_ego > EV6_GT_LINE_STOP_BRAKE_CAP_MAX_SPEED and accel_cmd < actual_accel)
@@ -399,6 +408,11 @@ def process_hud_alert(enabled, fingerprint, hud_control):
   return sys_warning, sys_state, left_lane_warning, right_lane_warning
 
 
+def preserve_stock_canfd_lfa_status(car_fingerprint) -> bool:
+  # The 2022-24 Carnival expects a clean replacement status payload after its radar ECU is disabled.
+  return car_fingerprint != CAR.KIA_CARNIVAL_4TH_GEN
+
+
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
@@ -630,8 +644,10 @@ class CarController(CarControllerBase):
     if should_use_ev6_gt_line_stop_direct_tracking(is_ev6_gt_line, self._ioniq_6_long_tuning.stopping,
                                                    CS.out.vEgo, accel_cmd, self._ioniq_6_long_tuning.actual_accel):
       use_egmp_smoothed_accel = False
-    if is_ccnc_angle_long and should_track_stop_accel_directly(self._ioniq_6_long_tuning.stopping, CS.out.vEgo,
-                                                   accel_cmd, self._ioniq_6_long_tuning.actual_accel):
+    if is_ccnc_angle_long and should_track_stop_accel_directly_for_car(
+      self.CP.carFingerprint, self._ioniq_6_long_tuning.stopping, CS.out.vEgo,
+      accel_cmd, self._ioniq_6_long_tuning.actual_accel,
+    ):
       use_egmp_smoothed_accel = False
     if use_egmp_dynamic_long_tuning:
       if use_egmp_smoothed_accel:
@@ -803,10 +819,11 @@ class CarController(CarControllerBase):
     forward_stock_lkas = angle_lkas_alt and (
       angle_lkas_alt_standstill_handoff or not (drive_gear and (CC.latActive or CC.enabled))
     )
+    preserve_stock_lfa_status = preserve_stock_canfd_lfa_status(self.CP.carFingerprint)
     if not forward_stock_lkas and not ccnc_angle_long:
       can_sends.extend(hyundaicanfd.create_steering_messages(self.packer, self.CP, self.CAN, CC.enabled,
                                                              steering_msg_active, apply_torque, apply_angle,
-                                                             CS.stock_lfa_msg,
+                                                             CS.stock_lfa_msg if preserve_stock_lfa_status else None,
                                                              CS.stock_lkas_msg if preserve_stock_lkas else None,
                                                              lka_icon=lka_icon,
                                                              send_lfa_status=self.ecu_disable_failed and
@@ -845,7 +862,8 @@ class CarController(CarControllerBase):
                                                   CC.leftBlinker, CC.rightBlinker, CS.msg_161, CS.msg_162, CS.msg_1b5,
                                                   CS.is_metric, CS.out, CS.out.cruiseState.available, lfa_icon))
       else:
-        can_sends.append(hyundaicanfd.create_lfahda_cluster(self.packer, self.CAN, CC.enabled, CS.stock_lfahda_cluster_msg,
+        cluster_base_values = CS.stock_lfahda_cluster_msg if preserve_stock_lfa_status else None
+        can_sends.append(hyundaicanfd.create_lfahda_cluster(self.packer, self.CAN, CC.enabled, cluster_base_values,
                                                             lfa_icon=lfa_icon))
 
     # blinkers
