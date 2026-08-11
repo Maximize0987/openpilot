@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from openpilot.selfdrive.ui.mici.onroad import cameraview as mici_cameraview
@@ -165,6 +166,41 @@ def test_newer_camera_frame_is_accepted():
   assert view._last_frame_id == 31
   assert view._regressive_frame_count == 0
   assert view._texture_needs_update
+
+
+def test_device_camera_render_cache_reuses_processed_frame(monkeypatch):
+  view = _camera_view()
+  view._camera_render_texture = None
+  view._camera_render_texture_size = (0, 0)
+  view._camera_render_key = None
+  view._use_egl = True
+  view.frame = FakeFrame(frame_id=10, idx=0)
+
+  render_texture = SimpleNamespace(texture=SimpleNamespace(id=1))
+  processed_frames = []
+  draws = []
+
+  monkeypatch.setattr(big_cameraview, "TICI", True)
+  monkeypatch.setattr(big_cameraview.rl, "load_render_texture", lambda *_size: render_texture)
+  monkeypatch.setattr(big_cameraview.rl, "unload_render_texture", lambda _texture: None)
+  monkeypatch.setattr(big_cameraview.rl, "begin_texture_mode", lambda _texture: None)
+  monkeypatch.setattr(big_cameraview.rl, "end_texture_mode", lambda: None)
+  monkeypatch.setattr(big_cameraview.rl, "clear_background", lambda _color: None)
+  monkeypatch.setattr(big_cameraview.rl, "end_scissor_mode", lambda: None)
+  monkeypatch.setattr(big_cameraview.rl, "begin_scissor_mode", lambda *_args: None)
+  monkeypatch.setattr(big_cameraview.rl, "draw_texture_pro", lambda *_args: draws.append(1))
+  view._render_current_frame = lambda *_args: processed_frames.append(1)
+
+  rect = big_cameraview.rl.Rectangle(10, 20, 100, 80)
+  src = big_cameraview.rl.Rectangle(0, 0, 1928, 1208)
+  dst = big_cameraview.rl.Rectangle(0, 0, 100, 80)
+  transform = np.eye(3)
+
+  view._render_cached_camera(rect, src, dst, transform)
+  view._render_cached_camera(rect, src, dst, transform)
+
+  assert processed_frames == [1]
+  assert draws == [1, 1]
 
 
 def test_shared_camera_has_upstream_shaders_and_driver_enhancement():

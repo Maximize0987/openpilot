@@ -213,19 +213,21 @@ def draw_polygon(origin_rect: rl.Rectangle, points: np.ndarray,
   if len(points) < 3:
     return
 
-  # Initialize shader on-demand
-  state = ShaderState.get_instance()
-  state.initialize()
-
   # Ensure (N,2) float32 contiguous array
   pts = np.ascontiguousarray(points, dtype=np.float32)
   assert pts.ndim == 2 and pts.shape[1] == 2, "points must be (N,2)"
 
-  # Configure gradient shader
-  _configure_shader_color(state, color, gradient, origin_rect)
-
   # Triangulate via interleaving
   tri_strip = triangulate(pts)
+
+  if gradient is None:
+    rl.draw_triangle_strip(tri_strip, len(tri_strip), color or rl.WHITE)
+    return
+
+  state = ShaderState.get_instance()
+  state.initialize()
+
+  _configure_shader_color(state, color, gradient, origin_rect)
 
   # Draw strip, color here doesn't matter
   rl.begin_shader_mode(state.shader)
