@@ -29,7 +29,7 @@ INJECTED_SECTION_PARAMS = {
         {
             "key": "CEOpenRoad",
             "label": "Open Road",
-            "description": "Keep Experimental Mode active on an open road when driving within 3 mph below the set speed and no lead vehicle is detected. This can help the model anticipate braking sooner.",
+            "description": "Keep Experimental Mode active on an open road after reaching the set speed when no lead vehicle is detected. This can help the model anticipate braking sooner.",
             "data_type": "bool",
             "ui_type": "toggle",
             "parent_key": "ConditionalExperimental",

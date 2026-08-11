@@ -930,16 +930,19 @@ class CarController(CarControllerBase):
                                                                                  CC.leftBlinker,
                                                                                  CC.rightBlinker))
       if self.frame % 2 == 0:
-        lead_visible, lead_distance, lead_rel_speed = self._get_canfd_scc_lead_state(CC, CS, now_nanos)
-        acc_kwargs = {
-          "main_mode_acc": int(CS.out.cruiseState.available),
-          "direct_accel": True,
-          "jerk_lower": 5.0,
-          "jerk_upper": 3.0 if CC.actuators.longControlState == LongCtrlState.pid else 1.0,
-          "lead_distance": lead_distance,
-          "lead_rel_speed": lead_rel_speed,
-          "lead_visible": lead_visible,
-        }
+        if self.CP.carFingerprint == CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN:
+          acc_kwargs = {}
+        else:
+          lead_visible, lead_distance, lead_rel_speed = self._get_canfd_scc_lead_state(CC, CS, now_nanos)
+          acc_kwargs = {
+            "main_mode_acc": int(CS.out.cruiseState.available),
+            "direct_accel": True,
+            "jerk_lower": 5.0,
+            "jerk_upper": 3.0 if CC.actuators.longControlState == LongCtrlState.pid else 1.0,
+            "lead_distance": lead_distance,
+            "lead_rel_speed": lead_rel_speed,
+            "lead_visible": lead_visible,
+          }
         if use_egmp_dynamic_long_tuning:
           if use_egmp_smoothed_accel:
             acc_kwargs["jerk_lower"] = self._ioniq_6_long_tuning.jerk_lower

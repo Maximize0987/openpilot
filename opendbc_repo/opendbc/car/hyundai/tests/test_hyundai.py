@@ -311,6 +311,19 @@ class TestHyundaiFingerprint:
                      HyundaiSafetyFlags.CANFD_ANGLE_STEERING | HyundaiSafetyFlags.EV_GAS)
     assert (CP.safetyConfigs[-1].safetyParam & expected_bits) == expected_bits
 
+    gv70_fingerprint = gen_empty_fingerprint()
+    gv70_fingerprint[CanBus(None, gv70_fingerprint).CAM][0x50] = 32
+    gv70_car_fw = [CarParams.CarFw(ecu=Ecu.adas, fwVersion=b"", address=0x730, brand="hyundai")]
+    CP = CarInterface.get_params(CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN, gv70_fingerprint, gv70_car_fw,
+                                 True, False, False, None)
+    assert CP.alphaLongitudinalAvailable
+    assert CP.openpilotLongitudinalControl
+    assert CP.radarUnavailable
+    assert CP.flags & HyundaiFlags.CANFD_LKA_STEERING
+    assert CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.LONG
+    assert CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.CANFD_LKA_STEERING
+    assert CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.EV_GAS
+
     for candidate in HYUNDAI_NON_SCC_CARS:
       CP = CarInterface.get_params(candidate, gen_empty_fingerprint(), [], True, False, False, None)
       assert bool(CP.flags & HyundaiFlags.NON_SCC)
@@ -1940,6 +1953,53 @@ class TestHyundaiFingerprint:
     parser.update([(1, lkas_msgs)])
     assert parser.can_valid
     assert parser.vl["LKAS"]["HAS_LANE_SAFETY"] == 0
+    assert parser.vl["LKAS"]["DAMP_FACTOR"] == 100
+    assert parser.vl["LKAS"]["TORQUE_REQUEST"] == 0
+    assert parser.vl["LKAS"]["STEER_REQ"] == 1
+
+    CP.openpilotLongitudinalControl = True
+    lfa_parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LFA", 0)], can_bus.ECAN)
+    lfa_msgs = hyundaicanfd.create_steering_messages(controller.packer, CP, can_bus, True, True, 0, 0.0)
+    assert [(controller.packer.dbc.addr_to_msg[addr].name, bus) for addr, _, bus in lfa_msgs] == [("LFA", can_bus.ECAN), ("LKAS", can_bus.ACAN)]
+    lfa_parser.update([(1, [lfa_msgs[0]])])
+    assert lfa_parser.can_valid
+    assert lfa_parser.vl["LFA"]["DAMP_FACTOR"] == 100
+
+  def test_gv70_electrified_longitudinal_uses_hda2_scc_contract(self):
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CANFD_LKA_STEERING)
+    CP.openpilotLongitudinalControl = True
+
+    controller = CarController(DBC[CP.carFingerprint], CP)
+    controller.frame = 2
+    controller.long_active_ecu = True
+    can_bus = CanBus(CP)
+    cc = SimpleNamespace(
+      enabled=True, latActive=True,
+      actuators=SimpleNamespace(longControlState=LongCtrlState.pid),
+      cruiseControl=SimpleNamespace(override=False, cancel=False, resume=False),
+      leftBlinker=False, rightBlinker=False,
+      hudControl=SimpleNamespace(leadDistanceBars=3),
+    )
+    cs = SimpleNamespace(
+      stock_lfa_msg=None, stock_lkas_msg=None,
+      out=SimpleNamespace(steeringAngleDeg=0.0, gearShifter=structs.CarState.GearShifter.drive),
+    )
+
+    msgs = controller.create_canfd_msgs(0, True, 0.0, 0.0, 42.0, -1.0, False,
+                                        cc.hudControl, cs, cc, get_test_toggles(), lka_icon=2, lfa_icon=2)
+    scc_msgs = [msg for msg in msgs if msg[0] == 0x1A0]
+    assert len(scc_msgs) == 1
+
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("SCC_CONTROL", 0)], can_bus.ECAN)
+    parser.update([(1, scc_msgs)])
+    assert parser.can_valid
+    assert parser.vl["SCC_CONTROL"]["MainMode_ACC"] == 1
+    assert parser.vl["SCC_CONTROL"]["ACC_ObjDist"] == pytest.approx(1.0)
+    assert parser.vl["SCC_CONTROL"]["ObjValid"] == 0
+    assert parser.vl["SCC_CONTROL"]["aReqValue"] == pytest.approx(-0.1)
+    assert parser.vl["SCC_CONTROL"]["aReqRaw"] == pytest.approx(-1.0)
 
   def test_ev9_inactive_angle_steering_lets_safety_forward_stock_lkas(self):
     CP = CarParams.new_message()
