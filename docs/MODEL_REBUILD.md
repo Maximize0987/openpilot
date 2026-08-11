@@ -47,7 +47,10 @@ python3 scripts/model_rebuild_pipeline.py extract \
   --base-manifest /path/to/model_names_v21.json
 ```
 
-Source commits are defined in `scripts/model_source_map_v22.json`.
+The original catalog sources are defined in `scripts/model_source_map_v22.json`.
+Recovered late-model and supercombo sources, including RDF2, are defined in
+`scripts/model_source_map_v23.json`. The v23 map is intentionally separate so
+adding a recovered iteration cannot alter the older model source history.
 
 ## Compile
 
@@ -175,6 +178,18 @@ compiled and upload-ready files, and writes an ID map. It preserves display
 names and behavioral versions. The current model manager requests v23 only;
 the manifest is fetched from `Models/model_names_v23.json`, while v22 remains
 available for devices that have not updated yet.
+
+After importing newly compiled sources, normalize the release namespace before
+copying files into either resource repository:
+
+```bash
+python3 scripts/reconcile_v23_artifacts.py \
+  --workspace /Volumes/T5/StarPilot-Model-Rebuild-2026-06-22
+```
+
+This maps recovered source IDs to their v23 release IDs, removes duplicate
+macOS metadata files, and adds `rdf23` for Regret Driven Framework V2. It does
+not overwrite a conflicting artifact.
 Repository-hosted multipart files are discovered by naming convention, so no
 size, hash, format, or part-count metadata is required.
 

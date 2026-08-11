@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from scripts import model_compiler
+from scripts import reconcile_v23_artifacts
 from scripts.model_compiler import split_oversized_artifact
 from openpilot.common import file_chunker
 from openpilot.selfdrive.modeld import compile_modeld
@@ -84,6 +85,32 @@ def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
   assert external_kwargs["env"]["DEV"] == "USB+AMD:LLVM"
   assert external_kwargs["env"]["WARP_DEV"] == "QCOM"
   assert all(flag not in external_kwargs["env"] for flag in ("IMAGE", "NOLOCALS", "OPENPILOT_HACKS"))
+
+
+def test_compile_clears_only_selected_model_outputs(tmp_path, monkeypatch):
+  monkeypatch.setattr(model_compiler, "build_compile_env", lambda: {})
+  monkeypatch.setattr(model_compiler.subprocess, "run", lambda *args, **kwargs: None)
+  (tmp_path / "normal_driving_tinygrad.pkl").write_bytes(b"old")
+  (tmp_path / "normal_driving_tinygrad.pkl.p00").write_bytes(b"old")
+  (tmp_path / "other_driving_tinygrad.pkl").write_bytes(b"keep")
+
+  model_compiler.compile_driving(
+    "normal", {"driving_supercombo": tmp_path / "model.onnx"}, "supercombo", "v15", tmp_path, "policy",
+  )
+
+  assert not (tmp_path / "normal_driving_tinygrad.pkl").exists()
+  assert not (tmp_path / "normal_driving_tinygrad.pkl.p00").exists()
+  assert (tmp_path / "other_driving_tinygrad.pkl").read_bytes() == b"keep"
+
+
+def test_v23_namespace_mapping_does_not_cascade(tmp_path):
+  (tmp_path / "deeprl3_driving_tinygrad.pkl.p00").write_bytes(b"base")
+  (tmp_path / "deeprl33_driving_tinygrad.pkl.p00").write_bytes(b"v3")
+
+  reconcile_v23_artifacts.normalize_artifact_names(tmp_path)
+
+  assert (tmp_path / "deeprl33_driving_tinygrad.pkl.p00").read_bytes() == b"base"
+  assert (tmp_path / "deeprl333_driving_tinygrad.pkl.p00").read_bytes() == b"v3"
 
 
 def test_gpu_is_external_gpu_cli_alias(monkeypatch):

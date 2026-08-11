@@ -552,14 +552,16 @@ def compile_driving(
 ) -> Path:
   model_type, source_args = driving_compile_args(files, input_format)
   output_path = output_dir / f"{model_key}_driving_tinygrad.pkl"
+  # A rebuild queue may compile several models into the same directory. Only
+  # replace the selected model; deleting every driving artifact here loses
+  # models that were successfully compiled earlier in the queue.
   removed = remove_paths(sorted({
     output_path,
     *multipart_output_paths(output_path, output_dir),
-    *output_dir.glob("*_driving_tinygrad.pkl"),
-    *output_dir.glob("*_driving_tinygrad.pkl.p[0-9][0-9]"),
-    *output_dir.glob("*_driving_tinygrad.pkl.sha256"),
-    *output_dir.glob("*_driving_*_tinygrad.pkl"),
-    *output_dir.glob("*_driving_*_metadata.pkl"),
+    *output_dir.glob(f"{model_key}_driving_*_tinygrad.pkl"),
+    *output_dir.glob(f"{model_key}_driving_*_tinygrad.pkl.p[0-9][0-9]"),
+    *output_dir.glob(f"{model_key}_driving_*_tinygrad.pkl.sha256"),
+    *output_dir.glob(f"{model_key}_driving_*_metadata.pkl"),
   }))
   if removed:
     print(f"  cleared {removed} existing driving output entries")
