@@ -55,11 +55,11 @@
 #define SUBARU_COMMON_TX_MSGS(alt_bus) \
   {MSG_SUBARU_ES_Distance, alt_bus, 8, .check_relay = false}, \
 
-#define SUBARU_D_PLATFORM_ANGLE_TX_MSGS() \
-  {MSG_SUBARU_ES_LKAS_ANGLE,   SUBARU_MAIN_BUS, 8, .check_relay = true}, \
-  {MSG_SUBARU_ES_DashStatus,   SUBARU_MAIN_BUS, 8, .check_relay = true}, \
-  {MSG_SUBARU_ES_LKAS_State,   SUBARU_MAIN_BUS, 8, .check_relay = true}, \
-  {MSG_SUBARU_ES_Infotainment, SUBARU_MAIN_BUS, 8, .check_relay = true}, \
+#define SUBARU_D_PLATFORM_ANGLE_TX_MSGS(bus) \
+  {MSG_SUBARU_ES_LKAS_ANGLE,   bus, 8, .check_relay = true}, \
+  {MSG_SUBARU_ES_DashStatus,   bus, 8, .check_relay = true}, \
+  {MSG_SUBARU_ES_LKAS_State,   bus, 8, .check_relay = true}, \
+  {MSG_SUBARU_ES_Infotainment, bus, 8, .check_relay = true}, \
 
 #define SUBARU_COMMON_LONG_TX_MSGS(alt_bus) \
   {MSG_SUBARU_ES_Distance,       alt_bus,         8, .check_relay = true}, \
@@ -305,8 +305,13 @@ static safety_config subaru_init(uint16_t param) {
     SUBARU_COMMON_TX_MSGS(SUBARU_ALT_BUS)
   };
 
-  static const CanMsg SUBARU_D_PLATFORM_ANGLE_TX_MSGS[] = {
-    SUBARU_D_PLATFORM_ANGLE_TX_MSGS()
+  static const CanMsg SUBARU_D_PLATFORM_ANGLE_MAIN_TX_MSGS[] = {
+    SUBARU_D_PLATFORM_ANGLE_TX_MSGS(SUBARU_MAIN_BUS)
+    SUBARU_COMMON_TX_MSGS(SUBARU_ALT_BUS)
+  };
+
+  static const CanMsg SUBARU_D_PLATFORM_ANGLE_CAMERA_TX_MSGS[] = {
+    SUBARU_D_PLATFORM_ANGLE_TX_MSGS(SUBARU_CAM_BUS)
     SUBARU_COMMON_TX_MSGS(SUBARU_ALT_BUS)
   };
 
@@ -343,6 +348,9 @@ static safety_config subaru_init(uint16_t param) {
   const uint16_t SUBARU_PARAM_D_PLATFORM = 32;
   subaru_d_platform = GET_FLAG(param, SUBARU_PARAM_D_PLATFORM);
 
+  const uint16_t SUBARU_PARAM_D_PLATFORM_CAMERA = 64;
+  const bool subaru_d_platform_camera = GET_FLAG(param, SUBARU_PARAM_D_PLATFORM_CAMERA);
+
 #ifdef ALLOW_DEBUG
   const uint16_t SUBARU_PARAM_LONGITUDINAL = 2;
   subaru_longitudinal = GET_FLAG(param, SUBARU_PARAM_LONGITUDINAL);
@@ -350,7 +358,8 @@ static safety_config subaru_init(uint16_t param) {
 
   safety_config ret;
   if (subaru_lkas_angle) {
-    ret = subaru_d_platform ? BUILD_SAFETY_CFG(subaru_d_platform_angle_rx_checks, SUBARU_D_PLATFORM_ANGLE_TX_MSGS) : \
+    ret = subaru_d_platform ? (subaru_d_platform_camera ? BUILD_SAFETY_CFG(subaru_d_platform_angle_rx_checks, SUBARU_D_PLATFORM_ANGLE_CAMERA_TX_MSGS) : \
+                              BUILD_SAFETY_CFG(subaru_d_platform_angle_rx_checks, SUBARU_D_PLATFORM_ANGLE_MAIN_TX_MSGS)) : \
           subaru_gen2 ? BUILD_SAFETY_CFG(subaru_gen2_lkas_angle_rx_checks, SUBARU_GEN2_LKAS_ANGLE_TX_MSGS) : \
                         BUILD_SAFETY_CFG(subaru_lkas_angle_rx_checks, SUBARU_LKAS_ANGLE_TX_MSGS);
   } else if (subaru_gen2) {

@@ -27,6 +27,8 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   clear_flm_runtime_overrides,
   get_flm_runtime_overrides,
   get_hkg_canfd_base_friction_threshold,
+  get_ioniq_6_2025_low_speed_center_error_scale,
+  get_ioniq_6_2025_low_speed_center_friction_scale,
   get_kona_non_scc_center_taper_scale,
   get_kona_non_scc_friction_threshold,
   get_kona_non_scc_highway_transition_output_scale,
@@ -69,8 +71,11 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g90_friction_scale,
   get_genesis_g90_friction_threshold,
   get_genesis_g70_center_output_scale,
+  get_genesis_g70_curve_unwind_output_scale,
   get_genesis_g70_friction_jerk_deadzone,
   get_genesis_g70_friction_threshold,
+  get_genesis_g70_low_speed_angle_damping,
+  get_genesis_g70_low_speed_output_limit,
   get_genesis_gv70_friction_threshold,
   get_elantra_non_scc_ff_scale,
   get_palisade_ff_scale,
@@ -791,6 +796,12 @@ class TestLatControl:
     assert get_genesis_g70_center_output_scale(0.0, 25.0) < get_genesis_g70_center_output_scale(0.8, 25.0)
     assert get_genesis_g70_center_output_scale(0.0, 10.0) > get_genesis_g70_center_output_scale(0.0, 25.0)
     assert get_genesis_g70_center_output_scale(0.0, 0.0) < get_genesis_g70_center_output_scale(0.0, 10.0)
+    assert get_genesis_g70_low_speed_output_limit(0.0, 2.0) < get_genesis_g70_low_speed_output_limit(0.5, 2.0)
+    assert get_genesis_g70_low_speed_output_limit(0.0, 2.0) < get_genesis_g70_low_speed_output_limit(0.0, 10.0)
+    assert get_genesis_g70_low_speed_angle_damping(0.0, -20.0, 0.0, 2.0) < 0.0
+    assert get_genesis_g70_low_speed_angle_damping(0.0, 20.0, 0.0, 2.0) > 0.0
+    assert get_genesis_g70_curve_unwind_output_scale(0.7, -0.5, 25.0) > 1.0
+    assert get_genesis_g70_curve_unwind_output_scale(0.7, 0.5, 25.0) == 1.0
 
   def test_sonata_hybrid_center_output_taper_is_mid_speed_and_center_gated(self):
     low_speed = get_sonata_hybrid_center_output_scale(0.0, 8.0)
@@ -1163,6 +1174,16 @@ class TestLatControl:
     assert get_ioniq_6_2025_center_output_scale(0.0, 28.0) < get_ioniq_6_2025_center_output_scale(0.5, 28.0)
     assert get_ioniq_6_2025_center_output_scale(0.0, 15.0) > 0.98
 
+  def test_ioniq_6_2025_low_speed_center_scales(self):
+    low_speed_center_error = get_ioniq_6_2025_low_speed_center_error_scale(0.02, 0.05, 2.5)
+    low_speed_turn_error = get_ioniq_6_2025_low_speed_center_error_scale(0.60, 0.80, 2.5)
+    high_speed_center_error = get_ioniq_6_2025_low_speed_center_error_scale(0.02, 0.05, 8.0)
+    low_speed_center_friction = get_ioniq_6_2025_low_speed_center_friction_scale(0.02, 0.05, 2.5)
+
+    assert low_speed_center_error < low_speed_turn_error
+    assert low_speed_center_error < high_speed_center_error
+    assert low_speed_center_friction < 1.0
+
   def test_ioniq_6_center_taper_curve(self):
     assert get_ioniq_6_center_taper_scale(0.0, 10.0) > get_ioniq_6_center_taper_scale(0.0, 30.0)
     assert get_ioniq_6_center_taper_scale(0.0, 30.0) < get_ioniq_6_center_taper_scale(0.2, 30.0)
@@ -1350,6 +1371,19 @@ class TestLatControl:
     assert controller.starpilot_lateral_state.frictionThreshold > get_standard_friction_threshold(25.0)
     assert base_output != 0.0
     assert tapered_output == pytest.approx(base_output * 0.5)
+
+  def test_genesis_g70_low_speed_output_guard_update_path(self):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.GENESIS_G70_2020)
+    CS.vEgo = 2.0
+    CS.steeringAngleDeg = 20.0
+
+    output, _, lac_log = controller.update(
+      True, CS, VM, params, False, 0.0, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    assert controller.is_genesis_g70
+    assert lac_log.active
+    assert 0.0 < abs(output) <= get_genesis_g70_low_speed_output_limit(0.0, CS.vEgo)
 
   def test_ioniq_5_default_update_path(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_IONIQ_5)

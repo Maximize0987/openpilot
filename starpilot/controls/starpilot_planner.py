@@ -32,7 +32,11 @@ from openpilot.starpilot.controls.lib.weather_checker import WeatherChecker
 RADARLESS_TRACK_HOLD_TIME = 0.45
 FORCE_STOP_JERK_SCALE = 0.32  # accel-change cost multiplier while forcing_stop (125 -> ~40)
 FORCE_STOP_JERK_SCALE_OVERRIDES = {
-  "HYUNDAI_ELANTRA_2021": 0.60,
+  # The Elantra's current force-stop ramp is smooth, but it waits too long
+  # before building decel and then arrives at the initial brake too abruptly.
+  # Increase the accel-change cost to spread the same stop over more time;
+  # this does not alter the force-stop distance.
+  "HYUNDAI_ELANTRA_2021": 0.80,
 }
 
 

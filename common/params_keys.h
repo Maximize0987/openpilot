@@ -272,7 +272,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"GalaxyDeveloperMode", {PERSISTENT | DONT_LOG, BOOL, "0", "0", 0, SETTINGS_SIMPLE}},
     {"DeveloperWidgets", {PERSISTENT, BOOL, "1", "0", 3}},
     {"DeviceManagement", {PERSISTENT, BOOL, "1", "0", 1, SETTINGS_SIMPLE}},
-    {"DeviceShutdown", {PERSISTENT, INT, "9", "33", 1, SETTINGS_SIMPLE}},
+    {"DeviceShutdown", {PERSISTENT, INT, "6", "6", 1, SETTINGS_SIMPLE}},
     {"DisableOnroadUploads", {PERSISTENT, BOOL, "0", "0", 2, SETTINGS_SIMPLE}},
     {"DisableOpenpilotLongitudinal", {PERSISTENT, BOOL, "0", "0", 0, SETTINGS_SIMPLE}},
     {"DiscordUsername", {PERSISTENT, STRING, "", "", 0}},

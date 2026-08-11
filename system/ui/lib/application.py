@@ -38,11 +38,13 @@ TOUCH_HISTORY_TIMEOUT = 3.0  # Seconds before touch points fade out
 BIG_UI = os.getenv("BIG", "0") == "1"
 MACOS = platform.system() == "Darwin"
 ENABLE_VSYNC = os.getenv("ENABLE_VSYNC", "0") == "1"
-MICI_FORCE_RENDER_TEXTURE = os.getenv("MICI_FORCE_RENDER_TEXTURE", "1" if DEVICE_TYPE == "mici" else "0") == "1"
+MICI_FORCE_RENDER_TEXTURE = os.getenv("MICI_FORCE_RENDER_TEXTURE", "0") == "1"
 BURN_IN_PREVENTION = os.getenv("BURN_IN_PREVENTION", "0" if PC else "1") == "1"
 BURN_IN_SHIFT_INTERVAL = max(1.0, float(os.getenv("BURN_IN_SHIFT_INTERVAL", "180")))
 BURN_IN_SHIFT_PIXELS = max(0, int(os.getenv("BURN_IN_SHIFT_PIXELS", "2")))
-WHITE_LUMINANCE_CAP = min(1.0, max(0.0, float(os.getenv("WHITE_LUMINANCE_CAP", "0.95" if BURN_IN_PREVENTION else "1.0"))))
+WHITE_LUMINANCE_CAP = min(1.0, max(0.0, float(os.getenv(
+  "WHITE_LUMINANCE_CAP", "0.95" if BURN_IN_PREVENTION and DEVICE_TYPE != "mici" else "1.0"
+))))
 SHOW_FPS = os.getenv("SHOW_FPS") == "1"
 SHOW_TOUCHES = os.getenv("SHOW_TOUCHES") == "1"
 STRICT_MODE = os.getenv("STRICT_MODE") == "1"
@@ -615,7 +617,8 @@ class GuiApplication:
       self._render_texture_height = max(1, int(round(self._scaled_height * self._pixel_scale_y)))
 
       needs_render_texture = ((self._scale != 1.0 and not PC) or BURN_IN_MODE or RECORD or
-                              MICI_FORCE_RENDER_TEXTURE or BURN_IN_PREVENTION or WHITE_LUMINANCE_CAP < 1.0)
+                              MICI_FORCE_RENDER_TEXTURE or
+                              (BURN_IN_PREVENTION and DEVICE_TYPE != "mici") or WHITE_LUMINANCE_CAP < 1.0)
       if PC and self._scale != 1.0:
         rl.set_mouse_scale(1 / self._scale, 1 / self._scale)
       if PC:
@@ -1047,9 +1050,14 @@ class GuiApplication:
         render_scale_x = self._scale * (self._pixel_scale_x if self._render_texture else 1.0)
         render_scale_y = self._scale * (self._pixel_scale_y if self._render_texture else 1.0)
         needs_render_scale = render_scale_x != 1.0 or render_scale_y != 1.0
-        if needs_render_scale:
+        direct_burn_in_shift = self._burn_in_shift() if self._render_texture is None else (0, 0)
+        needs_render_transform = needs_render_scale or direct_burn_in_shift != (0, 0)
+        if needs_render_transform:
           rl.rl_push_matrix()
-          rl.rl_scalef(render_scale_x, render_scale_y, 1.0)
+          if needs_render_scale:
+            rl.rl_scalef(render_scale_x, render_scale_y, 1.0)
+          if direct_burn_in_shift != (0, 0):
+            rl.rl_translatef(direct_burn_in_shift[0], direct_burn_in_shift[1], 0.0)
 
         # Allow a Widget to still run a function regardless of the stack depth
         self._mark_progress("gui_app.before_nav_ticks")
@@ -1066,7 +1074,7 @@ class GuiApplication:
         self._mark_progress("gui_app.frame_ready")
         yield True
 
-        if needs_render_scale:
+        if needs_render_transform:
           rl.rl_pop_matrix()
 
         if self._render_texture:

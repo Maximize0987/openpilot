@@ -156,7 +156,7 @@
       {
         "key": "NudgelessLaneChange",
         "label": "Automatic Lane Changes",
-        "description": "When the turn signal is on, openpilot will automatically change lanes. No steering-wheel nudge required!",
+        "description": "When the turn signal is on, openpilot will automatically change lanes. If a vehicle is detected in the blind spot, the lane change waits until it is clear. No steering-wheel nudge required!",
         "data_type": "bool",
         "ui_type": "toggle",
         "parent_key": "LaneChanges",
@@ -3800,12 +3800,13 @@
       },
       {
         "key": "DeviceShutdown",
-        "label": "Device Shutdown Timer",
-        "description": "Keep the device on for the set amount of time after a drive before it shuts down automatically.",
+        "label": "Device Shutdown Timer (Hours)",
+        "description": "How many hours the device stays on after a drive before it shuts down automatically.",
         "data_type": "int",
         "ui_type": "numeric",
-        "min": 0.0,
-        "max": 33.0,
+        "min": 1.0,
+        "max": 30.0,
+        "step": 1.0,
         "parent_key": "DeviceManagement",
         "settings_tier": "simple"
       },

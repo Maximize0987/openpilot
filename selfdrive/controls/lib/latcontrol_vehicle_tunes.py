@@ -225,6 +225,26 @@ GENESIS_G70_LOW_SPEED_CENTER_TAPER_LAT = 0.14
 GENESIS_G70_LOW_SPEED_CENTER_TAPER_LAT_WIDTH = 0.05
 GENESIS_G70_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 7.5
 GENESIS_G70_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.2
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_MAX = 0.24
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_SPEED = 6.0
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_SPEED_WIDTH = 1.5
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ERROR = 7.0
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ERROR_WIDTH = 3.0
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ACTUAL = 8.0
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ACTUAL_WIDTH = 4.0
+GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_BLEND = 0.50
+GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_REDUCTION = 0.65
+GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT = 0.14
+GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT_WIDTH = 0.05
+GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED = 6.0
+GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED_WIDTH = 1.5
+GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST = 0.14
+GENESIS_G70_CURVE_UNWIND_SPEED = 18.0
+GENESIS_G70_CURVE_UNWIND_SPEED_WIDTH = 3.0
+GENESIS_G70_CURVE_UNWIND_LAT = 0.25
+GENESIS_G70_CURVE_UNWIND_LAT_WIDTH = 0.12
+GENESIS_G70_CURVE_UNWIND_JERK = 0.08
+GENESIS_G70_CURVE_UNWIND_JERK_WIDTH = 0.08
 
 BOLT_2017_LATERAL_TESTING_GROUND_ID = testing_ground.id_3
 BOLT_2017_STEER_RATIO_TEST_SCALE = 1.045
@@ -781,11 +801,19 @@ IONIQ_6_FRICTION_CENTER_FADE_SPEED_WIDTH = 2.5
 # Newer Ioniq 6 highway center-chatter correction; activation is firmware-gated.
 IONIQ_6_2025_FRICTION_SCALE_MULT = 0.80
 IONIQ_6_2025_FRICTION_JERK_DEADZONE = 0.45
-IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX = 0.24
+IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX = 0.28
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT = 0.35
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.10
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_SPEED = 22.0
 IONIQ_6_2025_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 2.5
+IONIQ_6_2025_LOW_SPEED_CENTER_ERROR_SCALE = 0.68
+IONIQ_6_2025_LOW_SPEED_CENTER_FRICTION_SCALE = 0.72
+IONIQ_6_2025_LOW_SPEED_CENTER_SPEED = 5.0
+IONIQ_6_2025_LOW_SPEED_CENTER_SPEED_WIDTH = 1.3
+IONIQ_6_2025_LOW_SPEED_CENTER_LAT = 0.22
+IONIQ_6_2025_LOW_SPEED_CENTER_LAT_WIDTH = 0.10
+IONIQ_6_2025_LOW_SPEED_CENTER_JERK = 0.30
+IONIQ_6_2025_LOW_SPEED_CENTER_JERK_WIDTH = 0.13
 IONIQ_6_HEAVY_DIRECTIONAL_TAPER_LAT_START = 0.90
 IONIQ_6_HEAVY_DIRECTIONAL_TAPER_LAT_WIDTH = 0.18
 IONIQ_6_HEAVY_DIRECTIONAL_TAPER_BASE_LEFT = 0.03
@@ -2591,6 +2619,47 @@ def get_genesis_g70_center_output_scale(desired_lateral_accel: float, v_ego: flo
   return 1.0 - reduction
 
 
+def get_genesis_g70_low_speed_angle_damping(desired_angle_deg: float, actual_angle_deg: float,
+                                             current_output_torque: float, v_ego: float) -> float:
+  angle_error = desired_angle_deg - actual_angle_deg
+  speed_weight = _sigmoid((GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_SPEED - max(v_ego, 0.0)) /
+                          GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_SPEED_WIDTH)
+  error_weight = _sigmoid((abs(angle_error) - GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ERROR) /
+                          GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ERROR_WIDTH)
+  actual_angle_weight = _sigmoid((abs(actual_angle_deg) - GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ACTUAL) /
+                                 GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_ACTUAL_WIDTH)
+  damping_torque = math.copysign(
+    GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_MAX * speed_weight * error_weight * actual_angle_weight,
+    -angle_error,
+  )
+  if abs(damping_torque) < 1e-4:
+    return current_output_torque
+  if current_output_torque * damping_torque >= 0.0:
+    damping_torque *= GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_BLEND
+  return float(np.clip(current_output_torque + damping_torque, -1.0, 1.0))
+
+
+def get_genesis_g70_low_speed_output_limit(desired_lateral_accel: float, v_ego: float) -> float:
+  speed_weight = _sigmoid((GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED - max(v_ego, 0.0)) /
+                          GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED_WIDTH)
+  center_weight = _sigmoid((GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT_WIDTH)
+  return max(0.05, 1.0 - GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_REDUCTION * speed_weight * center_weight)
+
+
+def get_genesis_g70_curve_unwind_output_scale(desired_lateral_accel: float, desired_lateral_jerk: float,
+                                               v_ego: float) -> float:
+  if desired_lateral_accel * desired_lateral_jerk >= 0.0:
+    return 1.0
+  speed_weight = _sigmoid((max(v_ego, 0.0) - GENESIS_G70_CURVE_UNWIND_SPEED) /
+                          GENESIS_G70_CURVE_UNWIND_SPEED_WIDTH)
+  lateral_weight = _sigmoid((abs(desired_lateral_accel) - GENESIS_G70_CURVE_UNWIND_LAT) /
+                            GENESIS_G70_CURVE_UNWIND_LAT_WIDTH)
+  jerk_weight = _sigmoid((abs(desired_lateral_jerk) - GENESIS_G70_CURVE_UNWIND_JERK) /
+                          GENESIS_G70_CURVE_UNWIND_JERK_WIDTH)
+  return 1.0 + GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST * speed_weight * lateral_weight * jerk_weight
+
+
 def _ioniq_5_sigmoid(x: float) -> float:
   return _sigmoid(x)
 
@@ -2867,6 +2936,29 @@ def get_ioniq_6_2025_center_output_scale(desired_lateral_accel: float, v_ego: fl
   center_weight = _ioniq_6_sigmoid((IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
                                    IONIQ_6_2025_CENTER_OUTPUT_TAPER_LAT_WIDTH)
   return 1.0 - IONIQ_6_2025_CENTER_OUTPUT_TAPER_MAX * speed_weight * center_weight
+
+
+def _ioniq_6_2025_low_speed_center_envelope(desired_lateral_accel: float,
+                                             desired_lateral_jerk: float, v_ego: float) -> float:
+  speed_weight = _ioniq_6_sigmoid((IONIQ_6_2025_LOW_SPEED_CENTER_SPEED - max(v_ego, 0.0)) /
+                                  IONIQ_6_2025_LOW_SPEED_CENTER_SPEED_WIDTH)
+  center_weight = _ioniq_6_sigmoid((IONIQ_6_2025_LOW_SPEED_CENTER_LAT - abs(desired_lateral_accel)) /
+                                   IONIQ_6_2025_LOW_SPEED_CENTER_LAT_WIDTH)
+  calm_weight = _ioniq_6_sigmoid((IONIQ_6_2025_LOW_SPEED_CENTER_JERK - abs(desired_lateral_jerk)) /
+                                 IONIQ_6_2025_LOW_SPEED_CENTER_JERK_WIDTH)
+  return speed_weight * center_weight * calm_weight
+
+
+def get_ioniq_6_2025_low_speed_center_error_scale(desired_lateral_accel: float,
+                                                   desired_lateral_jerk: float, v_ego: float) -> float:
+  envelope = _ioniq_6_2025_low_speed_center_envelope(desired_lateral_accel, desired_lateral_jerk, v_ego)
+  return 1.0 - (1.0 - IONIQ_6_2025_LOW_SPEED_CENTER_ERROR_SCALE) * envelope
+
+
+def get_ioniq_6_2025_low_speed_center_friction_scale(desired_lateral_accel: float,
+                                                      desired_lateral_jerk: float, v_ego: float) -> float:
+  envelope = _ioniq_6_2025_low_speed_center_envelope(desired_lateral_accel, desired_lateral_jerk, v_ego)
+  return 1.0 - (1.0 - IONIQ_6_2025_LOW_SPEED_CENTER_FRICTION_SCALE) * envelope
 
 
 def get_ioniq_6_center_taper_scale(desired_lateral_accel: float, v_ego: float) -> float:

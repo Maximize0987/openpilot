@@ -127,11 +127,10 @@ class SystemSettingsManagerView(PanelManagerView):
     self._display_slider_keys = ["ScreenBrightness", "ScreenBrightnessOnroad", "ScreenTimeout", "ScreenTimeoutOnroad"]
     self._power_slider_keys = ["DeviceShutdown", "LowVoltageShutdown"]
 
-    shutdown_labels = {0: tr("5 mins")}
-    for i in range(1, 4):
-      shutdown_labels[i] = f"{i * 15} mins"
-    for i in range(4, 34):
-      shutdown_labels[i] = f"{i - 3} " + (tr("hour") if i == 4 else tr("hours"))
+    shutdown_labels = {
+      hours: f"{hours} " + (tr("hour") if hours == 1 else tr("hours"))
+      for hours in range(1, 31)
+    }
     brightness_labels = {101: tr("Auto"), 0: tr("Off")}
 
     self._slider_specs: dict[str, dict[str, Any]] = {
@@ -192,11 +191,11 @@ class SystemSettingsManagerView(PanelManagerView):
         "subtitle": "",
         "unit": "",
         "labels": shutdown_labels,
-        "min": 0,
-        "max": 33,
+        "min": 1,
+        "max": 30,
         "step": 1,
         "live": False,
-        "presets": [0, 1, 4, 8],
+        "presets": [1, 3, 6, 12],
         "get": lambda: float(self._controller._params.get_int("DeviceShutdown")),
         "set": lambda v: self._controller._params.put_int("DeviceShutdown", int(v)),
       },

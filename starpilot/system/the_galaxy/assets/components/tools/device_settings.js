@@ -439,6 +439,10 @@ function formatSliderValue(val, stepStr, precisionInt, key) {
     return v === 1 ? "1 min" : `${v} min`
   }
 
+  if (key === "DeviceShutdown") {
+    return v === 1 ? "1 hour" : `${v} hours`
+  }
+
   const volumeKeys = [
     "BelowSteerSpeedVolume", "DisengageVolume", "EngageVolume", "PromptVolume",
     "PromptDistractedVolume", "RefuseVolume",
@@ -1529,7 +1533,7 @@ function renderSettingRow(p) {
         ? formatSliderValue(defaultNumeric, String(bounds.step), p.precision, p.key)
         : "N/A"
       const canReset = !updating && defaultNumeric !== null && Math.abs(defaultNumeric - currentNumeric) > epsilon
-      const stepLabel = formatStepValue(bounds.step, precision)
+      const stepLabel = p.key === "DeviceShutdown" ? "1 hour" : formatStepValue(bounds.step, precision)
       return html`
             <div class="ds-stepper">
               <button

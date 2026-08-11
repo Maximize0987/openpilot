@@ -153,6 +153,7 @@ class BookmarkIcon(Widget):
 
 class FavoriteSlotsOverlay(Widget):
   SLOT_COUNT = 3
+  SLOTS_REFRESH_INTERVAL = 1.0
   MAX_TAP_TRAVEL = 24
   COLOR_TRANSITION_SECONDS = 0.65
   FADE_START_SECONDS = 2.0
@@ -169,17 +170,25 @@ class FavoriteSlotsOverlay(Widget):
     self._feedback_started_at = -self.FEEDBACK_DURATION_SECONDS
     self._feedback_value: bool | None = None
     self._interacting = False
+    self._visible_slots_cache: list[tuple[int, dict]] = []
+    self._visible_slots_cached_at = float("-inf")
 
   def interacting(self):
     interacting, self._interacting = self._interacting, False
     return interacting
 
-  def _visible_slots(self) -> list[tuple[int, dict]]:
+  def _visible_slots(self, force: bool = False) -> list[tuple[int, dict]]:
+    now = time.monotonic()
+    if not force and now - self._visible_slots_cached_at < self.SLOTS_REFRESH_INTERVAL:
+      return self._visible_slots_cache
+
     visible = []
-    for index, slot in enumerate(load_favorite_slots(ui_state.params)):
+    for index, slot in enumerate(load_favorite_slots(ui_state.ui_params)):
       if slot.get("enabled") and slot.get("show_onroad") and slot.get("key"):
         visible.append((index, slot))
-    return visible
+    self._visible_slots_cache = visible
+    self._visible_slots_cached_at = now
+    return self._visible_slots_cache
 
   def _slot_rects(self, rect: rl.Rectangle, slots: list[tuple[int, dict]]) -> list[tuple[int, rl.Rectangle]]:
     slot_width = rect.width / self.SLOT_COUNT
@@ -310,7 +319,7 @@ class FavoriteSlotsOverlay(Widget):
       self._feedback_started_at = rl.get_time()
       slot = dict(self._visible_slots()).get(self._pressed_slot, {})
       key = slot.get("key")
-      self._feedback_value = None if is_favorite_action_key(key) else (not ui_state.params.get_bool(key) if key else None)
+      self._feedback_value = None if is_favorite_action_key(key) else (not ui_state.ui_params.get_bool(key) if key else None)
       self._interacting = True
 
   def _handle_mouse_event(self, mouse_event: MouseEvent):
@@ -326,7 +335,7 @@ class FavoriteSlotsOverlay(Widget):
       released_slot == self._pressed_slot and
       self._max_tap_travel <= self.MAX_TAP_TRAVEL
     )
-    if valid_tap and toggle_favorite_slot(self._pressed_slot, ui_state.params, ui_state.params_memory):
+    if valid_tap and toggle_favorite_slot(self._pressed_slot, ui_state.ui_params, ui_state.params_memory):
       self._feedback_slot = self._pressed_slot
       self._feedback_started_at = rl.get_time()
       self._interacting = True
@@ -478,7 +487,7 @@ class StandstillTimerOverlay:
       self._reset()
       return
 
-    if in_reverse or not ui_state.params.get_bool("StoppedTimer"):
+    if in_reverse or not ui_state.ui_params.get_bool("StoppedTimer"):
       self._reset()
       return
 
@@ -582,7 +591,7 @@ class AugmentedRoadView(CameraView):
     return ui_state.sm.recv_frame["selfdriveState"] >= ui_state.started_frame
 
   def _update_reverse_driver_camera_state(self) -> bool:
-    should_force_driver = ui_state.started and ui_state.params.get_bool("DriverCamera") and self._is_in_reverse()
+    should_force_driver = ui_state.started and ui_state.ui_params.get_bool("DriverCamera") and self._is_in_reverse()
     if not should_force_driver:
       self._reverse_driver_camera_frames = 0
       self._reverse_driver_camera_active = False
@@ -616,20 +625,20 @@ class AugmentedRoadView(CameraView):
     )
 
   def _sidebar_widgets_visible(self) -> bool:
-    return not ui_state.params.get_bool("StockConfidenceBallWidget") or self._sidebar_widgets.demo_active
+    return not ui_state.ui_params.get_bool("StockConfidenceBallWidget") or self._sidebar_widgets.demo_active
 
   def _sidebar_personality_touch_enabled(self) -> bool:
     return (
       ui_state.started and
       self._sidebar_widgets_visible() and
-      not ui_state.params.get_bool("SafeMode")
+      not ui_state.ui_params.get_bool("SafeMode")
     )
 
   def _touch_in_sidebar(self, mouse_pos: MousePos) -> bool:
     return rl.check_collision_point_rec(mouse_pos, self._sidebar_rect())
 
   def _cycle_personality_profile(self) -> None:
-    current = ui_state.params.get_int("LongitudinalPersonality", return_default=True, default=int(log.LongitudinalPersonality.standard))
+    current = ui_state.ui_params.get_int("LongitudinalPersonality", return_default=True, default=int(log.LongitudinalPersonality.standard))
     profiles = (
       int(log.LongitudinalPersonality.aggressive),
       int(log.LongitudinalPersonality.standard),
@@ -640,7 +649,7 @@ class AugmentedRoadView(CameraView):
     except ValueError:
       current_idx = 1
     next_personality = profiles[(current_idx + 1) % len(profiles)]
-    ui_state.params.put_int("LongitudinalPersonality", next_personality)
+    ui_state.ui_params.put_int("LongitudinalPersonality", next_personality)
     ui_state.personality = next_personality
 
   def _handle_mouse_press(self, mouse_pos: MousePos):
@@ -756,7 +765,7 @@ class AugmentedRoadView(CameraView):
     # Custom UI extension point - add custom overlays here
     # Use self._content_rect for positioning within camera bounds
     if draw_road_overlays:
-      if ui_state.params.get_bool("StockConfidenceBallWidget") and not self._sidebar_widgets.demo_active:
+      if ui_state.ui_params.get_bool("StockConfidenceBallWidget") and not self._sidebar_widgets.demo_active:
         self._confidence_ball.render(self.rect)
       else:
         self._sidebar_widgets.render(self.rect)
@@ -797,7 +806,7 @@ class AugmentedRoadView(CameraView):
     rl.end_scissor_mode()
 
   def _get_border_width(self) -> int:
-    return get_border_width(8, ui_state.params)
+    return get_border_width(8, ui_state.ui_params)
 
   @staticmethod
   def _is_in_reverse() -> bool:
@@ -823,7 +832,7 @@ class AugmentedRoadView(CameraView):
 
   @staticmethod
   def _camera_view() -> int:
-    camera_view = ui_state.params.get_int("CameraView", return_default=True, default=CAMERA_VIEW_WIDE)
+    camera_view = ui_state.ui_params.get_int("CameraView", return_default=True, default=CAMERA_VIEW_WIDE)
     if camera_view not in (CAMERA_VIEW_AUTO, CAMERA_VIEW_DRIVER, CAMERA_VIEW_STANDARD, CAMERA_VIEW_WIDE, CAMERA_VIEW_NONE):
       return CAMERA_VIEW_WIDE
     return camera_view

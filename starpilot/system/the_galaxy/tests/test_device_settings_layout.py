@@ -71,6 +71,15 @@ def test_galaxy_layout_contains_basic_mode_controls():
   assert {"GalaxyDeveloperMode", "UseOldUI"} <= sections["Developer"].keys()
 
 
+def test_device_shutdown_uses_literal_hours():
+  device_shutdown = _params_by_section(_layout())["Device & Data"]["DeviceShutdown"]
+
+  assert _declared_default("DeviceShutdown") == "6"
+  assert device_shutdown["min"] == 1
+  assert device_shutdown["max"] == 30
+  assert device_shutdown["step"] == 1
+
+
 def test_curve_speed_controller_no_lead_toggle_is_nested_under_csc():
   csc_no_lead = _params_by_section(_layout())["Longitudinal (Speed & Following)"]["CurveSpeedControllerNoLead"]
 

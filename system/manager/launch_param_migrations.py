@@ -20,6 +20,7 @@ DEVELOPER_METRIC_DISPLAY_KEYS = (
   "ShowMemoryUsage",
   "SidebarMetrics",
 )
+DEVICE_SHUTDOWN_KEY = "DeviceShutdown"
 
 DEFAULT_STEER_KP = 0.6
 LEGACY_STEER_KP = 0.7
@@ -34,6 +35,7 @@ VISION_SPEED_LIMIT_DETECTION_MIGRATION_MARKER = ".starpilot_vision_speed_limit_d
 DEVELOPER_METRIC_DISPLAY_MIGRATION_MARKER = ".starpilot_developer_metric_display_off_v1"
 LANE_CHANGE_SMOOTHING_MIGRATION_MARKER = ".starpilot_lane_change_smoothing_default_v1"
 SPEED_LIMIT_VISIBILITY_MIGRATION_MARKER = ".starpilot_speed_limit_visibility_v1"
+DEVICE_SHUTDOWN_HOURS_MIGRATION_MARKER = ".starpilot_device_shutdown_hours_v1"
 MARKER_DIRNAME = ".starpilot_param_migrations"
 
 LATERAL_METHOD_PARAM_SUFFIXES = (
@@ -129,6 +131,10 @@ def _lane_change_smoothing_marker_path(params: ParamsLike) -> Path:
 
 def _speed_limit_visibility_marker_path(params: ParamsLike) -> Path:
   return _marker_dir_path(params) / SPEED_LIMIT_VISIBILITY_MIGRATION_MARKER
+
+
+def _device_shutdown_hours_marker_path(params: ParamsLike) -> Path:
+  return _marker_dir_path(params) / DEVICE_SHUTDOWN_HOURS_MIGRATION_MARKER
 
 
 def _marker_dir_path(params: ParamsLike) -> Path:
@@ -290,6 +296,20 @@ def _apply_speed_limit_visibility_migration(params: ParamsLike, marker: Path) ->
   marker.touch()
 
 
+def _apply_device_shutdown_hours_migration(params: ParamsLike, marker: Path) -> None:
+  if marker.exists():
+    return
+
+  marker.parent.mkdir(parents=True, exist_ok=True)
+
+  if _param_file_exists(params, DEVICE_SHUTDOWN_KEY):
+    legacy_value = params.get_int(DEVICE_SHUTDOWN_KEY)
+    hours = max(1, min(30, legacy_value - 3 if legacy_value >= 4 else 1))
+    params.put_int(DEVICE_SHUTDOWN_KEY, hours)
+
+  marker.touch()
+
+
 def apply_launch_param_migrations(params: ParamsLike, marker_path: Path | None = None,
                                   branch_defaults_marker_path: Path | None = None,
                                   acceleration_profile_marker_path: Path | None = None,
@@ -298,7 +318,8 @@ def apply_launch_param_migrations(params: ParamsLike, marker_path: Path | None =
                                   vision_speed_limit_detection_marker_path: Path | None = None,
                                   developer_metric_display_marker_path: Path | None = None,
                                   lane_change_smoothing_marker_path: Path | None = None,
-                                  speed_limit_visibility_marker_path: Path | None = None) -> None:
+                                  speed_limit_visibility_marker_path: Path | None = None,
+                                  device_shutdown_hours_marker_path: Path | None = None) -> None:
   _apply_legacy_launch_param_migrations(params, marker_path or _default_marker_path(params))
   # Keep branch-default rollout on its own marker so older installs that already
   # have the legacy marker still receive this one-time param reset.
@@ -321,6 +342,9 @@ def apply_launch_param_migrations(params: ParamsLike, marker_path: Path | None =
   )
   _apply_speed_limit_visibility_migration(
     params, speed_limit_visibility_marker_path or _speed_limit_visibility_marker_path(params)
+  )
+  _apply_device_shutdown_hours_migration(
+    params, device_shutdown_hours_marker_path or _device_shutdown_hours_marker_path(params)
   )
 
 

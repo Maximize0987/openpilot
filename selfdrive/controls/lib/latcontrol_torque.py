@@ -272,6 +272,10 @@ class LatControlTorque(LatControl):
       current_kp = np.interp(CS.vEgo, self.pid._k_p[0], self.pid._k_p[1])
       error = setpoint - measurement
       error_with_lsf = error * (1 + low_speed_factor / max(current_kp, 1e-3))
+      if self.is_ioniq_6_2025:
+        error_with_lsf *= get_ioniq_6_2025_low_speed_center_error_scale(
+          setpoint, desired_lateral_jerk, CS.vEgo,
+        )
 
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(error_with_lsf)
@@ -454,6 +458,10 @@ class LatControlTorque(LatControl):
       if trailer_load_kg > 0.0:
         ff *= get_trailer_lateral_ff_scale(trailer_load_kg, CS.vEgo, setpoint)
         friction_scale *= get_trailer_lateral_friction_scale(trailer_load_kg, CS.vEgo, setpoint)
+      if self.is_ioniq_6_2025:
+        friction_scale *= get_ioniq_6_2025_low_speed_center_friction_scale(
+          setpoint, desired_lateral_jerk, CS.vEgo,
+        )
       if ioniq_6_active:
         vehicle_friction_jerk_deadzone = (
           IONIQ_6_2025_FRICTION_JERK_DEADZONE if self.is_ioniq_6_2025 else IONIQ_6_FRICTION_JERK_DEADZONE
@@ -504,6 +512,11 @@ class LatControlTorque(LatControl):
         actual_angle_no_offset = CS.steeringAngleDeg - params.angleOffsetDeg
         output_torque = get_flm_full_surface_low_speed_angle_assist_torque(self.flm_surface_profile_key, desired_angle_no_offset,
                                                                            actual_angle_no_offset, output_torque, CS.vEgo)
+      elif self.is_genesis_g70 and not CS.steeringPressed and CS.vEgo < GENESIS_G70_LOW_SPEED_ANGLE_DAMPING_SPEED + 2.0:
+        desired_angle_no_offset = math.degrees(VM.get_steer_from_curvature(-desired_curvature, CS.vEgo, params.roll))
+        actual_angle_no_offset = CS.steeringAngleDeg - params.angleOffsetDeg
+        output_torque = get_genesis_g70_low_speed_angle_damping(desired_angle_no_offset, actual_angle_no_offset,
+                                                                 output_torque, CS.vEgo)
       if ioniq_6_active:
         output_torque *= get_ioniq_6_highway_output_taper_scale(setpoint, CS.vEgo)
         output_torque *= get_ioniq_6_highway_transition_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
@@ -540,6 +553,9 @@ class LatControlTorque(LatControl):
         output_torque *= tucson_4th_gen_center_taper
       elif genesis_g70_active:
         output_torque *= genesis_g70_center_output_taper
+        output_torque *= get_genesis_g70_curve_unwind_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+        low_speed_output_limit = get_genesis_g70_low_speed_output_limit(setpoint, CS.vEgo)
+        output_torque = float(np.clip(output_torque, -low_speed_output_limit, low_speed_output_limit))
       elif sonata_hybrid_active:
         output_torque *= sonata_hybrid_center_taper
         output_torque *= sonata_hybrid_center_output_taper

@@ -57,6 +57,24 @@ class TestToyotaInterfaces:
     assert forced_params.lateralTuning.torque.latAccelFactor == pytest.approx(1.7)
     assert forced_params.lateralTuning.torque.friction == pytest.approx(0.14)
 
+  def test_prius_force_torque_controller_preserves_vehicle_tune(self):
+    fingerprint = {bus: {} for bus in range(8)}
+    car_fw = [CarParams.CarFw(ecu=Ecu.eps, fwVersion=b'8965B47050\x00\x00\x00\x00\x00\x00')]
+
+    default_params = CarInterface.get_params(
+      CAR.TOYOTA_PRIUS, fingerprint, car_fw, False, False, False,
+      SimpleNamespace(force_torque_controller=False, nnff=False, nnff_lite=False),
+    )
+    forced_params = CarInterface.get_params(
+      CAR.TOYOTA_PRIUS, fingerprint, car_fw, False, False, False,
+      SimpleNamespace(force_torque_controller=True, nnff=False, nnff_lite=False),
+    )
+
+    assert default_params.lateralTuning.which() == "torque"
+    assert forced_params.lateralTuning.which() == "torque"
+    assert default_params.lateralTuning.torque.steeringAngleDeadzoneDeg == pytest.approx(0.3)
+    assert forced_params.lateralTuning.torque.steeringAngleDeadzoneDeg == pytest.approx(0.3)
+
   def test_sienna_4th_gen_uses_torque_controller(self):
     params = CarInterface.get_params(
       CAR.TOYOTA_SIENNA_4TH_GEN,
