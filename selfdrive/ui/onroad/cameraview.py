@@ -174,10 +174,6 @@ class CameraView(Widget):
     self.texture_y: rl.Texture | None = None
     self.texture_uv: rl.Texture | None = None
 
-    self._camera_render_texture = None
-    self._camera_render_texture_size = (0, 0)
-    self._camera_render_key = None
-
     # EGL resources
     self.egl_images: dict[int, EGLImage] = {}
     self.egl_texture: rl.Texture | None = None
@@ -222,7 +218,6 @@ class CameraView(Widget):
     self._regressive_frame_count = 0
     self.available_streams.clear()
     self._texture_needs_update = True
-    self._camera_render_key = None
     self.last_connection_attempt = 0.0
     self._last_stream_discovery = -float("inf")
     self._last_switch_request = -float("inf")
@@ -302,7 +297,6 @@ class CameraView(Widget):
     self._last_frame_id = -1
     self._regressive_frame_count = 0
     self._texture_needs_update = True
-    self._camera_render_key = None
     self._reentry_stream_selected = True
 
   @property
@@ -331,7 +325,6 @@ class CameraView(Widget):
     self.available_streams.clear()
     self._onroad_reentry_pending = False
     self._reentry_stream_selected = False
-    self._release_camera_render_texture()
 
   def __del__(self):
     self.close()
@@ -376,7 +369,6 @@ class CameraView(Widget):
     elif not self.client.is_connected():
       # ensure we clear the displayed frame when the connection is lost
       self.frame = None
-      self._camera_render_key = None
 
     if not self.frame:
       self._draw_placeholder(rect)
@@ -401,12 +393,6 @@ class CameraView(Widget):
 
     dst_rect = rl.Rectangle(x_offset, y_offset, scale_x, scale_y)
 
-    if TICI:
-      self._render_cached_camera(rect, src_rect, dst_rect, transform)
-    else:
-      self._render_current_frame(src_rect, dst_rect)
-
-  def _render_current_frame(self, src_rect: rl.Rectangle, dst_rect: rl.Rectangle) -> None:
     if self._use_egl:
       try:
         rendered = self._render_egl(src_rect, dst_rect)
@@ -418,75 +404,6 @@ class CameraView(Widget):
 
     if not self._use_egl:
       self._render_textures(src_rect, dst_rect)
-
-  def _render_cached_camera(self, rect: rl.Rectangle, src_rect: rl.Rectangle,
-                            dst_rect: rl.Rectangle, transform: np.ndarray) -> None:
-    size = (max(1, int(round(rect.width))), max(1, int(round(rect.height))))
-    if self._camera_render_texture is None or self._camera_render_texture_size != size:
-      self._release_camera_render_texture()
-      try:
-        self._camera_render_texture = rl.load_render_texture(*size)
-      except Exception:
-        cloudlog.exception("CameraView failed to create camera render texture")
-        self._camera_render_texture = None
-      self._camera_render_texture_size = size
-      self._camera_render_key = None
-
-    if (self._camera_render_texture is None or
-        not getattr(self._camera_render_texture.texture, "id", 0)):
-      self._render_current_frame(src_rect, dst_rect)
-      return
-
-    frame_id = int(getattr(self.frame, "frame_id", -1))
-    transform_key = tuple(round(float(value), 5) for value in transform.flat)
-    cache_key = (frame_id, self._stream_type, size, transform_key, self._use_egl)
-    if cache_key != self._camera_render_key:
-      local_dst = rl.Rectangle(
-        dst_rect.x - rect.x,
-        dst_rect.y - rect.y,
-        dst_rect.width,
-        dst_rect.height,
-      )
-      scissor = (int(rect.x), int(rect.y), int(rect.width), int(rect.height))
-      rl.end_scissor_mode()
-      rendered_to_cache = False
-      texture_mode_started = False
-      try:
-        rl.begin_texture_mode(self._camera_render_texture)
-        texture_mode_started = True
-        try:
-          rl.clear_background(rl.BLACK)
-          self._render_current_frame(src_rect, local_dst)
-        finally:
-          if texture_mode_started:
-            rl.end_texture_mode()
-        rendered_to_cache = True
-      except Exception:
-        cloudlog.exception("CameraView failed to render cached camera frame")
-        self._release_camera_render_texture()
-      finally:
-        rl.begin_scissor_mode(*scissor)
-      if not rendered_to_cache:
-        self._render_current_frame(src_rect, dst_rect)
-        return
-      self._camera_render_key = cache_key
-
-    if self._camera_render_texture is None:
-      return
-
-    source = rl.Rectangle(0, 0, float(size[0]), -float(size[1]))
-    rl.draw_texture_pro(self._camera_render_texture.texture, source, rect,
-                        rl.Vector2(0, 0), 0.0, rl.WHITE)
-
-  def _release_camera_render_texture(self) -> None:
-    if self._camera_render_texture is not None:
-      try:
-        rl.unload_render_texture(self._camera_render_texture)
-      except Exception:
-        cloudlog.exception("CameraView failed to release camera render texture")
-    self._camera_render_texture = None
-    self._camera_render_texture_size = (0, 0)
-    self._camera_render_key = None
 
   def _draw_placeholder(self, rect: rl.Rectangle):
     if self._placeholder_color:
@@ -538,7 +455,6 @@ class CameraView(Widget):
     self._texture_needs_update = True
     self._onroad_reentry_pending = False
     self._reentry_stream_selected = False
-    self._camera_render_key = None
     return True
 
   def _render_egl(self, src_rect: rl.Rectangle, dst_rect: rl.Rectangle) -> bool:
@@ -572,7 +488,6 @@ class CameraView(Widget):
 
     cloudlog.error(f"CameraView switching from EGL to texture rendering: {reason}")
     self._use_egl = False
-    self._camera_render_key = None
     try:
       self._clear_textures()
     except Exception:
@@ -703,7 +618,6 @@ class CameraView(Widget):
     self._texture_needs_update = True
     self._onroad_reentry_pending = False
     self._reentry_stream_selected = False
-    self._camera_render_key = None
 
     # Initialize textures for new stream
     self._initialize_textures()
