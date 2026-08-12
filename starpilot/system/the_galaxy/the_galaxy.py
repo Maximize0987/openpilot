@@ -637,6 +637,7 @@ MODEL_DOWNLOAD_ALL_PARAM = "DownloadAllModels"
 MODEL_DOWNLOAD_PROGRESS_PARAM = "ModelDownloadProgress"
 MODEL_CANCEL_DOWNLOAD_PARAM = "CancelModelDownload"
 MODEL_SORT_MODE_PARAM = "ModelSortMode"
+DEFAULT_MODEL_SORT_MODE = "release_date"
 MODEL_USER_FAVORITES_PARAM = "UserFavorites"
 MAPS_DOWNLOAD_PARAM = "DownloadMaps"
 MAPS_CANCEL_DOWNLOAD_PARAM = "CancelDownloadMaps"
@@ -5015,7 +5016,7 @@ def setup(app):
   def get_or_set_models_preferences():
     if request.method == "GET":
       return jsonify({
-        "sortMode": read_legacy_param_file(MODEL_SORT_MODE_PARAM, "alphabetical"),
+        "sortMode": read_legacy_param_file(MODEL_SORT_MODE_PARAM, DEFAULT_MODEL_SORT_MODE),
         "userFavorites": [entry for entry in (params.get(MODEL_USER_FAVORITES_PARAM, encoding="utf-8") or "").split(",") if entry],
       }), 200
 
@@ -5023,7 +5024,7 @@ def setup(app):
     changed = []
 
     if "sortMode" in data:
-      sort_mode = str(data.get("sortMode") or "alphabetical").strip() or "alphabetical"
+      sort_mode = str(data.get("sortMode") or DEFAULT_MODEL_SORT_MODE).strip() or DEFAULT_MODEL_SORT_MODE
       write_legacy_param_file(MODEL_SORT_MODE_PARAM, sort_mode)
       changed.append("sort mode")
 
@@ -5051,7 +5052,7 @@ def setup(app):
 
     downloading = bool(model_to_download) or download_all
     current_model = _current_model_key()
-    sort_mode = read_legacy_param_file(MODEL_SORT_MODE_PARAM, "alphabetical")
+    sort_mode = read_legacy_param_file(MODEL_SORT_MODE_PARAM, DEFAULT_MODEL_SORT_MODE)
     terminal = progress in ("Downloaded!", "All models downloaded!") or bool(re.search(r"cancelled|exists|failed|offline|invalid|error", progress, re.IGNORECASE))
     summary = {
       "installed": sum(1 for model in models if model["installed"]),
