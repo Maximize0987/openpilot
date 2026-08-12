@@ -6,6 +6,7 @@ import pytest
 import openpilot.selfdrive.controls.lib.longcontrol as longcontrol
 import openpilot.selfdrive.controls.lib.longcontrol_vehicle_tunes as vehicle_tunes
 from opendbc.car.gm.values import CAR, GMFlags
+from opendbc.car.subaru.values import CAR as SUBARU_CAR
 from opendbc.car.toyota.values import CAR as TOYOTA_CAR
 from openpilot.selfdrive.controls.lib.longcontrol import (
   LongControl,
@@ -610,6 +611,30 @@ def test_corolla_tss2_longcontrol_release_does_not_step_to_full_accel():
 
   assert lc.long_control_state == LongCtrlState.pid
   assert output_accel < 0.0
+
+
+def test_subaru_impreza_stop_release_caps_launch_accel():
+  CP = make_longcontrol_cp(
+    brand="subaru",
+    carFingerprint=SUBARU_CAR.SUBARU_IMPREZA_2020,
+    vEgoStarting=0.5,
+  )
+  lc = LongControl(CP)
+  lc.long_control_state = LongCtrlState.stopping
+  CS = car.CarState.new_message(vEgo=0.0, aEgo=0.0, brakePressed=False)
+  CS.cruiseState.standstill = False
+
+  output_accel = lc.update(
+    active=True,
+    CS=CS,
+    a_target=1.8,
+    should_stop=False,
+    accel_limits=(-3.0, 2.0),
+    starpilot_toggles=make_toggles(vEgoStarting=0.5),
+  )
+
+  assert lc.long_control_state == LongCtrlState.pid
+  assert output_accel == pytest.approx(vehicle_tunes.SUBARU_IMPREZA_STOP_RELEASE_MAX_ACCEL)
 
 
 def test_update_releases_stopping_immediately_after_confirmed_lead_departure():

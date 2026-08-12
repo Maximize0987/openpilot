@@ -1,6 +1,7 @@
 import numpy as np
 
 from opendbc.car.gm.values import CAR, GMFlags
+from opendbc.car.subaru.values import CAR as SUBARU_CAR
 from opendbc.car.toyota.values import CAR as TOYOTA_CAR
 from openpilot.common.realtime import DT_CTRL
 from openpilot.starpilot.common.testing_grounds import testing_ground
@@ -44,6 +45,8 @@ VOLT_CRUISE_INTEGRATOR_MIN_SPEED = 8.0
 VOLT_CRUISE_INTEGRATOR_TARGET_MAX = 0.12
 VOLT_CRUISE_INTEGRATOR_ERROR_MAX = 0.12
 VOLT_CRUISE_INTEGRATOR_LEAK = 0.995
+SUBARU_IMPREZA_STOP_RELEASE_TIME = 0.75
+SUBARU_IMPREZA_STOP_RELEASE_MAX_ACCEL = 0.8
 
 
 def get_bolt_acc_pedal_friction_bias(output_accel, a_target, v_ego):
@@ -116,6 +119,10 @@ class LongControlVehicleTuning:
       CP.brand == "toyota" and
       getattr(CP, "carFingerprint", None) == TOYOTA_CAR.TOYOTA_COROLLA_TSS2
     )
+    self.is_subaru_impreza_2020 = bool(
+      CP.brand == "subaru" and
+      getattr(CP, "carFingerprint", None) == SUBARU_CAR.SUBARU_IMPREZA_2020
+    )
     self.is_bolt_acc_pedal_friction_car = bool(
       CP.brand == "gm" and
       CP.enableGasInterceptorDEPRECATED and
@@ -134,6 +141,23 @@ class LongControlVehicleTuning:
     self.toyota_corolla_filtered_a_target = 0.0
     self.toyota_corolla_target_filter_initialized = False
     self.bolt_start_handoff_frames = 0
+    self.subaru_stop_release_frames = 0
+
+  def cap_subaru_stop_release_accel(self, output_accel, stopping_handoff, should_stop):
+    """Prevent an Impreza stop-sign handoff from stepping straight into full throttle."""
+    if not self.is_subaru_impreza_2020:
+      return output_accel
+
+    if should_stop:
+      self.subaru_stop_release_frames = 0
+    elif stopping_handoff:
+      self.subaru_stop_release_frames = int(round(SUBARU_IMPREZA_STOP_RELEASE_TIME / DT_CTRL))
+
+    if self.subaru_stop_release_frames <= 0:
+      return output_accel
+
+    self.subaru_stop_release_frames -= 1
+    return min(float(output_accel), SUBARU_IMPREZA_STOP_RELEASE_MAX_ACCEL)
 
   def apply_bolt_start_handoff_floor(self, output_accel, last_output_accel, a_target, v_ego,
                                      starting_handoff, should_stop, has_lead):

@@ -339,6 +339,12 @@ class LongControl:
       else:
         output_accel = raw_output_accel
 
+      output_accel = self.vehicle_tuning.cap_subaru_stop_release_accel(
+        output_accel,
+        previous_long_control_state == LongCtrlState.stopping and CS.vEgo < self.CP.vEgoStarting and not should_stop,
+        should_stop,
+      )
+
     if self.pedal_override_release_frames > 0:
       self.pedal_override_release_frames -= 1
       if not should_stop and -TESLA_PEDAL_RELEASE_GUARD_MAX_DECEL < output_accel < 0.0:
