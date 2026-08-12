@@ -361,7 +361,7 @@ def test_live_camera_path_does_not_send_pt_keepalive():
 
 
 def test_acc_2cd_replacement_only_used_with_live_camera_path():
-  assert not should_send_acc_2cd(SimpleNamespace(
+  assert should_send_acc_2cd(SimpleNamespace(
     carFingerprint=CAR.CHEVROLET_TRAILBLAZER, networkLocation=CarParams.NetworkLocation.fwdCamera, flags=0))
   assert should_send_acc_2cd(SimpleNamespace(
     carFingerprint=CAR.CHEVROLET_SILVERADO, networkLocation=CarParams.NetworkLocation.fwdCamera, flags=0))

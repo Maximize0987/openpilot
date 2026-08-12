@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from opendbc.can import CANPacker, CANParser
-from opendbc.car import Bus
+from opendbc.car import Bus, structs
 from opendbc.car.subaru import subarucan
 from opendbc.car.subaru.carcontroller import CarController
 from opendbc.car.subaru.carstate import CarState
@@ -165,6 +165,7 @@ def test_outback_2023_uses_d_platform_bus_layout():
 
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.LEGACY_2025_ANGLE_LIMITS)
   assert CanBus.main_for_cp(CP) == CanBus.alt
   assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.alt
@@ -184,6 +185,7 @@ def test_legacy_2025_uses_gen2_angle_bus_layout():
   assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM)
   assert not (CP.flags & SubaruFlags.D_PLATFORM_CAMERA)
   assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA)
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.LEGACY_2025_ANGLE_LIMITS
   assert CanBus.main_for_cp(CP) == CanBus.main
   assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.main
@@ -192,6 +194,36 @@ def test_legacy_2025_uses_gen2_angle_bus_layout():
   assert Bus.main not in parsers
   assert controller.angle_bus == CanBus.main
   assert controller.status_bus == CanBus.main
+
+
+def test_legacy_2025_uses_validated_angle_request_limits():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
+  controller = CarController({}, CP)
+  CC = SimpleNamespace(
+    enabled=False,
+    latActive=True,
+    actuators=SimpleNamespace(steeringAngleDeg=-73.05),
+  )
+  CS = SimpleNamespace(out=SimpleNamespace(
+    vEgoRaw=2.4,
+    steeringAngleDeg=-75.27,
+    gearShifter=structs.CarState.GearShifter.drive,
+    standstill=False,
+  ))
+
+  msg = controller.lateral_angle(CC, CS)
+  parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("ES_LKAS_ANGLE", 0)], CanBus.main)
+  parser.update([(1, [msg])])
+
+  assert parser.can_valid
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 1
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(-73.05)
+
+  CS.out.standstill = True
+  msg = controller.lateral_angle(CC, CS)
+  parser.update([(2, [msg])])
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(CS.out.steeringAngleDeg)
 
 
 def test_ascent_2023_uses_d_platform_bus_layout():

@@ -135,6 +135,9 @@ class CustomASM24Controller:
     address = (bus << 24) | (dev << 19) | (fn << 16) | (byte_addr & 0xfff)
     return self.pcie_request(fmt_type, address, value, size)
 
+  def pcie_mem_req(self, address:int, value:int|None=None, size:int=4):
+    return self.pcie_request(0x60 if value is not None else 0x20, address, value, size)
+
   def pcie_mem_write(self, address:int, data:bytes):
     """Streaming PCIe memory write via 0xF0 mode 1 + bulk OUT. Data is little-endian dwords on the wire."""
     if not data: return
@@ -183,16 +186,31 @@ class USBMMIOInterface(MMIOInterface):
     if isinstance(index, slice): return ((index.start or 0) * self.el_sz, ((index.stop or len(self))-(index.start or 0)) * self.el_sz)
     return (index * self.el_sz, self.el_sz)
 
+  def _scalar(self, off:int, size:int, value:int|None=None):
+    assert size in (1, 2, 4, 8), f"invalid scalar PCIe access size {size}"
+    if not hasattr(self.usb, "pcie_mem_req"):
+      if value is not None:
+        self.usb.pcie_mem_write(self.addr + off, value.to_bytes(size, "little"))
+        return
+      return int.from_bytes(self.usb.pcie_mem_read(self.addr + off, size), "little")
+    upper = 0 if size < 8 else self.usb.pcie_mem_req(self.addr + off + 4, value if value is None else value >> 32, 4)
+    lower = self.usb.pcie_mem_req(self.addr + off, value if value is None else value & 0xffffffff, min(size, 4))
+    if value is None: return lower | (upper << 32)
+
   def __getitem__(self, index):
     off, sz = self._off_from_index(index)
     if self.pcimem:
+      if not isinstance(index, slice): return self._scalar(off, sz)
       assert sz % 4 == 0 and off % 4 == 0, f"pcie_mem_read requires 4-byte aligned access, got off={off}, sz={sz}"
       data = self.usb.pcie_mem_read(self.addr + off, sz)
     else: data = self.usb.scsi_read(sz) if self.addr == 0xf000 else self.usb.read(self.addr + off, sz)
     return int.from_bytes(data, "little") if sz == self.el_sz else data
 
   def __setitem__(self, index, data):
-    off, _ = self._off_from_index(index)
+    off, sz = self._off_from_index(index)
+    if self.pcimem and not isinstance(index, slice) and isinstance(data, int):
+      self._scalar(off, sz, data)
+      return
     data = struct.pack(self.fmt, data) if isinstance(data, int) else bytes(data)
     if not self.pcimem: self.usb.scsi_write(data) if self.addr == 0xf000 else self.usb.write(self.addr + off, data)
     else: self.usb.pcie_mem_write(self.addr+off, data)

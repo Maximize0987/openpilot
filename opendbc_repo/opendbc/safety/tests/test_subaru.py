@@ -208,6 +208,8 @@ class TestSubaruAngleSafetyBase(TestSubaruSafetyBase, common.AngleSteeringSafety
     super().setUp()
 
   def _get_steer_cmd_angle_max(self, speed):
+    if self.FLAGS & SubaruSafetyFlags.LEGACY_2025_ANGLE_LIMITS:
+      return self.STEER_ANGLE_MAX
     return get_max_angle_vm(max(speed, 1), self.VM, CarControllerParams)
 
   def _angle_cmd_msg(self, angle, enabled, increment_timer=True):
@@ -354,6 +356,14 @@ class TestSubaruGen2AngleStockLongitudinalSafety(TestSubaruStockLongitudinalSafe
   ALT_MAIN_BUS = SUBARU_ALT_BUS
   FLAGS = SubaruSafetyFlags.GEN2 | SubaruSafetyFlags.LKAS_ANGLE
   TX_MSGS = lkas_tx_msgs(SUBARU_ALT_BUS, SubaruMsg.ES_LKAS_ANGLE)
+
+
+class TestSubaruGen2Legacy2025AngleSafety(TestSubaruGen2AngleStockLongitudinalSafety):
+  FLAGS = SubaruSafetyFlags.GEN2 | SubaruSafetyFlags.LKAS_ANGLE | SubaruSafetyFlags.LEGACY_2025_ANGLE_LIMITS
+  STEER_ANGLE_MAX = 545
+  ANGLE_RATE_BP = [0., 5., 35.]
+  ANGLE_RATE_UP = [5., .8, .15]
+  ANGLE_RATE_DOWN = [5., .8, .15]
 
 
 class TestSubaruDPlatformAngleSafety(TestSubaruStockLongitudinalSafetyBase, TestSubaruAngleSafetyBase):

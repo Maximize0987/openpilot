@@ -204,8 +204,6 @@ def should_send_acc_2cd(CP):
   return (
     CP.networkLocation == NetworkLocation.fwdCamera and
     CP.carFingerprint in CAMERA_ACC_CAR and
-    # The Trailblazer already supplies this counter on its camera bus.
-    CP.carFingerprint != CAR.CHEVROLET_TRAILBLAZER and
     CP.carFingerprint not in (CC_ONLY_CAR | SDGM_CAR) and
     not bool(getattr(CP, "flags", 0) & GMFlags.NO_CAMERA.value)
   )
