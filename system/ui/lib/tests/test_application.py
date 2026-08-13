@@ -1,6 +1,27 @@
 from openpilot.system.ui.lib import application
 
 
+def test_raylib_target_fps_uses_mici_display_vblank(monkeypatch):
+  monkeypatch.setattr(application, "OFFSCREEN", False)
+  monkeypatch.setattr(application, "DEVICE_TYPE", "mici")
+
+  assert application._raylib_target_fps(60) == 0
+
+
+def test_raylib_target_fps_limits_other_devices(monkeypatch):
+  monkeypatch.setattr(application, "OFFSCREEN", False)
+  monkeypatch.setattr(application, "DEVICE_TYPE", "tici")
+
+  assert application._raylib_target_fps(60) == 60
+
+
+def test_raylib_target_fps_disables_limit_for_offscreen(monkeypatch):
+  monkeypatch.setattr(application, "OFFSCREEN", True)
+  monkeypatch.setattr(application, "DEVICE_TYPE", "tici")
+
+  assert application._raylib_target_fps(60) == 0
+
+
 def test_burn_in_shift_transitions_between_positions(monkeypatch):
   app = object.__new__(application.GuiApplication)
   app._burn_in_start_time = 100.0

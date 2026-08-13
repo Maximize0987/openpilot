@@ -63,6 +63,10 @@ RECORD_BITRATE = os.getenv("RECORD_BITRATE", "")  # Target bitrate e.g. "2000k" 
 RECORD_SPEED = int(os.getenv("RECORD_SPEED", "1"))  # Speed multiplier
 OFFSCREEN = os.getenv("OFFSCREEN") == "1"  # Disable FPS limiting for fast offline rendering
 
+
+def _raylib_target_fps(fps: int) -> int:
+  return 0 if OFFSCREEN or DEVICE_TYPE == "mici" else fps
+
 GL_VERSION = """
 #version 300 es
 precision highp float;
@@ -557,7 +561,7 @@ class GuiApplication:
     fps = max(1, int(fps))
     if fps == self._target_fps:
       return
-    rl.set_target_fps(0 if OFFSCREEN else fps)
+    rl.set_target_fps(_raylib_target_fps(fps))
     self._target_fps = fps
 
   def configure_adaptive_rendering(self, enabled: bool, idle_fps: int | None = None) -> None:
@@ -667,8 +671,7 @@ class GuiApplication:
         self._ffmpeg_thread = threading.Thread(target=self._ffmpeg_writer_thread, daemon=True)
         self._ffmpeg_thread.start()
 
-      # OFFSCREEN disables FPS limiting for fast offline rendering (e.g. clips)
-      rl.set_target_fps(0 if OFFSCREEN else fps)
+      rl.set_target_fps(_raylib_target_fps(fps))
 
       self._full_target_fps = fps
       self._target_fps = fps
