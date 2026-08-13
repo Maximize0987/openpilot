@@ -45,7 +45,6 @@ from openpilot.starpilot.common.starpilot_variables import (
   LEGACY_STARPILOT_STATS_KEY_RENAMES,
   get_starpilot_toggles,
 )
-from openpilot.starpilot.navigation.destination_store import activate_next_drive_destination, is_next_drive_destination
 
 _MANAGER_IMPORT_DONE = time.monotonic()
 _manager_import_timing_line = (
@@ -134,18 +133,33 @@ def get_nav_offroad_clear_timeout_seconds(params) -> int:
   return max(_get_int_param_value(params, "ClearNavOnOffroadTimeoutMinutes", 0), 0) * 60
 
 
-def update_nav_offroad_clear_state(params, started: bool, tracked_destination, tracked_started_at, now: float):
-  nav_destination = params.get("NavDestination")
-  if started or not params.get_bool("ClearNavOnOffroad") or not nav_destination or is_next_drive_destination(nav_destination):
+def update_nav_offroad_clear_state(
+  params,
+  started: bool,
+  tracked_destination,
+  tracked_started_at,
+  now: float,
+  *,
+  offroad_transition: bool,
+):
+  if started or not params.get_bool("ClearNavOnOffroad"):
     return None, None
 
-  if nav_destination != tracked_destination or tracked_started_at is None:
+  nav_destination = params.get("NavDestination")
+  if offroad_transition:
+    if not nav_destination:
+      return None, None
     tracked_destination = nav_destination
     tracked_started_at = now
+  elif tracked_destination is None or tracked_started_at is None:
+    return None, None
+
+  if nav_destination != tracked_destination:
+    return None, None
 
   if now - tracked_started_at >= get_nav_offroad_clear_timeout_seconds(params):
     current_destination = params.get("NavDestination")
-    if current_destination != nav_destination or is_next_drive_destination(current_destination):
+    if current_destination != tracked_destination:
       return None, None
     params.remove("NavDestination")
     return None, None
@@ -1156,11 +1170,13 @@ def manager_thread() -> None:
       # StarPilot variables
       params_memory.clear_all(ParamKeyFlag.CLEAR_ON_OFFROAD_TRANSITION)
 
-    if started and not started_prev:
-      activate_next_drive_destination(params)
-
     offroad_nav_destination, offroad_nav_started_at = update_nav_offroad_clear_state(
-      params, started, offroad_nav_destination, offroad_nav_started_at, time.monotonic()
+      params,
+      started,
+      offroad_nav_destination,
+      offroad_nav_started_at,
+      time.monotonic(),
+      offroad_transition=not started and started_prev,
     )
 
     ignition = any(ps.ignitionLine or ps.ignitionCan for ps in sm['pandaStates'] if ps.pandaType != log.PandaState.PandaType.unknown)

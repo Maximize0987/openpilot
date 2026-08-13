@@ -129,7 +129,7 @@ class HomeInfoCard(Widget):
       return
 
     favorite = self._favorites[index]
-    destination = self._store.set_destination(favorite, skip_if_same=True, start_on_next_drive=True)
+    destination = self._store.set_destination(favorite, skip_if_same=True)
     if destination is not None:
       self._active_destination = destination
 

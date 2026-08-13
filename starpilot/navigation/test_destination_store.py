@@ -4,11 +4,8 @@ from openpilot.starpilot.navigation.destination_store import (
   FAVORITE_DESTINATIONS_KEY,
   NAVIGATION_DESTINATION_KEY,
   RECENT_DESTINATIONS_KEY,
-  START_ON_NEXT_DRIVE_KEY,
   NavigationDestinationStore,
-  activate_next_drive_destination,
   favorite_destination_id,
-  is_next_drive_destination,
   load_favorite_destinations,
   normalize_destination_payload,
   normalize_favorite_destination,
@@ -158,27 +155,6 @@ def test_destination_write_updates_active_destination_and_recents():
   assert params.values[RECENT_DESTINATIONS_KEY][0]["place_name"] == "Home"
 
 
-def test_next_drive_destination_is_marked_then_canonicalized_on_activation():
-  params = FakeParams({RECENT_DESTINATIONS_KEY: "[]"})
-
-  destination = set_navigation_destination(
-    params,
-    {"name": "Home", "latitude": 1, "longitude": 2},
-    start_on_next_drive=True,
-  )
-
-  stored = json.loads(params.values[NAVIGATION_DESTINATION_KEY])
-  assert stored[START_ON_NEXT_DRIVE_KEY] is True
-  assert is_next_drive_destination(stored)
-
-  stored["routeId"] = "main"
-  params.values[NAVIGATION_DESTINATION_KEY] = json.dumps(stored)
-  assert activate_next_drive_destination(params) == destination
-  promoted = json.loads(params.values[NAVIGATION_DESTINATION_KEY])
-  assert promoted == {**destination, "routeId": "main"}
-  assert not is_next_drive_destination(params.values[NAVIGATION_DESTINATION_KEY])
-
-
 def test_same_destination_write_is_idempotent_and_does_not_touch_recents():
   params = FakeParams({
     NAVIGATION_DESTINATION_KEY: json.dumps({"name": "Home", "latitude": 1, "longitude": 2}),
@@ -198,31 +174,6 @@ def test_same_destination_write_is_idempotent_and_does_not_touch_recents():
   settings_params = FakeParams(dict(params.values))
   set_navigation_destination(settings_params, {"name": "Home", "latitude": 1.0, "longitude": 2.0})
   assert [key for key, _value in settings_params.writes] == [NAVIGATION_DESTINATION_KEY, RECENT_DESTINATIONS_KEY]
-
-
-def test_same_destination_is_rewritten_when_next_drive_intent_changes():
-  params = FakeParams({
-    NAVIGATION_DESTINATION_KEY: json.dumps({"name": "Home", "latitude": 1, "longitude": 2}),
-    RECENT_DESTINATIONS_KEY: [],
-  })
-
-  set_navigation_destination(
-    params,
-    {"name": "Home", "latitude": 1, "longitude": 2},
-    skip_if_same=True,
-    start_on_next_drive=True,
-  )
-
-  assert is_next_drive_destination(params.values[NAVIGATION_DESTINATION_KEY])
-  first_write_count = len(params.writes)
-
-  set_navigation_destination(
-    params,
-    {"name": "Home", "latitude": 1, "longitude": 2},
-    skip_if_same=True,
-    start_on_next_drive=True,
-  )
-  assert len(params.writes) == first_write_count
 
 
 def test_navigation_destination_store_keeps_settings_favorite_migration_and_mutations():
