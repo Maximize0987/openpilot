@@ -638,7 +638,7 @@ class PythonProcess(ManagerProcess):
             f.write(line + "\n")
         except OSError:
           pass
-        cloudlog.warning(line)
+        #cloudlog.warning(line)
 
   def start(self) -> None:
     # In case we only tried a non blocking stop we need to stop it before restarting
