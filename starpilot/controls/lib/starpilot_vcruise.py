@@ -45,6 +45,9 @@ ACTIVATION_M = 100.0      # m — CEM/model path activates when model_length < t
 ACTIVATION_HYSTERESIS_M = 8.0  # m — release margin; absorbs model_length jitter at the gate
 LEAD_VETO_M = 75.0        # m — lead proximity that vetoes Force Stop (kept off ACTIVATION_M
                           # so raising activation can't silently widen the veto)
+LEAD_VETO_M_OVERRIDES = {
+  "HYUNDAI_ELANTRA_2021": 90.0,
+}
 MPC_HANDOFF_M = 6.0       # m — below this, command 0 and let MPC finish the stop
 FORCE_STOP_APPROACH_DECEL = 0.65  # m/s^2 — speed ceiling before commit. LOWER = more early
                           # braking; don't go under FORCE_STOP_MODEL_APPROACH_DECEL
@@ -68,6 +71,11 @@ FORCE_STOP_TURN_VETO_STOP_SEEN_HOLD_TIME = 4.0
 # Knob bounds (mirror of UI slider; defense in depth)
 OFFSET_FT_MIN = -20
 OFFSET_FT_MAX = 20
+
+
+def get_lead_veto_distance(car_params):
+  fingerprint = str(getattr(car_params, "carFingerprint", ""))
+  return LEAD_VETO_M_OVERRIDES.get(fingerprint, LEAD_VETO_M)
 
 
 def get_active_slc_control_target(speed_limit_controller, set_speed_limit, slc_target, slc_offset, overridden_speed,
@@ -333,8 +341,13 @@ class StarPilotVCruise:
     # waiting for the tracking_lead filter (~1s ramp). Without this, Force Stop can latch
     # during the filter's settling window and stay committed for the whole stop.
     lead = self.starpilot_planner.lead_one
+    try:
+      car_params = sm["carParams"]
+    except (KeyError, IndexError, TypeError, AttributeError):
+      car_params = None
+    lead_veto_m = get_lead_veto_distance(car_params)
     lead_present = (bool(getattr(lead, "status", False))
-                    and float(getattr(lead, "dRel", float("inf"))) < LEAD_VETO_M
+                    and float(getattr(lead, "dRel", float("inf"))) < lead_veto_m
                     and float(getattr(lead, "vLead", float("inf"))) < v_ego + 2.0)
     curved_approach_scene = (
       abs(float(getattr(self.starpilot_planner, "road_curvature", 0.0))) >= FORCE_STOP_CURVE_VETO_MAX_ROAD_CURVATURE

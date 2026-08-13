@@ -258,6 +258,43 @@ class TestToyotaInterfaces:
     assert not car_params.safetyConfigs[0].safetyParam & ToyotaSafetyFlags.STOCK_LONGITUDINAL.value
     assert not car_params.safetyConfigs[0].safetyParam & ToyotaSafetyFlags.ALT_CRUISE.value
 
+  @pytest.mark.parametrize(("native_bus", "message"), [(1, 0x343), (0, 0x4CB)])
+  def test_late_prius_ignores_startup_bus_mirror(self, native_bus, message):
+    fingerprint = {bus: {} for bus in range(8)}
+    fingerprint[native_bus][message] = 8
+    fingerprint[2][message] = 8
+    car_fw = [CarParams.CarFw(
+      ecu=Ecu.fwdCamera,
+      address=0x750,
+      subAddress=0x6D,
+      fwVersion=b'8646F4705200\x00\x00\x00\x00',
+    )]
+
+    car_params = CarInterface.get_params(
+      CAR.TOYOTA_PRIUS,
+      fingerprint,
+      car_fw,
+      alpha_long=False,
+      is_release=False,
+      docs=False,
+      starpilot_toggles=SimpleNamespace(),
+    )
+
+    assert not car_params.flags & ToyotaFlags.DSU_BYPASS.value
+    assert not car_params.openpilotLongitudinalControl
+    assert car_params.safetyConfigs[0].safetyParam & ToyotaSafetyFlags.STOCK_LONGITUDINAL.value
+
+    starpilot_params = CarInterface.get_starpilot_params(
+      CAR.TOYOTA_PRIUS, fingerprint, car_fw, car_params, SimpleNamespace(),
+    )
+    car_state = CarState(car_params, starpilot_params)
+    can_parsers = car_state.get_can_parsers(car_params)
+    car_state.update(can_parsers, SimpleNamespace(cluster_offset=1.0))
+
+    assert "PRE_COLLISION" in can_parsers[Bus.pt].vl
+    for acc_message in ("ACC_CONTROL", "PRE_COLLISION", "PCS_HUD"):
+      assert acc_message not in can_parsers[Bus.cam].vl
+
   def test_dsu_bypass_does_not_change_tss2_or_smart_dsu(self):
     fingerprint = {bus: {} for bus in range(8)}
     fingerprint[0][0x2FF] = 8

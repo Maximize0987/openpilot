@@ -248,7 +248,7 @@ class CarInterfaceBase(ABC):
           fp_ret.pcmCruiseSpeed = False
           CP.openpilotLongitudinalControl = True
 
-        hyundai_has_lda_button = (
+        hyundai_has_lda_button = not (CP.flags & HyundaiFlags.CANFD) and (
           0x391 in fingerprint[0] or
           0x50C in fingerprint[0] or
           candidate in ALT_BUS_LDA_BUTTON_CARS or

@@ -413,6 +413,13 @@ def preserve_stock_canfd_lfa_status(car_fingerprint) -> bool:
   return car_fingerprint != CAR.KIA_CARNIVAL_4TH_GEN
 
 
+def suppress_redundant_gv70_brake_cancel(CP, brake_pressed: bool, lat_active: bool) -> bool:
+  return bool(
+    CP.carFingerprint == CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN and
+    not CP.openpilotLongitudinalControl and brake_pressed and lat_active
+  )
+
+
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
@@ -992,7 +999,10 @@ class CarController(CarControllerBase):
       if (self.frame - self.last_button_frame) * DT_CTRL > 0.25:
         # cruise cancel - suppress when stock ACC is the fallback (ECU disable failed),
         # so openpilot doesn't fight/cancel the user's stock cruise
-        if CC.cruiseControl.cancel and not self.ecu_disable_failed:
+        suppress_brake_cancel = suppress_redundant_gv70_brake_cancel(
+          self.CP, CS.out.brakePressed, CC.latActive,
+        )
+        if CC.cruiseControl.cancel and not self.ecu_disable_failed and not suppress_brake_cancel:
           if self.CP.flags & HyundaiFlags.CANFD_ALT_BUTTONS:
             can_sends.append(hyundaicanfd.create_acc_cancel(self.packer, self.CP, self.CAN, CS.cruise_info))
             self.last_button_frame = self.frame

@@ -25,7 +25,7 @@ GM_TRUCK_TARGET_FILTER_DOWN_TAU = 0.06
 GM_TRUCK_TARGET_FILTER_BRAKE_BYPASS = -0.65
 GM_TRUCK_TARGET_FILTER_DROP_BYPASS = 0.45
 TOYOTA_SIENNA_TARGET_FILTER_MIN_SPEED = 12.0
-TOYOTA_SIENNA_TARGET_FILTER_UP_TAU = 0.18
+TOYOTA_SIENNA_TARGET_FILTER_UP_TAU = 0.32
 TOYOTA_SIENNA_TARGET_FILTER_DOWN_TAU = 0.24
 TOYOTA_SIENNA_LOW_SPEED_ACCEL_UP_TAU = 0.35
 TOYOTA_SIENNA_TARGET_FILTER_BRAKE_BYPASS = -0.75
@@ -47,6 +47,7 @@ VOLT_CRUISE_INTEGRATOR_ERROR_MAX = 0.12
 VOLT_CRUISE_INTEGRATOR_LEAK = 0.995
 SUBARU_IMPREZA_STOP_RELEASE_TIME = 0.75
 SUBARU_IMPREZA_STOP_RELEASE_MAX_ACCEL = 0.8
+HYUNDAI_ELANTRA_STOPPING_HOLD_TARGET_GAP = 0.25
 
 
 def get_bolt_acc_pedal_friction_bias(output_accel, a_target, v_ego):
@@ -123,6 +124,9 @@ class LongControlVehicleTuning:
       CP.brand == "subaru" and
       getattr(CP, "carFingerprint", None) == SUBARU_CAR.SUBARU_IMPREZA_2020
     )
+    self.is_hyundai_elantra_2021 = bool(
+      CP.brand == "hyundai" and str(getattr(CP, "carFingerprint", "")) == "HYUNDAI_ELANTRA_2021"
+    )
     self.is_bolt_acc_pedal_friction_car = bool(
       CP.brand == "gm" and
       CP.enableGasInterceptorDEPRECATED and
@@ -142,6 +146,16 @@ class LongControlVehicleTuning:
     self.toyota_corolla_target_filter_initialized = False
     self.bolt_start_handoff_frames = 0
     self.subaru_stop_release_frames = 0
+
+  def shape_stopping_accel(self, output_accel, a_target, should_stop, v_ego, has_lead, stop_accel):
+    """Release a stale hard lead brake once the stop target has eased."""
+    if (
+      not self.is_hyundai_elantra_2021 or
+      not has_lead or not should_stop or v_ego > 2.0 or
+      a_target <= stop_accel - HYUNDAI_ELANTRA_STOPPING_HOLD_TARGET_GAP
+    ):
+      return output_accel
+    return max(float(output_accel), float(stop_accel))
 
   def cap_subaru_stop_release_accel(self, output_accel, stopping_handoff, should_stop):
     """Prevent an Impreza stop-sign handoff from stepping straight into full throttle."""

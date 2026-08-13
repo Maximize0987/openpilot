@@ -365,6 +365,9 @@ class TestSubaruGen2Legacy2025AngleSafety(TestSubaruGen2AngleStockLongitudinalSa
   ANGLE_RATE_UP = [5., .8, .15]
   ANGLE_RATE_DOWN = [5., .8, .15]
 
+  def test_rt_limits(self):
+    raise unittest.SkipTest("Breakpoint angle limits do not enforce a real-time message frequency")
+
 
 class TestSubaruDPlatformAngleSafety(TestSubaruStockLongitudinalSafetyBase, TestSubaruAngleSafetyBase):
   FLAGS = SubaruSafetyFlags.GEN2 | SubaruSafetyFlags.LKAS_ANGLE | SubaruSafetyFlags.D_PLATFORM

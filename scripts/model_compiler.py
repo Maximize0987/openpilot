@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import codecs
-import ctypes
-import glob
 import hashlib
 import json
 import os
@@ -47,19 +45,6 @@ MODEL_CONTEXT_FREQ = 5
 REPOSITORY_FILE_LIMIT = 100_000_000
 DEFAULT_MULTIPART_SIZE = 95 * 1024 * 1024
 USBGPU_PROBE_ATTEMPTS = 10
-USBGPU_PROBE_TIMEOUT = 2
-USBDEVFS_CONTROL = 0xC0185500
-USBGPU_VID_PIDS = (("add1", "0001"), ("3801", "0001"))
-USBGPU_FIRMWARE_PRODUCT = "custom ed4e39b7-CLEAN"
-
-
-class _UsbdevfsControl(ctypes.Structure):
-  _fields_ = [("request_type", ctypes.c_uint8), ("request", ctypes.c_uint8),
-              ("value", ctypes.c_uint16), ("index", ctypes.c_uint16),
-              ("length", ctypes.c_uint16), ("timeout", ctypes.c_uint32),
-              ("data", ctypes.c_void_p)]
-
-
 def build_compile_env(*, supercombo: bool = False) -> dict[str, str]:
   env = os.environ.copy()
   existing_pythonpath = env.get("PYTHONPATH", "")
@@ -85,79 +70,15 @@ def build_compile_env(*, supercombo: bool = False) -> dict[str, str]:
   return env
 
 
-def _probe_external_gpu_link_once() -> tuple[bool, str]:
-  """Probe the bridge without initializing tinygrad or resetting the USB device."""
-  import fcntl
+def wait_for_external_gpu() -> None:
+  """Use openpilot's Chestnut link probe before starting a USB-GPU build."""
+  from openpilot.system.hardware.chestnut.flash import link_up
 
-  diagnostics: list[str] = []
-  for path in glob.glob("/sys/bus/usb/devices/*"):
-    try:
-      if not Path(path, "idVendor").is_file():
-        continue
-      vendor = Path(path, "idVendor").read_text().strip().lower()
-      product = Path(path, "idProduct").read_text().strip().lower()
-      if (vendor, product) not in USBGPU_VID_PIDS:
-        continue
-      bus = int(Path(path, "busnum").read_text())
-      device = int(Path(path, "devnum").read_text())
-      location = f"usb:{bus}-{device}"
-      firmware = Path(path, "product").read_text().strip()
-      if firmware and firmware != USBGPU_FIRMWARE_PRODUCT:
-        return False, f"{location}: firmware {firmware!r}, expected {USBGPU_FIRMWARE_PRODUCT!r}"
-      fd = os.open(f"/dev/bus/usb/{bus:03d}/{device:03d}", os.O_RDWR)
-    except (OSError, ValueError) as exc:
-      diagnostics.append(f"{path}: open failed ({exc})")
-      continue
-
-    try:
-      fcntl.ioctl(fd, USBDEVFS_CONTROL, _UsbdevfsControl(0x40, 0xF3, 1, 0, 0, USBGPU_PROBE_TIMEOUT * 1000, None))
-      state = (ctypes.c_ubyte * 1)()
-      fcntl.ioctl(fd, USBDEVFS_CONTROL, _UsbdevfsControl(0xC0, 0xE4, 0xB450, 0, 1, 1000, ctypes.cast(state, ctypes.c_void_p)))
-      if state[0] == 0x78:
-        return True, f"{location}: LTSSM=0x78"
-      diagnostics.append(f"{location}: LTSSM=0x{state[0]:02X}")
-    except OSError as exc:
-      diagnostics.append(f"{location}: control probe failed ({exc})")
-    finally:
-      os.close(fd)
-  return False, diagnostics[-1] if diagnostics else "no ASM2464PD device found"
-
-
-def wait_for_external_gpu(compile_env: dict[str, str]) -> bool:
-  """Wait for the USB GPU's PCIe link before starting the large model build.
-
-  The dock can enumerate on USB before its PCIe link has finished training.
-  Probe the bridge's control endpoint directly, like upstream openpilot.  Do
-  not instantiate tinygrad here: opening the GPU resets/claims the USB
-  interface, and doing that in a probe process can leave the bridge in a state
-  where the authoritative compiler cannot train the link.
-  """
-  del compile_env  # retained in the public helper signature for callers/tests
-  diagnostics: list[str] = []
-
-  for attempt in range(USBGPU_PROBE_ATTEMPTS):
-    if attempt:
-      time.sleep(1)
-    try:
-      ready, detail = _probe_external_gpu_link_once()
-    except Exception as exc:  # probe is advisory; compile_modeld remains authoritative
-      ready, detail = False, str(exc)
-    if ready:
-      return True
-    if "firmware" in detail and "expected" in detail:
-      raise RuntimeError(
-        f"External GPU firmware is out of date: {detail}. "
-        "Wait for hardwared to flash the dock, or run "
-        "sudo python3 system/hardware/chestnut/flash.py ed4e39b7."
-      )
-    diagnostics.append(detail)
-
-  detail = diagnostics[-1] if diagnostics else "unknown error"
-  print(
-    f"Warning: external GPU link did not become ready after {USBGPU_PROBE_ATTEMPTS} probes: {detail}\n"
-    "  Continuing; compile_modeld will perform the authoritative link wait and initialization."
-  )
-  return False
+  for _ in range(USBGPU_PROBE_ATTEMPTS):
+    if link_up():
+      return
+    time.sleep(1)
+  raise RuntimeError("Chestnut not ready; external GPU PCIe link did not come up")
 
 
 def parse_args() -> argparse.Namespace:
@@ -612,7 +533,7 @@ def compile_driving(
       "TC_OPT": "2",
     })
     command.append("--out-of-band")
-    wait_for_external_gpu(compile_env)
+    wait_for_external_gpu()
   subprocess.run(command, cwd=REPO_ROOT, env=compile_env, check=True)
   return output_path
 

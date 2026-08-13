@@ -10,6 +10,7 @@ from openpilot.starpilot.controls.lib.starpilot_vcruise import (
   FORCE_STOP_TURN_VETO_STOP_SEEN_HOLD_TIME,
   StarPilotVCruise,
   get_active_slc_control_target,
+  get_lead_veto_distance,
   get_slc_lead_drop_relaxed_target,
 )
 from types import SimpleNamespace
@@ -108,6 +109,11 @@ def test_active_slc_control_target_does_not_require_set_speed_limit():
   )
 
   assert target == pytest.approx((48.0 * CV.MPH_TO_MS) - 0.4)
+
+
+def test_elantra_gets_lead_veto_margin_before_force_stop():
+  assert get_lead_veto_distance(SimpleNamespace(carFingerprint="HYUNDAI_ELANTRA_2021")) == pytest.approx(90.0)
+  assert get_lead_veto_distance(SimpleNamespace(carFingerprint="OTHER_CAR")) == pytest.approx(75.0)
 
 
 def test_curve_speed_controller_holds_target_through_brief_detector_dropout():

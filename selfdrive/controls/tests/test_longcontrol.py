@@ -755,6 +755,15 @@ def test_stopping_state_follows_stronger_moving_stop_target():
   assert output_accel < -1.43
 
 
+def test_elantra_lead_stop_releases_stale_hard_brake_after_target_eases():
+  CP = make_longcontrol_cp(brand="hyundai", carFingerprint="HYUNDAI_ELANTRA_2021")
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+
+  assert tuning.shape_stopping_accel(-1.20, -0.25, True, 1.0, True, -0.85) == pytest.approx(-0.85)
+  assert tuning.shape_stopping_accel(-1.20, -1.50, True, 1.0, True, -0.85) == pytest.approx(-1.20)
+  assert tuning.shape_stopping_accel(-1.20, -0.25, True, 1.0, False, -0.85) == pytest.approx(-1.20)
+
+
 def test_volt_testing_ground_handoff_freezes_integrator(monkeypatch):
   CP = car.CarParams.new_message()
   CP.brand = "gm"
@@ -1175,6 +1184,16 @@ def test_toyota_sienna_target_filter_smooths_mild_high_speed_handoffs():
   filtered = tuning.shape_toyota_sienna_accel_target(-0.20, 20.0, False)
 
   assert -0.20 < filtered < 0.30
+
+
+def test_toyota_sienna_target_filter_unwinds_braking_before_acceleration():
+  CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+
+  tuning.shape_toyota_sienna_accel_target(-1.2, 20.0, False)
+  recovering = tuning.shape_toyota_sienna_accel_target(1.2, 20.0, False)
+
+  assert recovering == pytest.approx(-1.1272727273)
 
 
 def test_toyota_sienna_target_filter_ramps_low_speed_acceleration():

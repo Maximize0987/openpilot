@@ -23,28 +23,14 @@ def test_out_of_band_artifact_round_trip():
   np.testing.assert_array_equal(restored["weights"], artifact["weights"])
 
 
-def test_external_gpu_probe_retries_until_pcie_is_ready(monkeypatch):
+def test_external_gpu_probe_matches_upstream_retry_loop(monkeypatch):
+  from openpilot.system.hardware.chestnut import flash
+
   calls = []
-  probe_count = 0
-  def probe():
-    nonlocal probe_count
-    probe_count += 1
-    calls.append("probe")
-    return (False, "LTSSM=0x00") if probe_count < 3 else (True, "LTSSM=0x78")
-  monkeypatch.setattr(
-    model_compiler,
-    "_probe_external_gpu_link_once",
-    probe,
-  )
+  results = iter((False, False, True))
+  monkeypatch.setattr(flash, "link_up", lambda: calls.append("probe") or next(results))
   monkeypatch.setattr(model_compiler.time, "sleep", lambda seconds: calls.append(("sleep", seconds)))
 
-  model_compiler.wait_for_external_gpu({"PYTHONPATH": "/tmp/openpilot"})
+  model_compiler.wait_for_external_gpu()
 
   assert calls == ["probe", ("sleep", 1), "probe", ("sleep", 1), "probe"]
-
-
-def test_external_gpu_probe_reports_failure(monkeypatch):
-  monkeypatch.setattr(model_compiler, "_probe_external_gpu_link_once", lambda: (False, "link unavailable"))
-  monkeypatch.setattr(model_compiler.time, "sleep", lambda _: None)
-
-  assert model_compiler.wait_for_external_gpu({}) is False

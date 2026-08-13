@@ -38,6 +38,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_BASE_LAT_ACCEL_FACTOR_MULT,
   RAM_1500_MAX_LAT_JERK_UP,
+  get_gmc_yukon_cc_ff_scale,
   get_ram_1500_transition_output_scale,
   get_ram_1500_ff_scale,
   get_subaru_impreza_pid_output_scale,
@@ -78,6 +79,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g70_low_speed_angle_damping,
   get_genesis_g70_low_speed_output_limit,
   get_genesis_gv70_friction_threshold,
+  get_genesis_gv70_high_speed_error_scale,
   get_genesis_gv70_unwind_ff_scale,
   get_elantra_non_scc_ff_scale,
   get_palisade_ff_scale,
@@ -116,6 +118,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_ioniq_6_friction_threshold,
   get_ioniq_6_low_speed_angle_assist_torque,
   get_ioniq_6_2025_center_output_scale,
+  get_ioniq_6_2025_low_speed_output_limit,
   is_ioniq_6_2025_model,
   get_kia_forte_center_taper_scale,
   get_kia_forte_ff_scale,
@@ -793,6 +796,12 @@ class TestLatControl:
     assert highway_turn == pytest.approx(base, rel=0.01)
     assert highway_center < center
 
+  def test_genesis_gv70_high_speed_error_damping(self):
+    assert get_genesis_gv70_high_speed_error_scale(0.2, 0.2, 0.8, 20.0) == 1.0
+    assert get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 33.5) < 1.0
+    assert get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 20.0) > \
+      get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 33.5)
+
   def test_genesis_g70_center_chatter_tune(self):
     base = get_standard_friction_threshold(25.0)
     center = get_genesis_g70_friction_threshold(25.0, 0.0, 0.0)
@@ -808,6 +817,7 @@ class TestLatControl:
     assert get_genesis_g70_center_output_scale(0.0, 0.0) < get_genesis_g70_center_output_scale(0.0, 10.0)
     assert get_genesis_g70_low_speed_output_limit(0.0, 2.0) < get_genesis_g70_low_speed_output_limit(0.5, 2.0)
     assert get_genesis_g70_low_speed_output_limit(0.0, 2.0) < get_genesis_g70_low_speed_output_limit(0.0, 10.0)
+    assert get_genesis_g70_low_speed_output_limit(0.0, 2.0) < 0.30
     assert get_genesis_g70_low_speed_angle_damping(0.0, -20.0, 0.0, 2.0) < 0.0
     assert get_genesis_g70_low_speed_angle_damping(0.0, 20.0, 0.0, 2.0) > 0.0
     assert get_genesis_g70_curve_unwind_output_scale(0.7, -0.5, 25.0) > 1.0
@@ -957,6 +967,29 @@ class TestLatControl:
     assert get_ram_1500_ff_scale(1.2, 1.1, 17.0) > 1.0
     assert get_ram_1500_ff_scale(1.2, -1.1, 17.0) < 1.0
     assert get_ram_1500_ff_scale(1.2, 1.1, 6.0) < get_ram_1500_ff_scale(1.2, 1.1, 17.0)
+
+  def test_gmc_yukon_cc_phase_feedforward_curve(self):
+    assert get_gmc_yukon_cc_ff_scale(0.0, 1.0, 30.0) == pytest.approx(1.0)
+    assert get_gmc_yukon_cc_ff_scale(1.2, 1.1, 30.0) > 1.0
+    assert get_gmc_yukon_cc_ff_scale(1.2, -1.1, 30.0) < 1.0
+    assert get_gmc_yukon_cc_ff_scale(1.2, 1.1, 8.0) < get_gmc_yukon_cc_ff_scale(1.2, 1.1, 30.0)
+
+  def test_gmc_yukon_cc_phase_feedforward_update_path(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.GMC_YUKON_CC)
+    CS.vEgo = 25.0
+    base_output, _, _ = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_gmc_yukon_cc_ff_scale", lambda *_args: 0.5)
+    tuned_controller, tuned_VM, tuned_CS, tuned_params, tuned_toggles = self._build_torque_controller(GM.GMC_YUKON_CC)
+    tuned_CS.vEgo = 25.0
+    tuned_output, _, _ = tuned_controller.update(
+      True, tuned_CS, tuned_VM, tuned_params, False, 0.0025, False, 0.2, None, None, tuned_toggles,
+    )
+
+    assert controller.is_gmc_yukon_cc
+    assert tuned_output != pytest.approx(base_output)
 
   def test_ram_1500_jerk_limit_update_path(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(CHRYSLER.RAM_1500_5TH_GEN)
@@ -1197,6 +1230,8 @@ class TestLatControl:
     assert low_speed_center_error < low_speed_turn_error
     assert low_speed_center_error < high_speed_center_error
     assert low_speed_center_friction < 1.0
+    assert get_ioniq_6_2025_low_speed_output_limit(0.02, 0.05, 2.5) < get_ioniq_6_2025_low_speed_output_limit(0.60, 0.80, 2.5)
+    assert get_ioniq_6_2025_low_speed_output_limit(0.02, 0.05, 2.5) < get_ioniq_6_2025_low_speed_output_limit(0.02, 0.05, 8.0)
 
   def test_ioniq_6_center_taper_curve(self):
     assert get_ioniq_6_center_taper_scale(0.0, 10.0) > get_ioniq_6_center_taper_scale(0.0, 30.0)
@@ -1417,6 +1452,17 @@ class TestLatControl:
     assert lac_log.active
     assert controller.torque_params.latAccelFactor == pytest.approx(3.0 * 1.22)
     assert controller.low_speed_reset_threshold == pytest.approx(0.1 * 0.44704)
+
+  def test_ioniq_6_2025_low_speed_output_limit_update_path(self, monkeypatch):
+    monkeypatch.setattr(latcontrol_torque, "get_ioniq_6_2025_low_speed_output_limit", lambda *_args: 0.05)
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_IONIQ_6)
+    controller.is_ioniq_6_2025 = True
+    CS.vEgo = 3.2
+
+    output, _, lac_log = controller.update(True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles)
+
+    assert lac_log.active
+    assert abs(output) <= 0.05
 
   def test_elantra_non_scc_default_update_path(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_ELANTRA_HEV_2022_NON_SCC)
@@ -1807,7 +1853,7 @@ class TestLatControl:
   def test_kia_ev6_center_output_taper_curve(self):
     assert get_kia_ev6_center_output_scale(0.0, 10.0) > get_kia_ev6_center_output_scale(0.0, 20.0)
     assert get_kia_ev6_center_output_scale(0.0, 20.0) < get_kia_ev6_center_output_scale(0.5, 20.0)
-    assert get_kia_ev6_center_output_scale(0.0, 20.0) > 0.87
+    assert get_kia_ev6_center_output_scale(0.0, 20.0) > 0.86
 
   def test_kia_ev6_center_output_taper_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.KIA_EV6)

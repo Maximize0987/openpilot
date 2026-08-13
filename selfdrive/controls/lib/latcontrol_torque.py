@@ -128,6 +128,7 @@ class LatControlTorque(LatControl):
     self.is_tucson_4th_gen = CP.carFingerprint in TUCSON_4TH_GEN_CARS
     self.is_civic_bosch_modified = CP.carFingerprint == HONDA_CAR.HONDA_CIVIC_BOSCH and bool(CP.flags & HondaFlags.EPS_MODIFIED)
     self.is_silverado = CP.carFingerprint in SILVERADO_CARS
+    self.is_gmc_yukon_cc = CP.carFingerprint in GMC_YUKON_CC_CARS
     self.is_ram_1500 = CP.carFingerprint in RAM_1500_CARS
     self.is_gm = CP.brand == "gm"
     self.is_hkg_canfd_torque = CP.brand == "hyundai" and bool(CP.flags & HyundaiFlags.CANFD)
@@ -289,6 +290,8 @@ class LatControlTorque(LatControl):
       ff *= ff_scale
       if self.is_ram_1500:
         ff *= get_ram_1500_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+      if self.is_gmc_yukon_cc:
+        ff *= get_gmc_yukon_cc_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       trailer_load_kg = float(max(getattr(starpilot_toggles, "trailer_load_kg", 0.0) or 0.0, 0.0))
       bolt_2022_2023_tuned_path_active = self.is_bolt_2022_2023
       bolt_2018_2021_tuned_path_active = self.is_bolt_2018_2021
@@ -526,6 +529,12 @@ class LatControlTorque(LatControl):
         output_torque *= get_ioniq_6_highway_transition_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
         if self.is_ioniq_6_2025:
           output_torque *= get_ioniq_6_2025_center_output_scale(setpoint, CS.vEgo)
+          low_speed_output_limit = get_ioniq_6_2025_low_speed_output_limit(setpoint, desired_lateral_jerk, CS.vEgo)
+          output_torque = float(np.clip(
+            output_torque,
+            -low_speed_output_limit,
+            low_speed_output_limit,
+          ))
       elif self.is_ram_1500 and output_torque * setpoint > 0.0:
         output_torque *= get_ram_1500_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif self.is_kona_non_scc:
@@ -563,6 +572,10 @@ class LatControlTorque(LatControl):
         )
         low_speed_output_limit = get_genesis_g70_low_speed_output_limit(setpoint, CS.vEgo)
         output_torque = float(np.clip(output_torque, -low_speed_output_limit, low_speed_output_limit))
+      elif self.is_genesis_gv70:
+        output_torque *= get_genesis_gv70_high_speed_error_scale(
+          setpoint, measurement, desired_lateral_jerk, CS.vEgo,
+        )
       elif sonata_hybrid_active:
         output_torque *= sonata_hybrid_center_taper
         output_torque *= sonata_hybrid_center_output_taper

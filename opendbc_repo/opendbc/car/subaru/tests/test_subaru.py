@@ -226,23 +226,23 @@ def test_legacy_2025_uses_validated_angle_request_limits():
   assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(CS.out.steeringAngleDeg)
 
 
-def test_ascent_2023_uses_d_platform_bus_layout():
+def test_ascent_2023_uses_gen2_angle_bus_layout():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_ASCENT_2023)
   parsers = CarState.get_can_parsers(CP)
   controller = CarController({}, CP)
 
-  assert CP.flags & SubaruFlags.D_PLATFORM
-  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
-  assert CP.flags & SubaruFlags.D_PLATFORM_CAMERA
-  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA
-  assert CanBus.main_for_cp(CP) == CanBus.alt
-  assert CanBus.angle_for_cp(CP) == CanBus.camera
-  assert parsers[Bus.pt].bus == CanBus.alt
+  assert not (CP.flags & SubaruFlags.D_PLATFORM)
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM)
+  assert not (CP.flags & SubaruFlags.D_PLATFORM_CAMERA)
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA)
+  assert CanBus.main_for_cp(CP) == CanBus.main
+  assert CanBus.angle_for_cp(CP) == CanBus.main
+  assert parsers[Bus.pt].bus == CanBus.main
   assert parsers[Bus.cam].bus == CanBus.camera
   assert parsers[Bus.alt].bus == CanBus.alt
-  assert parsers[Bus.main].bus == CanBus.main
-  assert controller.angle_bus == CanBus.camera
-  assert controller.status_bus == CanBus.camera
+  assert Bus.main not in parsers
+  assert controller.angle_bus == CanBus.main
+  assert controller.status_bus == CanBus.main
 
 
 def test_other_angle_platforms_keep_existing_bus_layout():
