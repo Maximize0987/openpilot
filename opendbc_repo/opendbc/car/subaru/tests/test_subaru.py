@@ -308,6 +308,40 @@ def test_angle_controller_tracks_driver_override():
   assert msg[0] == 0x124
 
 
+def test_ascent_angle_controller_waits_for_manual_steering_to_settle():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_ASCENT_2023)
+  controller = CarController({}, CP)
+  CC = SimpleNamespace(latActive=True, actuators=SimpleNamespace(steeringAngleDeg=-100.0))
+  CS = SimpleNamespace(out=SimpleNamespace(
+    vEgoRaw=2.2,
+    steeringAngleDeg=-114.04,
+    steeringRateDeg=-90.0,
+    steeringTorque=-201.0,
+  ))
+  parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("ES_LKAS_ANGLE", 0)], CanBus.main)
+
+  msg = controller.lateral_angle(CC, CS)
+  parser.update([(1, [msg])])
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+
+  CS.out.steeringAngleDeg = -216.05
+  CS.out.steeringRateDeg = -133.0
+  CS.out.steeringTorque = -148.0
+  msg = controller.lateral_angle(CC, CS)
+  parser.update([(2, [msg])])
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(CS.out.steeringAngleDeg)
+
+  CS.out.steeringRateDeg = 2.0
+  msg = controller.lateral_angle(CC, CS)
+  parser.update([(3, [msg])])
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+
+  msg = controller.lateral_angle(CC, CS)
+  parser.update([(4, [msg])])
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 1
+
+
 def test_lkas_hud_state_uses_lateral_active():
   update_source = inspect.getsource(CarController.update)
 

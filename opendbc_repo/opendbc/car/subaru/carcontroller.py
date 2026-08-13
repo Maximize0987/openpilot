@@ -16,7 +16,8 @@ _SNG_ACC_MIN_DIST = 3
 _SNG_ACC_MAX_DIST = 4.5
 _LEGACY_2025_MADS_MIN_SPEED = 0.44704
 _LEGACY_2025_MADS_MAX_STEER_ANGLE = 120.0
-_LEGACY_2025_REENGAGE_MAX_STEER_RATE = 3.0
+_ANGLE_REENGAGE_MAX_STEER_RATE = 3.0
+_ANGLE_REENGAGE_SETTLE_FRAMES = 2
 
 
 def get_safety_CP():
@@ -30,6 +31,7 @@ class CarController(CarControllerBase):
     self.apply_torque_last = 0
     self.apply_steer_last = 0
     self.driver_override = False
+    self.angle_reengage_settle_frames = 0
     self.legacy_2025_lkas_active = False
 
     self.cruise_button_prev = 0
@@ -57,7 +59,7 @@ class CarController(CarControllerBase):
         CS.out.gearShifter == structs.CarState.GearShifter.drive and not CS.out.standstill
 
       manual_handoff = CS.out.steeringPressed or (
-        not self.legacy_2025_lkas_active and abs(CS.out.steeringRateDeg) > _LEGACY_2025_REENGAGE_MAX_STEER_RATE
+        not self.legacy_2025_lkas_active and abs(CS.out.steeringRateDeg) > _ANGLE_REENGAGE_MAX_STEER_RATE
       )
       lkas_active = lkas_available and not manual_handoff
 
@@ -79,6 +81,17 @@ class CarController(CarControllerBase):
     abs_torque = abs(CS.out.steeringTorque)
     if abs_torque > self.p.STEER_OVERRIDE_TORQUE_HIGH:
       self.driver_override = True
+      self.angle_reengage_settle_frames = 0
+    elif self.CP.carFingerprint == CAR.SUBARU_ASCENT_2023 and self.driver_override:
+      wheel_settled = abs(CS.out.steeringRateDeg) <= _ANGLE_REENGAGE_MAX_STEER_RATE
+      if abs_torque < self.p.STEER_OVERRIDE_TORQUE_LOW and wheel_settled:
+        self.angle_reengage_settle_frames += 1
+      else:
+        self.angle_reengage_settle_frames = 0
+
+      if self.angle_reengage_settle_frames >= _ANGLE_REENGAGE_SETTLE_FRAMES:
+        self.driver_override = False
+        self.angle_reengage_settle_frames = 0
     elif abs_torque < self.p.STEER_OVERRIDE_TORQUE_LOW:
       self.driver_override = False
 
