@@ -16,6 +16,7 @@ _SNG_ACC_MIN_DIST = 3
 _SNG_ACC_MAX_DIST = 4.5
 _LEGACY_2025_MADS_MIN_SPEED = 0.44704
 _LEGACY_2025_MADS_MAX_STEER_ANGLE = 120.0
+_LEGACY_2025_REENGAGE_MAX_STEER_RATE = 3.0
 
 
 def get_safety_CP():
@@ -52,8 +53,13 @@ class CarController(CarControllerBase):
       mads_only = CC.latActive and not CC.enabled
       mads_only_ok = CS.out.vEgoRaw > _LEGACY_2025_MADS_MIN_SPEED and \
         abs(CS.out.steeringAngleDeg) < _LEGACY_2025_MADS_MAX_STEER_ANGLE
-      lkas_active = CC.latActive and (not mads_only or mads_only_ok) and \
+      lkas_available = CC.latActive and (not mads_only or mads_only_ok) and \
         CS.out.gearShifter == structs.CarState.GearShifter.drive and not CS.out.standstill
+
+      manual_handoff = CS.out.steeringPressed or (
+        not self.legacy_2025_lkas_active and abs(CS.out.steeringRateDeg) > _LEGACY_2025_REENGAGE_MAX_STEER_RATE
+      )
+      lkas_active = lkas_available and not manual_handoff
 
       if lkas_active and not self.legacy_2025_lkas_active:
         self.apply_steer_last = CS.out.steeringAngleDeg

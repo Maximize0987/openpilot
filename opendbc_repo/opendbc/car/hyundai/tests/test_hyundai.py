@@ -1256,6 +1256,37 @@ class TestHyundaiFingerprint:
     ret = update(0, 3)
     assert any(be.type == ButtonType.lkas and not be.pressed for be in ret.buttonEvents)
 
+  def test_elantra_lkas_button_event_is_not_masked_by_live_clu13(self):
+    toggles = get_test_toggles()
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[0][0x391] = 8
+    fingerprint[0][0x50C] = 8
+    CP = CarInterface.get_params(CAR.HYUNDAI_ELANTRA_2021, fingerprint, [], False, False, False, toggles)
+    FPCP = CarInterface.get_starpilot_params(CAR.HYUNDAI_ELANTRA_2021, fingerprint, [], CP, toggles)
+
+    car_state = CarState(CP, FPCP)
+    can_parsers = car_state.get_can_parsers(CP)
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+
+    def update(bcm_lkas_button: int, frame: int):
+      msgs = [
+        packer.make_can_msg("CLU13", 0, {
+          "CF_Clu_LdwsLkasSW": 0,
+        }),
+        packer.make_can_msg("BCM_PO_11", 0, {
+          "LDA_BTN": bcm_lkas_button,
+        }),
+      ]
+      can_parsers[Bus.pt].update([(frame, msgs)])
+      return car_state.update(can_parsers, toggles)[0]
+
+    update(0, 1)
+    ret = update(1, 2)
+    assert any(be.type == ButtonType.lkas and be.pressed for be in ret.buttonEvents)
+
+    ret = update(0, 3)
+    assert any(be.type == ButtonType.lkas and not be.pressed for be in ret.buttonEvents)
+
   def test_sonata_hybrid_uses_main_bus_lkas_parser(self):
     toggles = get_test_toggles()
     fingerprint = gen_empty_fingerprint()
