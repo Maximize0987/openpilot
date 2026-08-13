@@ -7,6 +7,7 @@ from openpilot.starpilot.navigation.destination_store import (
   FAVORITE_DESTINATIONS_KEY,
   NAVIGATION_DESTINATION_KEY,
   RECENT_DESTINATIONS_KEY,
+  START_ON_NEXT_DRIVE_KEY,
   same_destination,
 )
 
@@ -101,7 +102,9 @@ def test_page_switch_is_in_memory_and_destination_rows_select_once():
   row = card._destination_rects[0]
   row_center = rl.Vector2(row.x + row.width / 2, row.y + row.height / 2)
   card._handle_mouse_release(row_center)
-  assert json.loads(params.values[NAVIGATION_DESTINATION_KEY])["name"] == "Home"
+  stored_destination = json.loads(params.values[NAVIGATION_DESTINATION_KEY])
+  assert stored_destination["name"] == "Home"
+  assert stored_destination[START_ON_NEXT_DRIVE_KEY] is True
   assert params.values[RECENT_DESTINATIONS_KEY][0]["place_name"] == "Home"
   first_write_count = len(params.writes)
   assert card.active_destination["name"] == "Home"

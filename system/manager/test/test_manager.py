@@ -12,6 +12,7 @@ import openpilot.system.manager.manager as manager
 from openpilot.system.manager.process import ensure_running
 from openpilot.system.manager.process_config import BigDeviceUIProcess, managed_processes, procs
 from openpilot.system.hardware import HARDWARE
+from openpilot.starpilot.navigation.destination_store import START_ON_NEXT_DRIVE_KEY
 
 os.environ['FAKEUPLOAD'] = "1"
 
@@ -70,6 +71,103 @@ class FileBackedFakeParams:
 
   def put_float(self, key, value):
     self.put(key, float(value))
+
+  def remove(self, key):
+    Path(self.get_param_path(key)).unlink(missing_ok=True)
+
+
+def test_offroad_navigation_cleanup_preserves_next_drive_destination(tmp_path):
+  destination = {
+    "name": "Home",
+    "place_name": "Home",
+    "latitude": 1.0,
+    "longitude": 2.0,
+    START_ON_NEXT_DRIVE_KEY: True,
+  }
+  params = FileBackedFakeParams(tmp_path / "params", {
+    "ClearNavOnOffroad": True,
+    "ClearNavOnOffroadTimeoutMinutes": 0,
+    "NavDestination": destination,
+  })
+
+  state = manager.update_nav_offroad_clear_state(params, False, None, None, 10.0)
+
+  assert state == (None, None)
+  assert json.loads(params.get("NavDestination")) == destination
+
+
+def test_next_drive_selection_disarms_delayed_cleanup_for_same_destination(tmp_path):
+  active_destination = {
+    "name": "Home",
+    "place_name": "Home",
+    "latitude": 1.0,
+    "longitude": 2.0,
+  }
+  params = FileBackedFakeParams(tmp_path / "params", {
+    "ClearNavOnOffroad": True,
+    "ClearNavOnOffroadTimeoutMinutes": 15,
+    "NavDestination": active_destination,
+  })
+
+  tracked = manager.update_nav_offroad_clear_state(params, False, None, None, 10.0)
+  assert tracked == (params.get("NavDestination"), 10.0)
+
+  params.put("NavDestination", {**active_destination, START_ON_NEXT_DRIVE_KEY: True})
+  state = manager.update_nav_offroad_clear_state(params, False, *tracked, 20.0)
+
+  assert state == (None, None)
+  assert json.loads(params.get("NavDestination"))[START_ON_NEXT_DRIVE_KEY] is True
+
+
+def test_unmarked_navigation_destination_still_clears_immediately_offroad(tmp_path):
+  params = FileBackedFakeParams(tmp_path / "params", {
+    "ClearNavOnOffroad": True,
+    "ClearNavOnOffroadTimeoutMinutes": 0,
+    "NavDestination": {"name": "Home", "latitude": 1.0, "longitude": 2.0},
+  })
+
+  state = manager.update_nav_offroad_clear_state(params, False, None, None, 10.0)
+
+  assert state == (None, None)
+  assert params.get("NavDestination") is None
+
+
+def test_offroad_cleanup_does_not_remove_destination_replaced_after_snapshot(tmp_path):
+  old_destination = json.dumps({"name": "Old", "latitude": 1.0, "longitude": 2.0})
+  next_drive_destination = {
+    "name": "Home",
+    "place_name": "Home",
+    "latitude": 3.0,
+    "longitude": 4.0,
+    START_ON_NEXT_DRIVE_KEY: True,
+  }
+
+  class SnapshotRaceParams(FileBackedFakeParams):
+    def __init__(self, root, values):
+      self._first_nav_read = old_destination
+      self.removed = []
+      super().__init__(root, values)
+
+    def get(self, key):
+      if key == "NavDestination" and self._first_nav_read is not None:
+        value, self._first_nav_read = self._first_nav_read, None
+        return value
+      return super().get(key)
+
+    def remove(self, key):
+      self.removed.append(key)
+      super().remove(key)
+
+  params = SnapshotRaceParams(tmp_path / "params", {
+    "ClearNavOnOffroad": True,
+    "ClearNavOnOffroadTimeoutMinutes": 0,
+    "NavDestination": next_drive_destination,
+  })
+
+  state = manager.update_nav_offroad_clear_state(params, False, None, None, 10.0)
+
+  assert state == (None, None)
+  assert "NavDestination" not in params.removed
 
 
 class FakeManagedProcess:

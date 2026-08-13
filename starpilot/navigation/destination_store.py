@@ -10,6 +10,8 @@ RECENT_DESTINATIONS_KEY = "ApiCache_NavDestinations"
 FAVORITE_DESTINATIONS_KEY = "FavoriteDestinations"
 NAV_INSTRUCTION_STATE_KEY = "NavInstructionState"
 NAV_INSTRUCTION_COLLAPSED_KEY = "NavInstructionCollapsed"
+# Internal marker: preserve an offroad quick-start selection until the next onroad edge.
+START_ON_NEXT_DRIVE_KEY = "start_on_next_drive"
 
 RECENT_DESTINATIONS_LIMIT = 10
 
@@ -79,6 +81,29 @@ def parse_destination_json(raw_value: str | bytes | dict[str, Any] | None) -> di
     return None
 
   return normalize_destination_payload(payload)
+
+
+def _parse_next_drive_destination(raw_value: Any) -> dict[str, Any] | None:
+  payload = _json_value(raw_value, None)
+  if not isinstance(payload, dict) or payload.get(START_ON_NEXT_DRIVE_KEY) is not True:
+    return None
+  return normalize_destination_payload(payload)
+
+
+def is_next_drive_destination(raw_value: Any) -> bool:
+  return _parse_next_drive_destination(raw_value) is not None
+
+
+def activate_next_drive_destination(params: Any) -> dict[str, Any] | None:
+  """Promote an offroad quick-start destination to a normal active destination."""
+  raw_value = _param_get(params, NAVIGATION_DESTINATION_KEY, "")
+  destination = _parse_next_drive_destination(raw_value)
+  payload = _json_value(raw_value, None)
+  if destination is not None and isinstance(payload, dict):
+    payload = dict(payload)
+    payload.pop(START_ON_NEXT_DRIVE_KEY, None)
+    params.put(NAVIGATION_DESTINATION_KEY, json.dumps(payload))
+  return destination
 
 
 def _favorite_destination_id(payload: dict[str, Any]) -> str:
@@ -167,21 +192,31 @@ def routing_configured(params: Any) -> bool:
   return bool(_text(_param_get(params, "MapboxSecretKey", "")).strip())
 
 
-def set_navigation_destination(params: Any, payload: Any, *, skip_if_same: bool = False) -> dict[str, Any] | None:
+def set_navigation_destination(
+  params: Any,
+  payload: Any,
+  *,
+  skip_if_same: bool = False,
+  start_on_next_drive: bool = False,
+) -> dict[str, Any] | None:
   destination = normalize_destination_payload(payload)
   if destination is None:
     return None
 
+  current_raw = _param_get(params, NAVIGATION_DESTINATION_KEY, "")
   if skip_if_same:
-    current = parse_destination_json(_param_get(params, NAVIGATION_DESTINATION_KEY, ""))
-    if same_destination(current, destination):
+    current = parse_destination_json(current_raw)
+    if same_destination(current, destination) and is_next_drive_destination(current_raw) == start_on_next_drive:
       return destination
 
   raw_recent_destinations = _param_get(params, RECENT_DESTINATIONS_KEY, "[]")
   if isinstance(raw_recent_destinations, (list, dict)):
     raw_recent_destinations = json.dumps(raw_recent_destinations)
   recent_destinations = update_recent_destinations(raw_recent_destinations, destination)
-  params.put(NAVIGATION_DESTINATION_KEY, json.dumps(destination))
+  stored_destination = dict(destination)
+  if start_on_next_drive:
+    stored_destination[START_ON_NEXT_DRIVE_KEY] = True
+  params.put(NAVIGATION_DESTINATION_KEY, json.dumps(stored_destination))
   params.put(RECENT_DESTINATIONS_KEY, recent_destinations)
   return destination
 
@@ -350,8 +385,19 @@ class NavigationDestinationStore:
       self.params.put(FAVORITE_DESTINATIONS_KEY, favorites)
     return favorites
 
-  def set_destination(self, payload: Any, *, skip_if_same: bool = False) -> dict[str, Any] | None:
-    return set_navigation_destination(self.params, payload, skip_if_same=skip_if_same)
+  def set_destination(
+    self,
+    payload: Any,
+    *,
+    skip_if_same: bool = False,
+    start_on_next_drive: bool = False,
+  ) -> dict[str, Any] | None:
+    return set_navigation_destination(
+      self.params,
+      payload,
+      skip_if_same=skip_if_same,
+      start_on_next_drive=start_on_next_drive,
+    )
 
   def clear_navigation(self) -> bool:
     collapsed_supported = True

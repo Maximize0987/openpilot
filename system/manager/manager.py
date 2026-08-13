@@ -45,6 +45,7 @@ from openpilot.starpilot.common.starpilot_variables import (
   LEGACY_STARPILOT_STATS_KEY_RENAMES,
   get_starpilot_toggles,
 )
+from openpilot.starpilot.navigation.destination_store import activate_next_drive_destination, is_next_drive_destination
 
 _MANAGER_IMPORT_DONE = time.monotonic()
 _manager_import_timing_line = (
@@ -135,7 +136,7 @@ def get_nav_offroad_clear_timeout_seconds(params) -> int:
 
 def update_nav_offroad_clear_state(params, started: bool, tracked_destination, tracked_started_at, now: float):
   nav_destination = params.get("NavDestination")
-  if started or not params.get_bool("ClearNavOnOffroad") or not nav_destination:
+  if started or not params.get_bool("ClearNavOnOffroad") or not nav_destination or is_next_drive_destination(nav_destination):
     return None, None
 
   if nav_destination != tracked_destination or tracked_started_at is None:
@@ -143,6 +144,9 @@ def update_nav_offroad_clear_state(params, started: bool, tracked_destination, t
     tracked_started_at = now
 
   if now - tracked_started_at >= get_nav_offroad_clear_timeout_seconds(params):
+    current_destination = params.get("NavDestination")
+    if current_destination != nav_destination or is_next_drive_destination(current_destination):
+      return None, None
     params.remove("NavDestination")
     return None, None
 
@@ -1151,6 +1155,9 @@ def manager_thread() -> None:
 
       # StarPilot variables
       params_memory.clear_all(ParamKeyFlag.CLEAR_ON_OFFROAD_TRANSITION)
+
+    if started and not started_prev:
+      activate_next_drive_destination(params)
 
     offroad_nav_destination, offroad_nav_started_at = update_nav_offroad_clear_state(
       params, started, offroad_nav_destination, offroad_nav_started_at, time.monotonic()
