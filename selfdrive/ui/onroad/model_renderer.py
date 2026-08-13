@@ -25,8 +25,8 @@ DEFAULT_PATH_EDGE_WIDTH = 20.0
 DEFAULT_PATH_WIDTH = 6.1
 DEFAULT_ROAD_EDGES_WIDTH = 2.0
 RADAR_MARKER_RADIUS = 13.0
-RADAR_MARKER_OUTLINE_RADIUS = 15.0
-RADAR_MARKER_TEXTURE_SIZE = 22
+RADAR_MARKER_OUTLINE_RADIUS = 16.0
+RADAR_MARKER_TEXTURE_SIZE = 25
 RADAR_MARKER_TEXTURE_CENTER = RADAR_MARKER_TEXTURE_SIZE / 2.0
 RADAR_MARKER_TEXTURE_KEY = "onroad-radar-marker-v1"
 RADAR_MARKER_OUTLINE_COLOR = rl.Color(0, 0, 0, 170)
@@ -528,8 +528,8 @@ class ModelRenderer(Widget):
       lead_speed_unit = " mph" # lead_speed_unit = " m/s" if use_si_metrics else " km/h"
       speed_conversion_metrics = CV.MS_TO_MPH # speed_conversion_metrics = 1.0 if use_si_metrics else CV.MS_TO_KPH
     else:
-      lead_distance_unit = "ft"
-      distance_conversion = CV.METER_TO_FOOT
+      lead_distance_unit = "m"
+      distance_conversion = 1.0  #distance_conversion = CV.METER_TO_FOOT
       lead_speed_unit = " mph"
       speed_conversion_metrics = CV.MS_TO_MPH
 
