@@ -1,11 +1,11 @@
 from openpilot.system.ui.lib import application
 
 
-def test_raylib_target_fps_uses_mici_display_vblank(monkeypatch):
+def test_raylib_target_fps_limits_mici(monkeypatch):
   monkeypatch.setattr(application, "OFFSCREEN", False)
   monkeypatch.setattr(application, "DEVICE_TYPE", "mici")
 
-  assert application._raylib_target_fps(60) == 0
+  assert application._raylib_target_fps(60) == 60
 
 
 def test_raylib_target_fps_limits_other_devices(monkeypatch):

@@ -65,7 +65,7 @@ OFFSCREEN = os.getenv("OFFSCREEN") == "1"  # Disable FPS limiting for fast offli
 
 
 def _raylib_target_fps(fps: int) -> int:
-  return 0 if OFFSCREEN or DEVICE_TYPE == "mici" else fps
+  return 0 if OFFSCREEN else fps
 
 GL_VERSION = """
 #version 300 es
