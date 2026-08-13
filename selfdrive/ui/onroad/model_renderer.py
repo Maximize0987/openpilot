@@ -576,8 +576,8 @@ class ModelRenderer(Widget):
       if sz.x > max_text_width:
         max_text_width = sz.x
 
-    centerX = chevron[1][0]
-    startY = max(chevron[0][1], chevron[2][1]) + line_height + 5
+    centerX = 1  # centerX = chevron[1][0]
+    startY = 1  # startY = max(chevron[0][1], chevron[2][1]) + line_height + 5
 
     x_margin = max_text_width * 0.1
     y_margin = line_height * 0.1
