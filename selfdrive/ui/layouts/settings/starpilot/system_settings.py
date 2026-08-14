@@ -1018,7 +1018,8 @@ class StarPilotSystemLayout(_SettingsPage):
     if state:
       gui_app.push_widget(ConfirmDialog(
         tr("This will prevent your drives from being uploaded to comma connect which may impact receiving support. Are you sure?"),
-        lambda res: self._params.put_bool("NoUploads", True) if res == DialogResult.CONFIRM else None
+        tr("Disable"),
+        callback=lambda res: self._params.put_bool("NoUploads", True) if res == DialogResult.CONFIRM else None,
       ))
     else:
       self._params.put_bool("NoUploads", False)
@@ -1027,7 +1028,8 @@ class StarPilotSystemLayout(_SettingsPage):
     if state:
       gui_app.push_widget(ConfirmDialog(
         tr("This will prevent your drives from being logged. Are you sure?"),
-        lambda res: self._params.put_bool("NoLogging", True) if res == DialogResult.CONFIRM else None
+        tr("Disable"),
+        callback=lambda res: self._params.put_bool("NoLogging", True) if res == DialogResult.CONFIRM else None,
       ))
     else:
       self._params.put_bool("NoLogging", False)
