@@ -539,6 +539,11 @@ class ModelRenderer(Widget):
     lead_distance = lead_data.dRel + (abs(y_rel) if adjacent else 0.0)
     lead_speed = max(getattr(lead_data, "vLead", 0.0), 0.0)
 
+    leadin = [-8, -4, 0]
+    leadout = [51, 153, 255]
+    leadcolor = int(round(np.interp(v_rel, leadin, leadout)))
+    color_lead = rl.Color(255, leadcolor, 51, 255)
+    
     distance_string = f"{round(lead_distance * distance_conversion)}"
     speed_string = f"{round(lead_speed * speed_conversion_metrics)}"
     v_ego = max(ui_state.sm["carState"].vEgo, 0.0)
@@ -606,8 +611,22 @@ class ModelRenderer(Widget):
       sz = measure_text_cached(font, line, font_size)
       line_x = centerX - sz.x / 2
       line_y = startY + (i * line_height)
-      _draw_text_with_outline(line, line_x, line_y, font, font_size)
-
+      #_draw_text_with_outline(line, line_x, line_y, font, font_size)
+      if v_rel > 0:
+        pos = rl.Vector2(line_x, line_y)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x - 1, pos.y - 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x + 1, pos.y - 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x - 1, pos.y + 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x + 1, pos.y + 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, pos, font_size, 0, rl.WHITE)
+      else:
+        pos = rl.Vector2(line_x, line_y)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x - 1, pos.y - 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x + 1, pos.y - 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x - 1, pos.y + 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, rl.Vector2(pos.x + 1, pos.y + 1), font_size, 0, rl.BLACK)
+        rl.draw_text_ex(font, line, pos, font_size, 0, color_lead)
+        
   def _draw_radar_tracks(self):
     radar_tracks_enabled = self._params.get_bool("RadarTracksUI")
     if not radar_tracks_enabled:
