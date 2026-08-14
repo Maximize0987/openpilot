@@ -20,11 +20,11 @@ TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MIN_BRAKE = 0.18
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_BRAKE = 0.32
 
 
-def is_toyota_rav4_tss2_2023(CP):
-  """Identify the RAV4 TSS2 controller that needs normal catch-up caps after departure."""
+def is_toyota_rav4_tss2_post_departure_tune(CP):
+  """Identify RAV4 TSS2 variants that need normal catch-up caps after departure."""
   return (
     getattr(CP, "brand", "") == "toyota" and
-    str(getattr(CP, "carFingerprint", "")) == "TOYOTA_RAV4_TSS2_2023"
+    str(getattr(CP, "carFingerprint", "")) in ("TOYOTA_RAV4_TSS2", "TOYOTA_RAV4_TSS2_2023")
   )
 
 

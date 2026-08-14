@@ -22,7 +22,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_far_follow_output_slew_rates,
   get_follow_prebrake_min_headway,
   is_gm_silverado_early_follow_lead,
-  is_toyota_rav4_tss2_2023,
+  is_toyota_rav4_tss2_post_departure_tune,
   get_toyota_sienna_post_departure_restop_cap,
   get_untracked_slow_lead_decel_scale,
 )
@@ -2663,7 +2663,7 @@ class LongitudinalPlanner:
     # cruise branch request full acceleration before the next lead was stable.
     # Keep the normal catch-up cap on this car; urgent braking remains outside
     # this comfort policy and is still allowed through unchanged.
-    post_departure_bypass = post_departure_active and not is_toyota_rav4_tss2_2023(self.CP)
+    post_departure_bypass = post_departure_active and not is_toyota_rav4_tss2_post_departure_tune(self.CP)
     follow_result = apply_follow_policy(
       self.lead_one,
       self.lead_two,

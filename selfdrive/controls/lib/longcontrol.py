@@ -295,6 +295,9 @@ class LongControl:
       a_target = self.vehicle_tuning.shape_toyota_sienna_accel_target(
         a_target, CS.vEgo, should_stop, leads=leads,
       )
+      a_target = self.vehicle_tuning.shape_hyundai_elantra_lead_target(
+        a_target, CS.vEgo, should_stop, leads,
+      )
       error = a_target - CS.aEgo
       self.update_mpc_mode(self.experimental_mode)
       self.vehicle_tuning.shape_volt_test_tune_integrator(self.pid, error, CS.vEgo)
@@ -326,6 +329,9 @@ class LongControl:
         previous_long_control_state == LongCtrlState.starting,
         should_stop,
         has_lead,
+      )
+      raw_output_accel = self.vehicle_tuning.cap_hyundai_elantra_lead_output(
+        raw_output_accel, CS.vEgo, should_stop, leads,
       )
 
       if self.transitioning and self.prev_mode == 'acc' and self.current_mode == 'blended':

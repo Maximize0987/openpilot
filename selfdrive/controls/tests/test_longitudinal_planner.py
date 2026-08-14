@@ -22,7 +22,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_follow_prebrake_min_headway,
   get_toyota_sienna_post_departure_restop_cap,
   is_gm_silverado_early_follow_lead,
-  is_toyota_rav4_tss2_2023,
+  is_toyota_rav4_tss2_post_departure_tune,
 )
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 from openpilot.selfdrive.modeld import modeld
@@ -2770,12 +2770,14 @@ def test_publish_has_lead_includes_second_mpc_lead():
   assert pm.sent["longitudinalPlan"].longitudinalPlan.hasLead
 
 
-def test_rav4_tss2_2023_is_the_car_specific_post_departure_tune():
-  rav4_cp = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2023)
+def test_rav4_tss2_variants_use_the_car_specific_post_departure_tune():
+  rav4_2019_cp = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2)
+  rav4_2023_cp = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2023)
   other_cp = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2022)
 
-  assert is_toyota_rav4_tss2_2023(rav4_cp)
-  assert not is_toyota_rav4_tss2_2023(other_cp)
+  assert is_toyota_rav4_tss2_post_departure_tune(rav4_2019_cp)
+  assert is_toyota_rav4_tss2_post_departure_tune(rav4_2023_cp)
+  assert not is_toyota_rav4_tss2_post_departure_tune(other_cp)
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])

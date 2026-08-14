@@ -764,6 +764,31 @@ def test_elantra_lead_stop_releases_stale_hard_brake_after_target_eases():
   assert tuning.shape_stopping_accel(-1.20, -0.25, True, 1.0, False, -0.85) == pytest.approx(-1.20)
 
 
+def test_elantra_stopped_lead_handoff_holds_braking_direction_without_touching_brakes():
+  CP = make_longcontrol_cp(brand="hyundai", carFingerprint="HYUNDAI_ELANTRA_2021")
+  tuning = vehicle_tunes.LongControlVehicleTuning(CP)
+  stopped_lead = SimpleNamespace(status=True, vLead=0.1, dRel=14.0)
+
+  assert tuning.shape_hyundai_elantra_lead_target(0.14, 1.1, False, (stopped_lead,)) == pytest.approx(0.05)
+  assert tuning.cap_hyundai_elantra_lead_output(0.14, 1.1, False, (stopped_lead,)) == pytest.approx(0.05)
+  assert tuning.cap_hyundai_elantra_lead_output(-0.5, 1.1, False, (stopped_lead,)) == pytest.approx(-0.5)
+
+
+def test_elantra_stopped_lead_handoff_releases_for_moving_lead_and_other_cars():
+  elantra = vehicle_tunes.LongControlVehicleTuning(
+    make_longcontrol_cp(brand="hyundai", carFingerprint="HYUNDAI_ELANTRA_2021")
+  )
+  other_car = vehicle_tunes.LongControlVehicleTuning(
+    make_longcontrol_cp(brand="hyundai", carFingerprint="HYUNDAI_SONATA")
+  )
+  moving_lead = SimpleNamespace(status=True, vLead=0.8, dRel=14.0)
+  stopped_lead = SimpleNamespace(status=True, vLead=0.1, dRel=14.0)
+
+  assert elantra.shape_hyundai_elantra_lead_target(0.14, 1.1, False, (moving_lead,)) == pytest.approx(0.14)
+  assert elantra.shape_hyundai_elantra_lead_target(0.14, 1.1, True, (stopped_lead,)) == pytest.approx(0.14)
+  assert other_car.shape_hyundai_elantra_lead_target(0.14, 1.1, False, (stopped_lead,)) == pytest.approx(0.14)
+
+
 def test_volt_testing_ground_handoff_freezes_integrator(monkeypatch):
   CP = car.CarParams.new_message()
   CP.brand = "gm"

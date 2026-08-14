@@ -258,11 +258,76 @@ def test_legacy_2025_waits_for_manual_steering_to_settle_before_reengaging():
   assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
   assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(CS.out.steeringAngleDeg)
 
-  CS.out.steeringRateDeg = 2.0
+  for i in range(9):
+    CS.out.steeringAngleDeg += 0.5
+    CS.out.steeringRateDeg = 20.0
+    msg = controller.lateral_angle(CC, CS)
+    parser.update([(3 + i, [msg])])
+    assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+    assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(CS.out.steeringAngleDeg)
+
+  for i in range(6):
+    if i % 2:
+      CS.out.steeringAngleDeg += 0.5
+    CS.out.steeringRateDeg = 0.0 if i % 2 == 0 else 20.0
+    msg = controller.lateral_angle(CC, CS)
+    parser.update([(12 + i, [msg])])
+    assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+    assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] == pytest.approx(CS.out.steeringAngleDeg)
+
+  CS.out.steeringRateDeg = 0.0
+  for i in range(8):
+    msg = controller.lateral_angle(CC, CS)
+    parser.update([(18 + i, [msg])])
+    assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+
+  measured_angle = CS.out.steeringAngleDeg
   msg = controller.lateral_angle(CC, CS)
-  parser.update([(3, [msg])])
+  parser.update([(26, [msg])])
   assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 1
-  assert abs(parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] - CS.out.steeringAngleDeg) < 1.0
+  assert abs(parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"] - measured_angle) < 0.1
+
+
+def test_legacy_2025_manual_handoff_reclaim_is_gradual():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
+  controller = CarController({}, CP)
+  CC = SimpleNamespace(
+    enabled=False,
+    latActive=True,
+    actuators=SimpleNamespace(steeringAngleDeg=-20.0),
+  )
+  CS = SimpleNamespace(out=SimpleNamespace(
+    vEgoRaw=3.7,
+    steeringAngleDeg=2.5,
+    steeringRateDeg=-45.0,
+    steeringPressed=True,
+    gearShifter=structs.CarState.GearShifter.drive,
+    standstill=False,
+  ))
+  parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("ES_LKAS_ANGLE", 0)], CanBus.main)
+
+  msg = controller.lateral_angle(CC, CS)
+  parser.update([(1, [msg])])
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 0
+
+  CS.out.steeringPressed = False
+  CS.out.steeringRateDeg = 0.0
+  for i in range(19):
+    msg = controller.lateral_angle(CC, CS)
+    parser.update([(2 + i, [msg])])
+
+  assert parser.vl["ES_LKAS_ANGLE"]["LKAS_Request"] == 1
+  first_reclaim_angle = parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"]
+  assert first_reclaim_angle == pytest.approx(CS.out.steeringAngleDeg, abs=0.1)
+
+  reclaim_angles = []
+  for i in range(6):
+    msg = controller.lateral_angle(CC, CS)
+    parser.update([(20 + i, [msg])])
+    reclaim_angles.append(parser.vl["ES_LKAS_ANGLE"]["LKAS_Output"])
+
+  assert all(reclaim_angles[i] >= reclaim_angles[i + 1] for i in range(len(reclaim_angles) - 1))
+  assert reclaim_angles[-1] > CC.actuators.steeringAngleDeg
 
 
 def test_ascent_2023_uses_gen2_angle_bus_layout():

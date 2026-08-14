@@ -255,13 +255,20 @@ GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT = 0.14
 GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT_WIDTH = 0.05
 GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED = 6.0
 GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED_WIDTH = 1.5
-GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST = 0.14
+GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST = 0.06
 GENESIS_G70_CURVE_UNWIND_SPEED = 18.0
 GENESIS_G70_CURVE_UNWIND_SPEED_WIDTH = 3.0
 GENESIS_G70_CURVE_UNWIND_LAT = 0.25
 GENESIS_G70_CURVE_UNWIND_LAT_WIDTH = 0.12
 GENESIS_G70_CURVE_UNWIND_JERK = 0.08
 GENESIS_G70_CURVE_UNWIND_JERK_WIDTH = 0.08
+GENESIS_G70_UNWIND_FF_REDUCTION_MAX = 0.20
+GENESIS_G70_UNWIND_FF_OVERSHOOT = 0.12
+GENESIS_G70_UNWIND_FF_OVERSHOOT_WIDTH = 0.12
+GENESIS_G70_UNWIND_FF_JERK = 0.10
+GENESIS_G70_UNWIND_FF_JERK_WIDTH = 0.10
+GENESIS_G70_UNWIND_FF_SPEED = 18.0
+GENESIS_G70_UNWIND_FF_SPEED_WIDTH = 3.0
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_MAX = 0.15
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED = 50.0 * CV.MPH_TO_MS
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED_WIDTH = 8.0 * CV.MPH_TO_MS
@@ -669,6 +676,14 @@ IONIQ_5_SUSTAINED_TURN_IN_FF_SPEED_WIDTH = 1.8
 IONIQ_5_SUSTAINED_TURN_IN_FF_LAT_START = 1.10
 IONIQ_5_SUSTAINED_TURN_IN_FF_LAT_END = 3.60
 IONIQ_5_SUSTAINED_TURN_IN_FF_LAT_WIDTH = 0.30
+IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_BASE = 0.05
+IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_TURN_RELIEF = 0.95
+IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_SPEED = 8.0
+IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_SPEED_WIDTH = 0.8
+IONIQ_5_LOW_SPEED_CENTER_LAT = 0.40
+IONIQ_5_LOW_SPEED_CENTER_LAT_WIDTH = 0.10
+IONIQ_5_LOW_SPEED_CENTER_JERK = 0.40
+IONIQ_5_LOW_SPEED_CENTER_JERK_WIDTH = 0.12
 
 IONIQ_EV_OLD_BASE_LAT_ACCEL_FACTOR_MULT = 1.16
 IONIQ_EV_OLD_FF_REDUCTION_LEFT = 0.16
@@ -1054,6 +1069,16 @@ LEXUS_IS_UNWIND_SPEED_WIDTH = 2.0
 SUBARU_IMPREZA_PID_TAPER_START_DEG = 0.75
 SUBARU_IMPREZA_PID_TAPER_FULL_DEG = 4.0
 SUBARU_IMPREZA_PID_TAPER_MIN = 0.58
+
+RAV4_TSS2_CARS = (
+  TOYOTA_CAR.TOYOTA_RAV4_TSS2,
+)
+RAV4_TSS2_PID_LOW_SPEED = 12.0 * CV.MPH_TO_MS
+RAV4_TSS2_PID_LOW_SPEED_WIDTH = 2.0 * CV.MPH_TO_MS
+RAV4_TSS2_PID_CENTER_ANGLE = 14.0
+RAV4_TSS2_PID_CENTER_ANGLE_WIDTH = 3.0
+RAV4_TSS2_PID_OUTPUT_SCALE_MIN = 0.62
+RAV4_TSS2_PID_OUTPUT_ALPHA_MIN = 0.28
 
 RAM_1500_TRANSITION_TAPER_MAX = 0.34
 RAM_1500_TRANSITION_SPEED_ONSET = 10.0
@@ -1537,6 +1562,21 @@ def get_subaru_impreza_pid_output_scale(angle_error_deg: float) -> float:
   error_weight = min(max((abs(angle_error_deg) - SUBARU_IMPREZA_PID_TAPER_START_DEG) /
                          (SUBARU_IMPREZA_PID_TAPER_FULL_DEG - SUBARU_IMPREZA_PID_TAPER_START_DEG), 0.0), 1.0)
   return 1.0 - ((1.0 - SUBARU_IMPREZA_PID_TAPER_MIN) * error_weight)
+
+
+def get_rav4_tss2_pid_output(output_torque: float, prev_output_torque: float,
+                             desired_angle_deg: float, v_ego: float) -> float:
+  """Damp low-speed RAV4 center reversals without blunting real turns."""
+  speed_weight = _sigmoid((RAV4_TSS2_PID_LOW_SPEED - max(v_ego, 0.0)) /
+                          RAV4_TSS2_PID_LOW_SPEED_WIDTH)
+  center_weight = _sigmoid((RAV4_TSS2_PID_CENTER_ANGLE - abs(desired_angle_deg)) /
+                           RAV4_TSS2_PID_CENTER_ANGLE_WIDTH)
+  envelope = speed_weight * center_weight
+
+  output_scale = 1.0 - ((1.0 - RAV4_TSS2_PID_OUTPUT_SCALE_MIN) * envelope)
+  output_alpha = 1.0 - ((1.0 - RAV4_TSS2_PID_OUTPUT_ALPHA_MIN) * envelope)
+  limited_output = output_torque * output_scale
+  return float(prev_output_torque + output_alpha * (limited_output - prev_output_torque))
 
 
 def get_ram_1500_transition_output_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:
@@ -2752,6 +2792,23 @@ def get_genesis_g70_curve_unwind_output_scale(desired_lateral_accel: float, desi
   return 1.0 + GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST * speed_weight * lateral_weight * jerk_weight
 
 
+def get_genesis_g70_unwind_ff_scale(setpoint: float, measured_lateral_accel: float,
+                                    desired_lateral_jerk: float, v_ego: float) -> float:
+  if setpoint * desired_lateral_jerk >= 0.0 or setpoint * measured_lateral_accel <= 0.0:
+    return 1.0
+
+  overshoot = max(abs(measured_lateral_accel) - abs(setpoint), 0.0)
+  if overshoot <= 0.0:
+    return 1.0
+  overshoot_weight = _sigmoid((overshoot - GENESIS_G70_UNWIND_FF_OVERSHOOT) /
+                              GENESIS_G70_UNWIND_FF_OVERSHOOT_WIDTH)
+  jerk_weight = _sigmoid((abs(desired_lateral_jerk) - GENESIS_G70_UNWIND_FF_JERK) /
+                         GENESIS_G70_UNWIND_FF_JERK_WIDTH)
+  speed_weight = _sigmoid((v_ego - GENESIS_G70_UNWIND_FF_SPEED) /
+                          GENESIS_G70_UNWIND_FF_SPEED_WIDTH)
+  return 1.0 - GENESIS_G70_UNWIND_FF_REDUCTION_MAX * overshoot_weight * jerk_weight * speed_weight
+
+
 def get_genesis_g70_high_speed_error_scale(setpoint: float, measured_lateral_accel: float,
                                             desired_lateral_jerk: float, v_ego: float) -> float:
   tracking_error = abs(measured_lateral_accel - setpoint)
@@ -2859,6 +2916,22 @@ def get_ioniq_5_center_taper_scale(desired_lateral_accel: float, v_ego: float) -
   center_weight = _ioniq_5_sigmoid((IONIQ_5_CENTER_TAPER_LAT - abs(desired_lateral_accel)) / IONIQ_5_CENTER_TAPER_LAT_WIDTH)
   reduction = IONIQ_5_CENTER_TAPER_MAX * speed_weight * center_weight
   return 1.0 - reduction
+
+
+def get_ioniq_5_low_speed_output_limit(desired_lateral_accel: float,
+                                       desired_lateral_jerk: float, v_ego: float) -> float:
+  """Bound stop-transition center chatter without blunting actual turns."""
+  speed_weight = _ioniq_5_sigmoid((IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_SPEED - max(v_ego, 0.0)) /
+                                  IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_SPEED_WIDTH)
+  center_weight = _ioniq_5_sigmoid((IONIQ_5_LOW_SPEED_CENTER_LAT - abs(desired_lateral_accel)) /
+                                   IONIQ_5_LOW_SPEED_CENTER_LAT_WIDTH)
+  calm_weight = _ioniq_5_sigmoid((IONIQ_5_LOW_SPEED_CENTER_JERK - abs(desired_lateral_jerk)) /
+                                 IONIQ_5_LOW_SPEED_CENTER_JERK_WIDTH)
+  center_weight *= calm_weight
+  center_limit = (IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_BASE +
+                  IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_TURN_RELIEF * (1.0 - center_weight))
+  limit = 1.0 - speed_weight * (1.0 - center_limit)
+  return float(np.clip(limit, IONIQ_5_LOW_SPEED_OUTPUT_LIMIT_BASE, 1.0))
 
 
 def _ioniq_ev_old_sigmoid(x: float) -> float:

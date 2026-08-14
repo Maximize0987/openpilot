@@ -469,6 +469,10 @@ class LatControlTorque(LatControl):
         ff *= get_genesis_gv70_unwind_ff_scale(
           setpoint, measurement, desired_lateral_jerk, CS.vEgo,
         )
+      if self.is_genesis_g70:
+        ff *= get_genesis_g70_unwind_ff_scale(
+          setpoint, measurement, desired_lateral_jerk, CS.vEgo,
+        )
       if ioniq_6_active:
         vehicle_friction_jerk_deadzone = (
           IONIQ_6_2025_FRICTION_JERK_DEADZONE if self.is_ioniq_6_2025 else IONIQ_6_FRICTION_JERK_DEADZONE
@@ -535,6 +539,13 @@ class LatControlTorque(LatControl):
             -low_speed_output_limit,
             low_speed_output_limit,
           ))
+      elif ioniq_5_active:
+        low_speed_output_limit = get_ioniq_5_low_speed_output_limit(setpoint, desired_lateral_jerk, CS.vEgo)
+        output_torque = float(np.clip(
+          output_torque,
+          -low_speed_output_limit,
+          low_speed_output_limit,
+        ))
       elif self.is_ram_1500 and output_torque * setpoint > 0.0:
         output_torque *= get_ram_1500_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif self.is_kona_non_scc:

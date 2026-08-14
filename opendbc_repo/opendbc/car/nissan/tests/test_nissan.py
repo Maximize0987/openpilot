@@ -65,7 +65,8 @@ def test_alpha_long_controller_sends_stock_shaped_commands_and_keepalive():
   assert can_sends[0x2B0][1].hex() == "ff6090ac5b000e03"
   assert can_sends[0x1C3][1].hex() == "000000006400ff27"
   assert can_sends[0x707][1].hex() == "023e800000000000"
-  assert all(can_sends[addr][2] == 1 for addr in (0x2B0, 0x1C3, 0x707))
+  assert all(can_sends[addr][2] == 1 for addr in (0x2B0, 0x1C3))
+  assert can_sends[0x707][2] == 0
 
 
 def test_alpha_long_controller_clamps_to_panda_accel_limit():
@@ -123,7 +124,8 @@ def test_leaf_ecu_disable_is_strict_and_falls_back(monkeypatch, ecu_disabled):
 
   assert len(calls) == (1 if ecu_disabled else 2)
   assert calls[0]["addr"] == 0x707
-  assert calls[0]["bus"] == 1
+  assert calls[0]["bus"] == 0
+  assert calls[0]["response_offset"] == 0x20
   assert calls[0]["require_response"] is True
   assert calls[0]["com_cont_req"] == bytes([uds.SERVICE_TYPE.COMMUNICATION_CONTROL,
                                              uds.CONTROL_TYPE.ENABLE_RX_DISABLE_TX,

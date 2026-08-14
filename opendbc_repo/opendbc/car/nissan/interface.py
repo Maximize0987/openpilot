@@ -4,12 +4,12 @@ from opendbc.car.interfaces import CarInterfaceBase
 from opendbc.car.nissan.carcontroller import CarController
 from opendbc.car.nissan.carstate import CarState
 from opendbc.car.nissan.values import CAR, CarControllerParams, NissanSafetyFlags, \
-                                       NISSAN_DIAGNOSTIC_REQUEST_KWP, NISSAN_DIAGNOSTIC_RESPONSE_KWP
+                                       NISSAN_DIAGNOSTIC_REQUEST_KWP, NISSAN_DIAGNOSTIC_RESPONSE_KWP, NISSAN_RX_OFFSET
 
 
 LEAF_LONGITUDINAL_CARS = (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC)
 LEAF_ADAS_ECU_ADDR = 0x707
-LEAF_ADAS_ECU_BUS = 1
+LEAF_ADAS_ECU_BUS = 0
 
 
 class CarInterface(CarInterfaceBase):
@@ -64,13 +64,14 @@ class CarInterface(CarInterfaceBase):
                                    uds.CONTROL_TYPE.ENABLE_RX_DISABLE_TX,
                                    uds.MESSAGE_TYPE.NORMAL])
     ecu_disabled = disable_ecu(can_recv, can_send, bus=LEAF_ADAS_ECU_BUS, addr=LEAF_ADAS_ECU_ADDR,
-                               com_cont_req=communication_control, require_response=True)
+                               com_cont_req=communication_control, require_response=True, response_offset=NISSAN_RX_OFFSET)
     if not ecu_disabled:
       # Nissan firmware queries use the KWP-style default session. Try it after
       # standard UDS extended-session control, but still require a positive 0x68 response.
       ecu_disabled = disable_ecu(can_recv, can_send, bus=LEAF_ADAS_ECU_BUS, addr=LEAF_ADAS_ECU_ADDR,
                                  com_cont_req=communication_control, require_response=True,
-                                 diag_request=NISSAN_DIAGNOSTIC_REQUEST_KWP, diag_response=NISSAN_DIAGNOSTIC_RESPONSE_KWP)
+                                 diag_request=NISSAN_DIAGNOSTIC_REQUEST_KWP, diag_response=NISSAN_DIAGNOSTIC_RESPONSE_KWP,
+                                 response_offset=NISSAN_RX_OFFSET)
     params.put_bool("EcuDisableFailed", not ecu_disabled)
     if ecu_disabled:
       ecu_log("Nissan Leaf ADAS TX disabled; experimental longitudinal control enabled")
@@ -89,4 +90,4 @@ class CarInterface(CarInterfaceBase):
                                    0x80 | uds.CONTROL_TYPE.ENABLE_RX_ENABLE_TX,
                                    uds.MESSAGE_TYPE.NORMAL])
     disable_ecu(can_recv, can_send, bus=LEAF_ADAS_ECU_BUS, addr=LEAF_ADAS_ECU_ADDR,
-                com_cont_req=communication_control)
+                com_cont_req=communication_control, response_offset=NISSAN_RX_OFFSET)

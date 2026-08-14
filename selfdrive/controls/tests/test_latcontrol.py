@@ -41,6 +41,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   get_gmc_yukon_cc_ff_scale,
   get_ram_1500_transition_output_scale,
   get_ram_1500_ff_scale,
+  get_rav4_tss2_pid_output,
   get_subaru_impreza_pid_output_scale,
   normalize_flm_overrides,
   set_flm_runtime_overrides,
@@ -78,6 +79,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g70_high_speed_error_scale,
   get_genesis_g70_low_speed_angle_damping,
   get_genesis_g70_low_speed_output_limit,
+  get_genesis_g70_unwind_ff_scale,
   get_genesis_gv70_friction_threshold,
   get_genesis_gv70_high_speed_error_scale,
   get_genesis_gv70_unwind_ff_scale,
@@ -107,6 +109,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_ioniq_5_friction_scale,
   get_ioniq_5_friction_threshold,
   get_ioniq_5_center_taper_scale,
+  get_ioniq_5_low_speed_output_limit,
   get_ioniq_ev_old_center_taper_scale,
   get_ioniq_ev_old_ff_scale,
   get_ioniq_6_center_taper_scale,
@@ -822,6 +825,9 @@ class TestLatControl:
     assert get_genesis_g70_low_speed_angle_damping(0.0, 20.0, 0.0, 2.0) > 0.0
     assert get_genesis_g70_curve_unwind_output_scale(0.7, -0.5, 25.0) > 1.0
     assert get_genesis_g70_curve_unwind_output_scale(0.7, 0.5, 25.0) == 1.0
+    assert get_genesis_g70_unwind_ff_scale(-0.7, -0.95, 0.5, 25.0) < 1.0
+    assert get_genesis_g70_unwind_ff_scale(-0.7, -0.95, -0.5, 25.0) == 1.0
+    assert get_genesis_g70_unwind_ff_scale(-0.7, 0.2, 0.5, 25.0) == 1.0
 
     assert get_genesis_g70_high_speed_error_scale(0.2, 0.2, 0.8, 20.0) == 1.0
     assert get_genesis_g70_high_speed_error_scale(0.2, 0.9, 0.8, 20.0) < 1.0
@@ -1111,6 +1117,15 @@ class TestLatControl:
   def test_ioniq_5_center_taper_curve(self):
     assert get_ioniq_5_center_taper_scale(0.0, 25.0) < get_ioniq_5_center_taper_scale(0.0, 10.0)
     assert get_ioniq_5_center_taper_scale(0.0, 25.0) < get_ioniq_5_center_taper_scale(0.20, 25.0) <= 1.0
+
+  def test_ioniq_5_low_speed_output_limit_preserves_turn_relief(self):
+    center = get_ioniq_5_low_speed_output_limit(0.02, 0.05, 3.0)
+    turn = get_ioniq_5_low_speed_output_limit(0.70, 0.70, 3.0)
+    highway = get_ioniq_5_low_speed_output_limit(0.02, 0.05, 15.0)
+
+    assert center < 0.20
+    assert turn > center
+    assert highway > center
 
   def test_ioniq_ev_old_ff_scale_curve(self):
     assert get_ioniq_ev_old_ff_scale(0.0, 0.0, 20.0) == 1.0
@@ -1444,6 +1459,18 @@ class TestLatControl:
     assert lac_log.active
     assert controller.torque_params.latAccelFactor == pytest.approx(CP.lateralTuning.torque.latAccelFactor * 1.22)
 
+  def test_ioniq_5_low_speed_output_guard_update_path(self, monkeypatch):
+    monkeypatch.setattr(latcontrol_torque, "get_ioniq_5_low_speed_output_limit", lambda *_args: 0.05)
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_IONIQ_5)
+    CS.vEgo = 3.2
+
+    output, _, lac_log = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    assert lac_log.active
+    assert abs(output) <= 0.05
+
   def test_ioniq_6_default_update_path(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.HYUNDAI_IONIQ_6)
 
@@ -1611,6 +1638,31 @@ class TestLatControl:
     assert get_subaru_impreza_pid_output_scale(2.0) < 1.0
     assert get_subaru_impreza_pid_output_scale(4.0) == pytest.approx(0.58)
     assert get_subaru_impreza_pid_output_scale(-4.0) == pytest.approx(0.58)
+
+  def test_rav4_tss2_pid_output_damps_low_speed_center_reversals(self):
+    low_speed = get_rav4_tss2_pid_output(1.0, -1.0, 4.0, 6.0 * 0.44704)
+    large_turn = get_rav4_tss2_pid_output(1.0, -1.0, 24.0, 6.0 * 0.44704)
+    highway = get_rav4_tss2_pid_output(1.0, -1.0, 4.0, 25.0 * 0.44704)
+
+    assert abs(low_speed) < 0.50
+    assert abs(large_turn) > abs(low_speed)
+    assert highway > low_speed
+
+  def test_rav4_tss2_pid_output_update_path(self, monkeypatch):
+    controller, VM, CS, params, starpilot_toggles = self._build_pid_controller(TOYOTA.TOYOTA_RAV4_TSS2)
+    CS.vEgo = 6.0 * 0.44704
+    CS.steeringAngleDeg = 8.0
+
+    tuned_output, _, lac_log = controller.update(True, CS, VM, params, False, 0.0, False, 0.2, None, None, starpilot_toggles)
+
+    monkeypatch.setattr(latcontrol_pid, "get_rav4_tss2_pid_output", lambda output, *_args: output)
+    base_controller, VM, CS, params, starpilot_toggles = self._build_pid_controller(TOYOTA.TOYOTA_RAV4_TSS2)
+    CS.vEgo = 6.0 * 0.44704
+    CS.steeringAngleDeg = 8.0
+    base_output, _, _ = base_controller.update(True, CS, VM, params, False, 0.0, False, 0.2, None, None, starpilot_toggles)
+
+    assert lac_log.active
+    assert abs(tuned_output) < abs(base_output)
 
   def test_subaru_impreza_pid_output_taper_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_pid_controller(SUBARU.SUBARU_IMPREZA)
