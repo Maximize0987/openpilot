@@ -836,6 +836,15 @@ IONIQ_6_CURVY_TURN_IN_TRIM_LAT_START = 1.0
 IONIQ_6_CURVY_TURN_IN_TRIM_LAT_END = 2.5
 IONIQ_6_CURVY_TURN_IN_TRIM_LAT_ONSET_WIDTH = 0.18
 IONIQ_6_CURVY_TURN_IN_TRIM_LAT_CUTOFF_WIDTH = 0.30
+IONIQ_6_2023_UNWIND_FF_REDUCTION_MAX = 0.18
+IONIQ_6_2023_UNWIND_FF_OVERSHOOT = 0.15
+IONIQ_6_2023_UNWIND_FF_OVERSHOOT_WIDTH = 0.18
+IONIQ_6_2023_UNWIND_FF_JERK = 0.10
+IONIQ_6_2023_UNWIND_FF_JERK_WIDTH = 0.10
+IONIQ_6_2023_UNWIND_FF_SPEED_ONSET = 8.0
+IONIQ_6_2023_UNWIND_FF_SPEED_ONSET_WIDTH = 2.5
+IONIQ_6_2023_UNWIND_FF_SPEED_CUTOFF = 23.5
+IONIQ_6_2023_UNWIND_FF_SPEED_CUTOFF_WIDTH = 2.0
 IONIQ_6_LOW_SPEED_PID_RESET_SPEED = 0.1 * CV.MPH_TO_MS
 # Friction compensation near zero lateral accel amplifies planner jerk noise into a slow
 # (~0.5 Hz) weave on straights: the 0.09/0.39 small-signal slope plus the jerk feed acts as
@@ -3068,6 +3077,29 @@ def get_ioniq_6_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: flo
     directional_taper_scale = get_ioniq_6_directional_taper_scale(desired_lateral_accel, desired_lateral_jerk, v_ego)
   return (1.0 + crawl_turn_in_scale + high_speed_right_turn_in_scale +
           (extra_scale * turn_in_boost * max(unwind_taper, 0.0))) * directional_taper_scale
+
+
+def get_ioniq_6_2023_unwind_ff_scale(setpoint: float, measured_lateral_accel: float,
+                                     desired_lateral_jerk: float, v_ego: float) -> float:
+  """Trim residual curve feedforward when the 2023 car is already over-rotated."""
+  if setpoint * desired_lateral_jerk >= 0.0 or setpoint * measured_lateral_accel <= 0.0:
+    return 1.0
+
+  overshoot = max(abs(measured_lateral_accel) - abs(setpoint), 0.0)
+  if overshoot <= 0.0:
+    return 1.0
+
+  overshoot_weight = _ioniq_6_sigmoid((overshoot - IONIQ_6_2023_UNWIND_FF_OVERSHOOT) /
+                                      IONIQ_6_2023_UNWIND_FF_OVERSHOOT_WIDTH)
+  jerk_weight = _ioniq_6_sigmoid((abs(desired_lateral_jerk) - IONIQ_6_2023_UNWIND_FF_JERK) /
+                                 IONIQ_6_2023_UNWIND_FF_JERK_WIDTH)
+  speed_onset = _ioniq_6_sigmoid((v_ego - IONIQ_6_2023_UNWIND_FF_SPEED_ONSET) /
+                                 IONIQ_6_2023_UNWIND_FF_SPEED_ONSET_WIDTH)
+  speed_cutoff = _ioniq_6_sigmoid((IONIQ_6_2023_UNWIND_FF_SPEED_CUTOFF - v_ego) /
+                                  IONIQ_6_2023_UNWIND_FF_SPEED_CUTOFF_WIDTH)
+  reduction = (IONIQ_6_2023_UNWIND_FF_REDUCTION_MAX * overshoot_weight * jerk_weight *
+               speed_onset * speed_cutoff)
+  return 1.0 - reduction
 
 
 def get_ioniq_6_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0, desired_lateral_jerk: float = 0.0) -> float:

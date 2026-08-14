@@ -116,6 +116,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_ioniq_6_directional_taper_scale,
   get_ioniq_6_output_taper_scale,
   get_ioniq_6_ff_scale,
+  get_ioniq_6_2023_unwind_ff_scale,
   get_ioniq_6_friction_center_fade_scale,
   get_ioniq_6_friction_scale,
   get_ioniq_6_friction_threshold,
@@ -1148,6 +1149,12 @@ class TestLatControl:
     assert get_ioniq_6_ff_scale(0.30, 0.60, 3.0) > get_ioniq_6_ff_scale(0.30, 0.60, 6.0)
     assert get_ioniq_6_ff_scale(0.30, 0.60, 6.0) > get_ioniq_6_ff_scale(0.30, 0.60, 12.0)
     assert get_ioniq_6_ff_scale(0.30, -0.60, 3.0) < get_ioniq_6_ff_scale(0.30, 0.60, 3.0)
+
+  def test_ioniq_6_2023_unwind_ff_scale_only_trims_measured_overshoot(self):
+    assert get_ioniq_6_2023_unwind_ff_scale(-1.2, -2.0, 1.0, 18.0) < 1.0
+    assert get_ioniq_6_2023_unwind_ff_scale(-1.2, -1.0, 1.0, 18.0) == 1.0
+    assert get_ioniq_6_2023_unwind_ff_scale(-1.2, -2.0, -1.0, 18.0) == 1.0
+    assert get_ioniq_6_2023_unwind_ff_scale(-1.2, -2.0, 1.0, 30.0) > get_ioniq_6_2023_unwind_ff_scale(-1.2, -2.0, 1.0, 18.0)
 
   def test_ioniq_6_low_speed_angle_assist_curve(self):
     base = 0.05

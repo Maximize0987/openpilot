@@ -128,6 +128,12 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"RecordAudioFeedback", {PERSISTENT, BOOL, "0"}},
     {"RecordFront", {PERSISTENT, BOOL}},
     {"RecordFrontLock", {PERSISTENT, BOOL}},  // for the internal fleet
+    {"SentryModeEnabled", {PERSISTENT, BOOL, "0", "0", 0, SETTINGS_SIMPLE}},
+    {"SentryModeCapture", {CLEAR_ON_MANAGER_START, BOOL}},
+    {"SentryModeLastEvent", {PERSISTENT, JSON, "{}", "{}"}},
+    {"SentryModeNtfyUrl", {PERSISTENT, STRING}},
+    {"SentryModeStatus", {CLEAR_ON_MANAGER_START | DONT_LOG, JSON}},
+    {"SentryModeWebhook", {PERSISTENT, STRING}},
     {"SecOCKey", {PERSISTENT | DONT_LOG, STRING}},
     {"ShowDebugInfo", {PERSISTENT, BOOL}},
     {"ShowAllToggles", {PERSISTENT, BOOL, "0", "0", 3}},

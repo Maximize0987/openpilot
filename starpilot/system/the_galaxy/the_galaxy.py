@@ -39,6 +39,7 @@ from opendbc.car.toyota.values import ToyotaStarPilotFlags
 from openpilot.common.constants import CV
 from openpilot.common.params import ParamKeyFlag, ParamKeyType, Params
 from openpilot.common.realtime import DT_HW
+from openpilot.common.swaglog import cloudlog
 from openpilot.common.time_helpers import system_time_valid
 from openpilot.system.hardware import HARDWARE, PC
 from openpilot.system.hardware.hw import Paths
@@ -500,6 +501,85 @@ def _build_default_params():
   return defaults
 
 starpilot_default_params = _build_default_params()
+
+
+def _sentry_event_roots() -> tuple[Path, ...]:
+  roots = [Path("/data/media/0/sentryd")]
+  if PC:
+    roots.insert(0, Path(Paths.comma_home()) / "starpilot" / "data" / "sentryd")
+  return tuple(root.resolve() for root in roots)
+
+
+def _safe_sentry_image_paths(raw_paths) -> list[str]:
+  if not isinstance(raw_paths, list):
+    return []
+
+  roots = _sentry_event_roots()
+  safe_paths = []
+  for raw_path in raw_paths:
+    try:
+      path = Path(str(raw_path)).resolve()
+      if path.is_file() and any(path.is_relative_to(root) for root in roots):
+        safe_paths.append(str(path))
+    except (OSError, TypeError, ValueError):
+      continue
+  return safe_paths
+
+
+def _normalize_sentry_event(payload) -> dict | None:
+  if not isinstance(payload, dict):
+    return None
+
+  event_id = str(payload.get("eventId") or "").strip()
+  kind = str(payload.get("kind") or "").strip().lower()
+  if not event_id or kind not in {"warning", "alarm"}:
+    return None
+
+  return {
+    "eventId": event_id[:96],
+    "kind": kind,
+    "detectedAt": str(payload.get("detectedAt") or ""),
+    "message": str(payload.get("message") or "Movement detected while parked.")[:500],
+    "imagePaths": _safe_sentry_image_paths(payload.get("imagePaths")),
+  }
+
+
+def _dispatch_sentry_event(event: dict) -> None:
+  message = f"🚨 StarPilot Sentry Mode: {event['message']}"
+  webhook = (params.get("SentryModeWebhook", encoding="utf-8") or "").strip()
+  if webhook:
+    files = []
+    handles = []
+    try:
+      for image_path in event.get("imagePaths", []):
+        handle = open(image_path, "rb")
+        handles.append(handle)
+        files.append(("file", (Path(image_path).name, handle, "image/jpeg")))
+
+      body = {"content": message, "event": json.dumps(event, separators=(",", ":"))}
+      response = requests.post(webhook, data=body, files=files or None, timeout=10)
+      response.raise_for_status()
+    except Exception:
+      cloudlog.exception("Galaxy: sentry webhook notification failed")
+    finally:
+      for handle in handles:
+        try:
+          handle.close()
+        except OSError:
+          pass
+
+  ntfy_url = (params.get("SentryModeNtfyUrl", encoding="utf-8") or "").strip()
+  if ntfy_url:
+    try:
+      response = requests.post(
+        ntfy_url,
+        data=message.encode("utf-8"),
+        headers={"Title": "StarPilot Sentry Mode", "Priority": "urgent", "Tags": "warning,car"},
+        timeout=10,
+      )
+      response.raise_for_status()
+    except Exception:
+      cloudlog.exception("Galaxy: ntfy notification failed")
 
 TOGGLE_BACKUP_FORMAT = "starpilot-toggle-backup"
 TOGGLE_BACKUP_VERSION = 1
@@ -4059,11 +4139,13 @@ def setup(app):
   def disable_device_settings_asset_cache(response):
     if request.path in {
       "/assets/components/router.js",
+      "/assets/components/sentry_notifications.js",
       "/assets/components/home/home.js",
       "/assets/components/home/home.css",
       "/assets/components/tools/device_settings.js",
       "/assets/components/tools/device_settings.css",
       "/assets/components/tools/device_settings_layout.json",
+      "/assets/components/tools/galaxy.js",
       "/assets/components/tools/v_asm.js",
       "/assets/components/tools/v_asm.css",
       "/assets/components/tools/pip_sidecam.js",
@@ -6593,6 +6675,38 @@ def setup(app):
       "message": "Factory reset started. Device will reboot when complete.",
       "warning": "This wipes local params, backups, themes, models, maps, and route data.",
     }), 202
+
+  @app.route("/api/sentry/status", methods=["GET"])
+  def sentry_status():
+    raw_event = params.get("SentryModeLastEvent", encoding="utf-8") or "{}"
+    raw_status = params.get("SentryModeStatus", encoding="utf-8") or "{}"
+    try:
+      last_event = json.loads(raw_event)
+    except (TypeError, ValueError, json.JSONDecodeError):
+      last_event = {}
+    try:
+      status = json.loads(raw_status)
+    except (TypeError, ValueError, json.JSONDecodeError):
+      status = {}
+
+    return jsonify({
+      "enabled": params.get_bool("SentryModeEnabled"),
+      "status": status if isinstance(status, dict) else {},
+      "lastEvent": last_event if isinstance(last_event, dict) else {},
+    })
+
+  @app.route("/api/sentry/events", methods=["POST"])
+  def sentry_event():
+    if request.remote_addr not in {None, "127.0.0.1", "::1"}:
+      return jsonify({"error": "Sentry events must originate on the device."}), 403
+
+    event = _normalize_sentry_event(request.get_json(silent=True))
+    if event is None:
+      return jsonify({"error": "Invalid sentry event."}), 400
+
+    params.put("SentryModeLastEvent", json.dumps(event, separators=(",", ":")))
+    threading.Thread(target=_dispatch_sentry_event, args=(event,), name="galaxy-sentry-notify", daemon=True).start()
+    return jsonify({"accepted": True, "eventId": event["eventId"]}), 202
 
   # ── Galaxy pairing (mirrors settings.cc L262-282) ──────────────────
   GALAXY_DIR = _get_galaxy_dir()

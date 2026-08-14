@@ -404,6 +404,8 @@ class LatControlTorque(LatControl):
           get_ioniq_6_directional_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo))
         ff *= get_ioniq_6_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo,
                                    directional_taper_scale=ioniq_6_directional_taper) * ioniq_6_center_taper
+        if not self.is_ioniq_6_2025:
+          ff *= get_ioniq_6_2023_unwind_ff_scale(setpoint, measurement, desired_lateral_jerk, CS.vEgo)
         friction_threshold = get_ioniq_6_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk) / max(ioniq_6_center_taper, 1e-3)
         friction_scale = get_ioniq_6_friction_scale(CS.vEgo, setpoint, desired_lateral_jerk)
         friction_scale = 1.0 + ((friction_scale - 1.0) * ioniq_6_center_taper)

@@ -272,6 +272,11 @@ function syncInputs() {
     el.value = resolveColorInputValue(param)
   }
 
+  for (const el of document.querySelectorAll("input.ds-text-input[id^='ds-']")) {
+    if (document.activeElement === el) continue
+    el.value = toSelectValue(state.values[el.id.slice(3)])
+  }
+
   // Sync selects — hydrate options + set value
   for (const el of document.querySelectorAll("select.ds-select[id^='ds-']")) {
     const key = el.id.slice(3)
@@ -1475,6 +1480,7 @@ function renderSettingRow(p) {
 
   const isNumeric = p.ui_type === "numeric"
   const isSlider = isNumeric && p.control === "slider"
+  const isText = p.ui_type === "text"
   const isColor = p.ui_type === "color"
   const isAction = p.ui_type === "action"
   const isGroup = isGroupParam(p)
@@ -1599,6 +1605,17 @@ function renderSettingRow(p) {
         @change="${() => updateParam(p.key, "dropdown")}">
         <option value="">Loading...</option>
       </select>
+    `
+  } else if (isText) {
+    rowControl = html`
+      <input
+        type="${p.input_type || "text"}"
+        class="ds-manual-input ds-text-input"
+        id="ds-${p.key}"
+        value="${() => toSelectValue(state.values[p.key])}"
+        placeholder="${p.placeholder || ""}"
+        disabled="${() => isLocked()}"
+        @change="${() => updateParam(p.key, "text")}" />
     `
   } else if (p.ui_type === "color") {
     rowControl = html`
