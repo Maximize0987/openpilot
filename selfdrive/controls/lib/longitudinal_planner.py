@@ -517,8 +517,8 @@ TRACKED_VISION_MODEL_CAP_MIN_DECEL = 0.45
 TRACKED_VISION_MODEL_CAP_MAX_DECEL = 1.10
 
 # Lookup table for turns
-_A_TOTAL_MAX_V = [3.5, 3.5, 3.2]
-_A_TOTAL_MAX_BP = [0., 20., 40.]
+_A_TOTAL_MAX_V = [3.5, 4.2, 5.8]
+_A_TOTAL_MAX_BP = [0., 20., 50.]
 
 _preap_follow_cache = None
 
