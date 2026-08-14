@@ -541,7 +541,7 @@ class ModelRenderer(Widget):
 
     leadin = [-8, -4, 0]
     leadout = [51, 153, 255]
-    leadcolor = int(round(np.interp(v_rel, leadin, leadout)))
+    leadcolor = int(round(np.interp(vrel_string, leadin, leadout)))
     color_lead = rl.Color(255, leadcolor, 51, 255)
     
     distance_string = f"{round(lead_distance * distance_conversion)}"
