@@ -22,7 +22,7 @@ from opendbc.car.interfaces import TORQUE_SUBSTITUTE_PATH, CarInterfaceBase, Gea
 from opendbc.car.mock.values import CAR as MOCK
 from opendbc.car.subaru.values import SubaruFlags
 from opendbc.car.tesla.values import CAR as TESLA_CAR
-from opendbc.car.toyota.values import CAR as TOYOTA_CAR, ToyotaStarPilotFlags
+from opendbc.car.toyota.values import CAR as TOYOTA_CAR, TSS2_CAR, ToyotaStarPilotFlags
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.constants import CV
 from openpilot.common.params import Params
@@ -619,7 +619,8 @@ class StarPilotVariables:
     hyundai_can_use_lkas_for_aol = toggle.car_make == "hyundai" and (
       bool(CP.flags & HyundaiFlags.CANFD) or hyundai_has_lda_button
     )
-    toggle.lkas_allowed_for_aol = hyundai_can_use_lkas_for_aol or toggle.car_make == "honda"
+    toyota_can_use_lkas_for_aol = toggle.car_make == "toyota" and CP.carFingerprint in TSS2_CAR
+    toggle.lkas_allowed_for_aol = hyundai_can_use_lkas_for_aol or toggle.car_make == "honda" or toyota_can_use_lkas_for_aol
     longitudinalActuatorDelay = CP.longitudinalActuatorDelay
     toggle.openpilot_longitudinal = CP.openpilotLongitudinalControl and not toggle.disable_openpilot_long
     if not toggle.redneck_cruise_available or (toggle.openpilot_longitudinal and FPCP.pcmCruiseSpeed):

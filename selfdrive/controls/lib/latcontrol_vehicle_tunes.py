@@ -1088,6 +1088,14 @@ RAV4_TSS2_PID_CENTER_ANGLE = 14.0
 RAV4_TSS2_PID_CENTER_ANGLE_WIDTH = 3.0
 RAV4_TSS2_PID_OUTPUT_SCALE_MIN = 0.62
 RAV4_TSS2_PID_OUTPUT_ALPHA_MIN = 0.28
+RAV4_TSS2_CENTER_FRICTION_THRESHOLD_GAIN = 0.14
+RAV4_TSS2_CENTER_FRICTION_LAT = 0.30
+RAV4_TSS2_CENTER_FRICTION_LAT_WIDTH = 0.08
+RAV4_TSS2_CENTER_SPEED = 13.0
+RAV4_TSS2_CENTER_SPEED_WIDTH = 3.0
+RAV4_TSS2_CENTER_OUTPUT_TAPER_MAX = 0.12
+RAV4_TSS2_CENTER_OUTPUT_LAT = 0.30
+RAV4_TSS2_CENTER_OUTPUT_LAT_WIDTH = 0.08
 
 RAM_1500_TRANSITION_TAPER_MAX = 0.34
 RAM_1500_TRANSITION_SPEED_ONSET = 10.0
@@ -1586,6 +1594,30 @@ def get_rav4_tss2_pid_output(output_torque: float, prev_output_torque: float,
   output_alpha = 1.0 - ((1.0 - RAV4_TSS2_PID_OUTPUT_ALPHA_MIN) * envelope)
   limited_output = output_torque * output_scale
   return float(prev_output_torque + output_alpha * (limited_output - prev_output_torque))
+
+
+def _rav4_tss2_center_envelope(desired_lateral_accel: float, v_ego: float) -> float:
+  speed_weight = _sigmoid((RAV4_TSS2_CENTER_SPEED - max(v_ego, 0.0)) /
+                          RAV4_TSS2_CENTER_SPEED_WIDTH)
+  center_weight = _sigmoid((RAV4_TSS2_CENTER_FRICTION_LAT - abs(desired_lateral_accel)) /
+                           RAV4_TSS2_CENTER_FRICTION_LAT_WIDTH)
+  return speed_weight * center_weight
+
+
+def get_rav4_tss2_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,
+                                     desired_lateral_jerk: float = 0.0) -> float:
+  del desired_lateral_jerk
+  gain = _flm_vehicle_knob("toyota_rav4_tss2.center_friction_threshold_gain",
+                           RAV4_TSS2_CENTER_FRICTION_THRESHOLD_GAIN)
+  return get_standard_friction_threshold(v_ego) * (
+    1.0 + gain * _rav4_tss2_center_envelope(desired_lateral_accel, v_ego)
+  )
+
+
+def get_rav4_tss2_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  reduction = _flm_vehicle_knob("toyota_rav4_tss2.center_output_taper_max",
+                                RAV4_TSS2_CENTER_OUTPUT_TAPER_MAX)
+  return 1.0 - reduction * _rav4_tss2_center_envelope(desired_lateral_accel, v_ego)
 
 
 def get_ram_1500_transition_output_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:

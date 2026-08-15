@@ -108,6 +108,7 @@ class LatControlTorque(LatControl):
     self.is_palisade = CP.carFingerprint in PALISADE_CARS
     self.is_prius = CP.carFingerprint in PRIUS_CARS
     self.is_camry = CP.carFingerprint in CAMRY_CARS
+    self.is_rav4_tss2 = CP.carFingerprint in RAV4_TSS2_CARS
     self.is_rav4_prime = CP.carFingerprint in RAV4_PRIME_CARS
     self.is_sienna_4th_gen = CP.carFingerprint in SIENNA_4TH_GEN_CARS
     self.is_lexus_is = CP.carFingerprint in LEXUS_IS_CARS
@@ -301,6 +302,7 @@ class LatControlTorque(LatControl):
       genesis_g70_active = self.is_genesis_g70
       prius_active = self.is_prius
       camry_active = self.is_camry
+      rav4_tss2_active = self.is_rav4_tss2
       rav4_prime_active = self.is_rav4_prime
       sienna_4th_gen_active = self.is_sienna_4th_gen
       lexus_is_active = self.is_lexus_is
@@ -381,6 +383,8 @@ class LatControlTorque(LatControl):
       elif camry_active:
         ff *= get_camry_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
         friction_threshold = get_camry_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
+      elif rav4_tss2_active:
+        friction_threshold = get_rav4_tss2_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
       elif rav4_prime_active:
         ff *= get_rav4_prime_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
         friction_threshold = get_rav4_prime_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
@@ -555,6 +559,8 @@ class LatControlTorque(LatControl):
         rapid_reversal = setpoint * desired_lateral_jerk < 0.0
         if output_torque * setpoint > 0.0 or rapid_reversal:
           output_torque *= get_kona_non_scc_highway_transition_output_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+      elif rav4_tss2_active:
+        output_torque *= get_rav4_tss2_center_output_scale(setpoint, CS.vEgo)
       elif rav4_prime_active:
         output_torque *= get_rav4_prime_output_taper_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif sienna_4th_gen_active:

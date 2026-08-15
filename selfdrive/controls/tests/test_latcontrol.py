@@ -99,6 +99,8 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_rav4_prime_friction_scale,
   get_rav4_prime_friction_threshold,
   get_rav4_prime_output_taper_scale,
+  get_rav4_tss2_center_output_scale,
+  get_rav4_tss2_friction_threshold,
   get_sienna_4th_gen_center_taper_scale,
   get_sienna_4th_gen_ff_scale,
   get_sienna_4th_gen_friction_threshold,
@@ -1654,6 +1656,29 @@ class TestLatControl:
     assert abs(low_speed) < 0.50
     assert abs(large_turn) > abs(low_speed)
     assert highway > low_speed
+
+  def test_rav4_tss2_torque_center_tune_fades_before_real_turns(self):
+    low_speed_center = get_rav4_tss2_center_output_scale(0.05, 8.0)
+    low_speed_turn = get_rav4_tss2_center_output_scale(1.0, 8.0)
+    highway_center = get_rav4_tss2_center_output_scale(0.05, 22.0)
+
+    assert low_speed_center < low_speed_turn
+    assert low_speed_center < highway_center
+    assert get_rav4_tss2_friction_threshold(8.0, 0.05) > get_standard_friction_threshold(8.0)
+    assert get_rav4_tss2_friction_threshold(8.0, 1.0) == pytest.approx(get_standard_friction_threshold(8.0), rel=0.02)
+
+  def test_rav4_tss2_torque_update_path_applies_center_taper(self, monkeypatch):
+    tuned_controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(TOYOTA.TOYOTA_RAV4_TSS2, force_torque=True)
+    CS.vEgo = 8.0
+    tuned_output, _, lac_log = tuned_controller.update(True, CS, VM, params, False, 0.0, False, 0.2, None, None, starpilot_toggles)
+
+    monkeypatch.setattr(latcontrol_torque, "get_rav4_tss2_center_output_scale", lambda *_args: 1.0)
+    base_controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(TOYOTA.TOYOTA_RAV4_TSS2, force_torque=True)
+    CS.vEgo = 8.0
+    base_output, _, _ = base_controller.update(True, CS, VM, params, False, 0.0, False, 0.2, None, None, starpilot_toggles)
+
+    assert lac_log.active
+    assert abs(tuned_output) < abs(base_output)
 
   def test_rav4_tss2_pid_output_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_pid_controller(TOYOTA.TOYOTA_RAV4_TSS2)

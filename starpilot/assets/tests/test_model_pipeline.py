@@ -70,7 +70,7 @@ def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
     "DEV": "QCOM", "IMAGE": "2", "NOLOCALS": "1", "OPENPILOT_HACKS": "1",
   })
   monkeypatch.setattr(model_compiler.subprocess, "run", lambda command, **kwargs: invocations.append((command, kwargs)))
-  monkeypatch.setattr(model_compiler, "wait_for_external_gpu", lambda _: None)
+  monkeypatch.setattr(model_compiler, "wait_for_external_gpu", lambda: None)
   files = {"driving_supercombo": tmp_path / "model.onnx"}
 
   model_compiler.compile_driving("normal", files, "supercombo", "v15", tmp_path, "policy")
@@ -85,6 +85,22 @@ def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
   assert external_kwargs["env"]["DEV"] == "USB+AMD:LLVM"
   assert external_kwargs["env"]["WARP_DEV"] == "QCOM"
   assert all(flag not in external_kwargs["env"] for flag in ("IMAGE", "NOLOCALS", "OPENPILOT_HACKS"))
+
+
+def test_external_gpu_compile_uses_agnos_isolated_cpu(monkeypatch):
+  command = ["python3", "compile_modeld.py"]
+  monkeypatch.setattr(model_compiler.sys, "platform", "linux")
+  monkeypatch.setattr(model_compiler.platform, "machine", lambda: "aarch64")
+
+  assert model_compiler.external_gpu_compile_command(command) == ["taskset", "-c", "7", *command]
+
+
+def test_external_gpu_compile_does_not_pin_other_platforms(monkeypatch):
+  command = ["python3", "compile_modeld.py"]
+  monkeypatch.setattr(model_compiler.sys, "platform", "darwin")
+  monkeypatch.setattr(model_compiler.platform, "machine", lambda: "arm64")
+
+  assert model_compiler.external_gpu_compile_command(command) is command
 
 
 def test_compile_clears_only_selected_model_outputs(tmp_path, monkeypatch):

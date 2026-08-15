@@ -8,6 +8,7 @@ from openpilot.selfdrive.ui.ui_state import ui_state
 from cereal import car, log, custom, messaging
 from opendbc.car.gm.values import GMFlags
 from opendbc.car.hyundai.values import HyundaiFlags
+from opendbc.car.toyota.values import TSS2_CAR
 from openpilot.starpilot.common.lateral_delay import full_lateral_delay
 
 @dataclass
@@ -175,7 +176,8 @@ class StarPilotState:
             self.car_state.hasModeStarButtons = car_make == "hyundai" and bool(cp_flags & HyundaiFlags.CANFD)
             self.car_state.lkasAllowedForAOL = (
                 (car_make == "hyundai" and (bool(cp_flags & HyundaiFlags.CANFD) or starpilot_toggles.get("lkas_allowed_for_aol", False))) or
-                car_make == "honda"
+                car_make == "honda" or
+                (car_make == "toyota" and car_fingerprint in TSS2_CAR)
             )
             self.car_state.longitudinalActuatorDelay = float(self._safe_get(CP, "longitudinalActuatorDelay", self.car_state.longitudinalActuatorDelay))
             self.car_state.startAccel = float(self._safe_get(CP, "startAccel", self.car_state.startAccel))
