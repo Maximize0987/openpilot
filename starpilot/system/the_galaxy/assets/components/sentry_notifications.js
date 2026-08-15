@@ -72,6 +72,17 @@ function subscriptionPayload(subscription) {
   }
 }
 
+async function readJsonResponse(response) {
+  const body = await response.text()
+  if (!body) return {}
+
+  try {
+    return JSON.parse(body)
+  } catch {
+    throw new Error(`Galaxy returned an unexpected ${response.status} response. Check the device connection or Galaxy tunnel.`)
+  }
+}
+
 export async function enableSentryPush() {
   if (typeof Notification === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
     return { ok: false, message: "This browser does not support Chrome Web Push." }
@@ -86,7 +97,7 @@ export async function enableSentryPush() {
   }
 
   const configResponse = await fetch("/api/sentry/push/config", { cache: "no-store" })
-  const config = await configResponse.json()
+  const config = await readJsonResponse(configResponse)
   if (!configResponse.ok || !config.enabled || !config.publicKey) {
     return { ok: false, message: config.error || "Galaxy Web Push is unavailable." }
   }
@@ -106,14 +117,14 @@ export async function enableSentryPush() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(subscriptionPayload(subscription)),
   })
-  const payload = await response.json()
+  const payload = await readJsonResponse(response)
   if (!response.ok) return { ok: false, message: payload.error || "Galaxy could not save this browser." }
   return { ok: true, message: "Chrome notifications enabled for this browser." }
 }
 
 export async function sendSentryTestPush() {
   const response = await fetch("/api/sentry/push/test", { method: "POST" })
-  const payload = await response.json()
+  const payload = await readJsonResponse(response)
   if (!response.ok) throw new Error(payload.error || "Galaxy could not send the test push.")
   return payload
 }
