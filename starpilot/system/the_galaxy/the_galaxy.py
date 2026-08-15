@@ -5504,10 +5504,10 @@ def setup(app):
 
   def _default_model_key():
     default_key = _param_text(params.get_default_value("Model") or params.get_default_value("DrivingModel"))
-    return canonical_model_key(default_key) or "rdf"
+    return canonical_model_key(default_key) or "rdf43"
 
   def _default_model_name():
-    return _param_text(params.get_default_value("DrivingModelName")) or "Regret Driven Framework"
+    return _param_text(params.get_default_value("DrivingModelName")) or "Regret Driven Framework V4"
 
   def _default_model_version():
     default_version = _param_text(params.get_default_value("ModelVersion") or params.get_default_value("DrivingModelVersion"))

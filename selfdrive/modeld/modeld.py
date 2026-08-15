@@ -48,8 +48,8 @@ from openpilot.starpilot.common.starpilot_variables import get_starpilot_toggles
 PROCESS_NAME = "selfdrive.modeld.modeld"
 SEND_RAW_PRED = os.getenv('SEND_RAW_PRED')
 
-BUILTIN_MODEL_KEY = "rdf"
-BUILTIN_MODEL_ALIASES = {BUILTIN_MODEL_KEY}
+BUILTIN_MODEL_KEY = "rdf43"
+BUILTIN_MODEL_ALIASES = {BUILTIN_MODEL_KEY, "rdf"}
 MODEL_ID_ALIASES = {"sc": "sc2"}
 
 
@@ -125,7 +125,7 @@ def _canonical_model_id(model_id: str) -> str:
 def _select_builtin_model(params: Params) -> None:
   params.put("Model", BUILTIN_MODEL_KEY)
   params.put("DrivingModel", BUILTIN_MODEL_KEY)
-  params.put("DrivingModelName", "Regret Driven Framework")
+  params.put("DrivingModelName", "Regret Driven Framework V4")
 
 
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,

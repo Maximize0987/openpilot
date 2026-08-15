@@ -386,7 +386,7 @@ class TestManager:
     assert params_cache.get("CEModelStopTime") == "7.7"
 
   def test_migrate_starpilot_default_model(self, tmp_path, monkeypatch):
-    monkeypatch.setattr(manager, "STARPILOT_DEFAULT_MODEL_MIGRATION_FLAG", tmp_path / "starpilot_default_model_rdf_v1")
+    monkeypatch.setattr(manager, "STARPILOT_DEFAULT_MODEL_MIGRATION_FLAG", tmp_path / "starpilot_default_model_rdf_v4")
 
     params = FileBackedFakeParams(tmp_path / "params", {
       "Model": "sc2",
@@ -399,11 +399,11 @@ class TestManager:
 
     manager.migrate_starpilot_default_model(params, params_cache)
 
-    assert params.get("Model") == "rdf"
-    assert params.get("DrivingModel") == "rdf"
-    assert params.get("DrivingModelName") == "Regret Driven Framework"
+    assert params.get("Model") == "rdf43"
+    assert params.get("DrivingModel") == "rdf43"
+    assert params.get("DrivingModelName") == "Regret Driven Framework V4"
     assert params.get("ModelVersion") == "v15"
-    assert params_cache.get("DrivingModel") == "rdf"
+    assert params_cache.get("DrivingModel") == "rdf43"
     assert manager.STARPILOT_DEFAULT_MODEL_MIGRATION_FLAG.exists()
 
   def test_migrate_starpilot_ce_model_stop_time(self, tmp_path, monkeypatch):

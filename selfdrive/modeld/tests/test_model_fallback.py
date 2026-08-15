@@ -30,7 +30,7 @@ def test_incompatible_downloaded_model_falls_back_to_builtin(monkeypatch):
   assert params.values == {
     "Model": modeld.BUILTIN_MODEL_KEY,
     "DrivingModel": modeld.BUILTIN_MODEL_KEY,
-    "DrivingModelName": "Regret Driven Framework",
+    "DrivingModelName": "Regret Driven Framework V4",
   }
 
 
