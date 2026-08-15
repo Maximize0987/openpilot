@@ -1160,6 +1160,22 @@ def test_gm_stock_truck_target_filter_smooths_mild_follow_reversals():
   assert filtered_brake < filtered_accel < 0.25
 
 
+def test_gm_stock_truck_target_filter_uses_comfort_slew_for_mild_braking():
+  CP = make_longcontrol_cp(
+    brand="gm",
+    carFingerprint=CAR.CHEVROLET_SILVERADO,
+    enableGasInterceptorDEPRECATED=False,
+  )
+  tuning = LongControl(CP).vehicle_tuning
+
+  tuning.shape_gm_truck_accel_target(0.30, 25.0, False)
+  filtered = tuning.shape_gm_truck_accel_target(-0.10, 25.0, False)
+  expected = 0.30 + vehicle_tunes.DT_CTRL / (vehicle_tunes.GM_TRUCK_TARGET_FILTER_DOWN_TAU + vehicle_tunes.DT_CTRL) * (-0.40)
+
+  assert filtered == pytest.approx(expected)
+  assert filtered > -0.10
+
+
 def test_gm_stock_truck_target_filter_bypasses_urgent_braking():
   CP = make_longcontrol_cp(
     brand="gm",

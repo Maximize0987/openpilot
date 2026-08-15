@@ -358,8 +358,8 @@ class TestSubaruGen2AngleStockLongitudinalSafety(TestSubaruStockLongitudinalSafe
   TX_MSGS = lkas_tx_msgs(SUBARU_ALT_BUS, SubaruMsg.ES_LKAS_ANGLE)
 
 
-class TestSubaruGen2Legacy2025AngleSafety(TestSubaruGen2AngleStockLongitudinalSafety):
-  FLAGS = SubaruSafetyFlags.GEN2 | SubaruSafetyFlags.LKAS_ANGLE | SubaruSafetyFlags.LEGACY_2025_ANGLE_LIMITS
+class TestSubaruGen2FixedAngleSafety(TestSubaruGen2AngleStockLongitudinalSafety):
+  FLAGS = SubaruSafetyFlags.GEN2 | SubaruSafetyFlags.LKAS_ANGLE | SubaruSafetyFlags.FIXED_ANGLE_LIMITS
   STEER_ANGLE_MAX = 545
   ANGLE_RATE_BP = [0., 5., 35.]
   ANGLE_RATE_UP = [5., .8, .15]

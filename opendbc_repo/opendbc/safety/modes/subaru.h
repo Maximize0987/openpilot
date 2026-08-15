@@ -107,7 +107,7 @@ static bool subaru_longitudinal = false;
 static bool subaru_stop_and_go = false;
 static bool subaru_lkas_angle = false;
 static bool subaru_d_platform = false;
-static bool subaru_legacy_2025_angle_limits = false;
+static bool subaru_fixed_angle_limits = false;
 
 static uint32_t subaru_get_checksum(const CANPacket_t *msg) {
   return (uint8_t)msg->data[0];
@@ -192,7 +192,7 @@ static bool subaru_tx_hook(const CANPacket_t *msg) {
     .frequency = 50U,
   };
 
-  const AngleSteeringLimits SUBARU_LEGACY_2025_ANGLE_STEERING_LIMITS = {
+  const AngleSteeringLimits SUBARU_FIXED_ANGLE_STEERING_LIMITS = {
     .max_angle = 545 * 100,
     .angle_deg_to_can = 100.,
     .angle_rate_up_lookup = {
@@ -241,8 +241,8 @@ static bool subaru_tx_hook(const CANPacket_t *msg) {
     desired_angle = -1 * to_signed(desired_angle, 17);
     bool lkas_request = GET_BIT(msg, 12U);
 
-    if (subaru_legacy_2025_angle_limits) {
-      violation |= steer_angle_cmd_checks(desired_angle, lkas_request, SUBARU_LEGACY_2025_ANGLE_STEERING_LIMITS);
+    if (subaru_fixed_angle_limits) {
+      violation |= steer_angle_cmd_checks(desired_angle, lkas_request, SUBARU_FIXED_ANGLE_STEERING_LIMITS);
     } else {
       violation |= steer_angle_cmd_checks_vm(desired_angle, lkas_request, SUBARU_ANGLE_STEERING_LIMITS, SUBARU_ANGLE_STEERING_PARAMS);
     }
@@ -375,8 +375,8 @@ static safety_config subaru_init(uint16_t param) {
   const uint16_t SUBARU_PARAM_D_PLATFORM_CAMERA = 64;
   const bool subaru_d_platform_camera = GET_FLAG(param, SUBARU_PARAM_D_PLATFORM_CAMERA);
 
-  const uint16_t SUBARU_PARAM_LEGACY_2025_ANGLE_LIMITS = 128;
-  subaru_legacy_2025_angle_limits = GET_FLAG(param, SUBARU_PARAM_LEGACY_2025_ANGLE_LIMITS);
+  const uint16_t SUBARU_PARAM_FIXED_ANGLE_LIMITS = 128;
+  subaru_fixed_angle_limits = GET_FLAG(param, SUBARU_PARAM_FIXED_ANGLE_LIMITS);
 
 #ifdef ALLOW_DEBUG
   const uint16_t SUBARU_PARAM_LONGITUDINAL = 2;

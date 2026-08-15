@@ -19,11 +19,12 @@ class CarControllerParams:
     MAX_LATERAL_JERK=3.0 + (ACCELERATION_DUE_TO_GRAVITY * 0.06),
     MAX_ANGLE_RATE=1,
   )
-  LEGACY_2025_ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
+  FIXED_ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
     545,
     ([0., 5., 35.], [5., .8, .15]),
     ([0., 5., 35.], [5., .8, .15]),
   )
+  LEGACY_2025_ANGLE_LIMITS = FIXED_ANGLE_LIMITS
 
   def __init__(self, CP):
     self.STEER_STEP = 2                # how often we update the steer cmd
@@ -81,7 +82,8 @@ class SubaruSafetyFlags(IntFlag):
   LKAS_ANGLE = 16
   D_PLATFORM = 32
   D_PLATFORM_CAMERA = 64
-  LEGACY_2025_ANGLE_LIMITS = 128
+  FIXED_ANGLE_LIMITS = 128
+  LEGACY_2025_ANGLE_LIMITS = FIXED_ANGLE_LIMITS
 
 
 class SubaruFlags(IntFlag):

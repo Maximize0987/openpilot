@@ -939,6 +939,7 @@ _fast_update_state = {
   "progressLabel": "Idle",
   "progressDetail": "",
 }
+_ROUTE_DELETE_LOCK = threading.Lock()
 
 _FACTORY_RESET_WIPE_PATHS = [
   "/data/params",
@@ -5646,22 +5647,43 @@ def setup(app):
           delete_file(os.path.join(footage_path, segment))
     return {"message": "Route deleted!"}, 200
 
-  @app.route("/api/routes/delete_all", methods=["DELETE"])
+  @app.route("/api/routes/delete_all", methods=["DELETE", "POST"])
   def delete_all_routes():
-    route_names = set()
-    for footage_path in FOOTAGE_PATHS:
-      if os.path.exists(footage_path):
-        for segment in os.listdir(footage_path):
-          route_names.add(segment.split("--")[0])
+    if _safe_params_get_bool("IsOnroad"):
+      return jsonify({"error": "Cannot delete driving routes while driving."}), 409
 
-    for route_name in sorted(list(route_names)):
+    if not _ROUTE_DELETE_LOCK.acquire(blocking=False):
+      return jsonify({"error": "Route deletion is already in progress."}), 409
+
+    try:
+      utilities.stop_dashboard_background_analysis()
+
+      route_paths = []
+      seen_paths = set()
       for footage_path in FOOTAGE_PATHS:
-        if os.path.exists(footage_path):
-          for segment in os.listdir(footage_path):
-            if segment.startswith(route_name):
-              delete_file(os.path.join(footage_path, segment))
+        path = str(footage_path).rstrip("/")
+        if path and path not in seen_paths:
+          seen_paths.add(path)
+          route_paths.append(path)
 
-    return {"message": "All routes deleted!"}, 200
+      for route_path in route_paths:
+        _run_factory_reset_delete(route_path)
+
+      persisted_route_count = utilities.clear_dashboard_route_history(params)
+      _STATS_RESPONSE_CACHE.update({
+        "updated_at": 0.0,
+        "payload": None,
+      })
+      return jsonify({
+        "success": True,
+        "message": "All local driving routes deleted. Saved personal records were kept.",
+        "deletedPaths": len(route_paths),
+        "clearedDashboardRoutes": persisted_route_count,
+      }), 200
+    except Exception as exception:
+      return jsonify({"error": f"Failed to delete driving routes: {exception}"}), 500
+    finally:
+      _ROUTE_DELETE_LOCK.release()
 
   @app.route("/api/routes/<name>/preserve", methods=["POST"])
   def preserve_route(name):
