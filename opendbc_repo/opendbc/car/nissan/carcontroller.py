@@ -29,7 +29,7 @@ class CarController(CarControllerBase):
 
     can_sends = []
 
-    if self.CP.openpilotLongitudinalControl and self.car_fingerprint in (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC):
+    if self.CP.openpilotLongitudinalControl and self.car_fingerprint == CAR.NISSAN_LEAF:
       accel = float(np.clip(actuators.accel, CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX))
       stopping = actuators.longControlState == LongCtrlState.stopping
       brake_mode = CC.longActive and (accel < CarControllerParams.PROPILOT_ACCEL_MIN or stopping)

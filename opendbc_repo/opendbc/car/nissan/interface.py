@@ -7,9 +7,16 @@ from opendbc.car.nissan.values import CAR, CarControllerParams, NissanSafetyFlag
                                        NISSAN_DIAGNOSTIC_REQUEST_KWP, NISSAN_DIAGNOSTIC_RESPONSE_KWP, NISSAN_RX_OFFSET
 
 
-LEAF_LONGITUDINAL_CARS = (CAR.NISSAN_LEAF, CAR.NISSAN_LEAF_IC)
 LEAF_ADAS_ECU_ADDR = 0x707
 LEAF_ADAS_ECU_BUS = 0
+LEAF_2025_SV_PLUS_CAMERA_FW = b'6WK2CDB\x04\x18\x00\x00\x00\x00\x00R=1\x18\x99\x10\x00\x00\x00\x80'
+
+
+def is_leaf_2025_sv_plus_longitudinal(candidate, car_fw):
+  return candidate == CAR.NISSAN_LEAF and any(
+    fw.address == LEAF_ADAS_ECU_ADDR and bytes(fw.fwVersion) == LEAF_2025_SV_PLUS_CAMERA_FW
+    for fw in car_fw
+  )
 
 
 class CarInterface(CarInterfaceBase):
@@ -18,7 +25,7 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def get_pid_accel_limits(CP, current_speed, cruise_speed):
-    if CP.carFingerprint in LEAF_LONGITUDINAL_CARS and CP.openpilotLongitudinalControl:
+    if CP.carFingerprint == CAR.NISSAN_LEAF and CP.openpilotLongitudinalControl:
       return CarControllerParams.ACCEL_MIN, CarControllerParams.ACCEL_MAX
     return CarInterfaceBase.get_pid_accel_limits(CP, current_speed, cruise_speed)
 
@@ -35,7 +42,7 @@ class CarInterface(CarInterfaceBase):
     ret.steerControlType = structs.CarParams.SteerControlType.angle
     ret.radarUnavailable = True
 
-    ret.alphaLongitudinalAvailable = candidate in LEAF_LONGITUDINAL_CARS
+    ret.alphaLongitudinalAvailable = is_leaf_2025_sv_plus_longitudinal(candidate, car_fw)
     ret.openpilotLongitudinalControl = alpha_long and ret.alphaLongitudinalAvailable
     ret.pcmCruise = not ret.openpilotLongitudinalControl
 
@@ -55,7 +62,7 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def init(CP, can_recv, can_send):
-    if not (CP.openpilotLongitudinalControl and CP.carFingerprint in LEAF_LONGITUDINAL_CARS):
+    if not (CP.openpilotLongitudinalControl and CP.carFingerprint == CAR.NISSAN_LEAF):
       return
 
     from openpilot.common.params import Params
@@ -83,7 +90,7 @@ class CarInterface(CarInterfaceBase):
 
   @staticmethod
   def deinit(CP, can_recv, can_send):
-    if not (CP.openpilotLongitudinalControl and CP.carFingerprint in LEAF_LONGITUDINAL_CARS):
+    if not (CP.openpilotLongitudinalControl and CP.carFingerprint == CAR.NISSAN_LEAF):
       return
 
     communication_control = bytes([uds.SERVICE_TYPE.COMMUNICATION_CONTROL,

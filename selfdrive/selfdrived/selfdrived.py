@@ -13,6 +13,7 @@ from msgq.visionipc import VisionIpcClient, VisionStreamType
 from opendbc.car.chrysler.values import pacifica_hybrid_aol_stock_acc_mode
 from opendbc.car.gm.values import GMFlags
 from opendbc.car.hyundai.values import CAR as HYUNDAI_CAR
+from opendbc.car.nissan.values import CAR as NISSAN_CAR
 
 from openpilot.common.params import Params
 from openpilot.common.realtime import config_realtime_process, Priority, Ratekeeper, DT_CTRL
@@ -223,6 +224,10 @@ class SelfdriveD:
     self.logged_comm_issue = None
     self.not_running_prev = None
     self.experimental_mode = False
+    self.ecu_disable_failed = False
+    self.ecu_disable_failed_checked = not (
+      self.CP.openpilotLongitudinalControl and self.CP.carFingerprint == NISSAN_CAR.NISSAN_LEAF
+    )
     self.safe_mode = self.params.get_bool("SafeMode")
     self.personality = log.LongitudinalPersonality.relaxed if self.safe_mode else self.params.get("LongitudinalPersonality", return_default=True)
     self.recalibrating_seen = False
@@ -276,6 +281,23 @@ class SelfdriveD:
 
     self.FPCP = messaging.log_from_bytes(self.params.get("StarPilotCarParams", block=True), custom.StarPilotCarParams)
 
+  def update_ecu_disable_failed(self):
+    if self.ecu_disable_failed_checked:
+      return
+    if self.CP.carFingerprint != NISSAN_CAR.NISSAN_LEAF:
+      self.ecu_disable_failed_checked = True
+      return
+
+    if self.params.get_bool("ControlsReady"):
+      self.ecu_disable_failed = self.params.get_bool("EcuDisableFailed")
+      self.ecu_disable_failed_checked = True
+      if self.ecu_disable_failed:
+        fallback_cp = messaging.log_from_bytes(self.params.get("CarParams"), car.CarParams)
+        fallback_fpcp = messaging.log_from_bytes(self.params.get("StarPilotCarParams"), custom.StarPilotCarParams)
+        self.CP.openpilotLongitudinalControl = fallback_cp.openpilotLongitudinalControl
+        self.CP.pcmCruise = fallback_cp.pcmCruise
+        self.FPCP = fallback_fpcp
+
   def clear_longitudinal_excessive_actuation_alert(self):
     alert = self.params.get("Offroad_ExcessiveActuation")
     if not alert:
@@ -305,6 +327,7 @@ class SelfdriveD:
   def update_events(self, CS):
     """Compute onroadEvents from carState"""
 
+    self.update_ecu_disable_failed()
     self.events.clear()
     self.starpilot_events.clear()
 

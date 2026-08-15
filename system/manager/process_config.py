@@ -88,7 +88,8 @@ def allow_logging(started: bool, params: Params, CP: car.CarParams, starpilot_to
   return not starpilot_toggles.no_logging
 
 def allow_uploads(started: bool, params: Params, CP: car.CarParams, starpilot_toggles: SimpleNamespace) -> bool:
-  return params.get_bool("AlwaysAllowUploads") or not starpilot_toggles.no_uploads or starpilot_toggles.no_onroad_uploads
+  return (params.get_bool("AlwaysAllowUploads") or not starpilot_toggles.no_uploads or
+          (starpilot_toggles.no_onroad_uploads and not started))
 
 def run_speed_limit_filler(started: bool, params: Params, CP: car.CarParams, starpilot_toggles: SimpleNamespace) -> bool:
   return starpilot_toggles.speed_limit_filler
@@ -227,7 +228,7 @@ procs = [
   PythonProcess("hardwared", "system.hardware.hardwared", always_run),
   PythonProcess("tombstoned", "system.tombstoned", always_run, enabled=not PC),
   PythonProcess("updated", "system.updated.updated", always_run, enabled=not PC),
-  PythonProcess("uploader", "system.loggerd.uploader", allow_uploads),
+  PythonProcess("uploader", "system.loggerd.uploader", allow_uploads, nice=19),
   PythonProcess("statsd", "system.statsd", always_run),
   PythonProcess("feedbackd", "selfdrive.ui.feedback.feedbackd", only_onroad),
 
