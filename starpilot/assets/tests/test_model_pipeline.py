@@ -20,7 +20,10 @@ def test_v24_is_the_only_manifest_candidate():
 
 
 def test_v24_manifest_is_loaded_from_models_checkout():
-  assert ModelManager._manifest_paths("v24") == ("Models/model_names_v24.json",)
+  assert ModelManager._manifest_paths("v24") == (
+    "model_names_v24.json",
+    "Models/model_names_v24.json",
+  )
 
 
 def test_old_manifest_ids_resolve_to_v23_namespace():

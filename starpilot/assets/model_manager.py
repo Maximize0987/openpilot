@@ -182,7 +182,12 @@ class ModelManager:
 
   @staticmethod
   def _manifest_paths(manifest_version: str) -> tuple[str, ...]:
-    return (f"Models/model_names_{manifest_version}.json",)
+    # Manifests are kept at the root of the Models branch; retain the nested
+    # path for older resource checkouts that stored them beside artifacts.
+    return (
+      f"model_names_{manifest_version}.json",
+      f"Models/model_names_{manifest_version}.json",
+    )
 
   def _set_model_param_keys(self, model_key: str | None = None, model_name: str | None = None, model_version: str | None = None):
     if model_key is not None and model_key != "":
