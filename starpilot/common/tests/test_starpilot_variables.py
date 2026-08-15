@@ -64,6 +64,19 @@ def test_get_starpilot_toggles_realtime_path_does_not_read_persisted_force_param
   assert toggles.force_torque_controller is False
 
 
+def test_get_starpilot_toggles_uses_live_rivian_angle_request(monkeypatch):
+  params = SimpleNamespace(get_bool=lambda key: key == "RivianAngleControl")
+  monkeypatch.setattr(spv.get_starpilot_toggles, "_params", params, raising=False)
+
+  payload = '{"rivian_angle_control": false}'
+  toggles = spv.get_starpilot_toggles(
+    {"starpilotPlan": SimpleNamespace(starpilotToggles=payload)},
+    read_persisted_force_params=True,
+  )
+
+  assert toggles.rivian_angle_control is True
+
+
 class _FakeParams:
   def __init__(self, floats=None, ints=None, bools=None):
     self.floats = dict(floats or {})

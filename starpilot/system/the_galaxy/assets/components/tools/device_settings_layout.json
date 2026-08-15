@@ -2704,6 +2704,16 @@
         "settings_tier": "simple"
       },
       {
+        "key": "RivianAngleControl",
+        "label": "Rivian Angle Steering",
+        "description": "Use the Extreme harness angle channel with cooperative torque fallback.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "favorite_eligible": true,
+        "requires_capability": "HasRivianAngleHarness",
+        "settings_tier": "simple"
+      },
+      {
         "key": "ForceFingerprint",
         "label": "Disable Automatic Fingerprint Detection",
         "description": "Force the selected fingerprint and prevent it from changing automatically.",

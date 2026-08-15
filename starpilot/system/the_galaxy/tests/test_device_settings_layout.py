@@ -172,6 +172,17 @@ def test_human_acceleration_param_is_removed():
   assert '{"HumanAcceleration",' not in params_source
 
 
+def test_rivian_angle_control_is_live_favorite_and_harness_gated():
+  sections = _params_by_section(_layout())
+  setting = sections["Vehicle"]["RivianAngleControl"]
+
+  assert setting["ui_type"] == "toggle"
+  assert setting["favorite_eligible"] is True
+  assert setting["requires_capability"] == "HasRivianAngleHarness"
+  assert "reboot" not in setting["description"].lower()
+  assert _declared_default("RivianAngleControl") == "0"
+
+
 def test_vasm_is_default_off_and_configured_only_in_galaxy():
   sections = _params_by_section(_layout())
   lateral = sections["Lateral (Steering)"]

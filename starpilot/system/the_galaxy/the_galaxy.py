@@ -92,6 +92,8 @@ from openpilot.starpilot.system.the_galaxy import flm_workspace, utilities
 from openpilot.starpilot.system.the_galaxy.update_recovery import inspect_interrupted_update, public_recovery_status, recover_interrupted_update
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
+# Keep Galaxy independent of opendbc's generated car bindings while matching RivianFlags.ANGLE_HARNESS.
+RIVIAN_ANGLE_HARNESS_FLAG = 1 << 0
 
 GITLAB_API = "https://gitlab.com/api/v4"
 GITLAB_SUBMISSIONS_PROJECT_ID = "71992109"
@@ -2695,6 +2697,7 @@ def _get_favorite_slot_options():
           "label": str(param_data.get("label") or key),
           "description": str(param_data.get("description") or ""),
           "section": section_name,
+          "requiresCapability": str(param_data.get("requires_capability") or ""),
         })
   except Exception:
     options = []
@@ -2702,6 +2705,15 @@ def _get_favorite_slot_options():
   options.sort(key=lambda option: (str(option.get("label") or option.get("key") or "").casefold(), str(option.get("key") or "").casefold()))
   _favorite_slot_options = options
   return _favorite_slot_options
+
+def _get_available_favorite_slot_options():
+  capabilities = {
+    "HasRivianAngleHarness": _get_has_rivian_angle_harness(),
+  }
+  return [
+    option for option in _get_favorite_slot_options()
+    if not option.get("requiresCapability") or capabilities.get(option["requiresCapability"], False)
+  ]
 
 def _favorite_slot_values(options):
   return {
@@ -3488,6 +3500,17 @@ def _get_alpha_longitudinal_available():
   try:
     with car.CarParams.from_bytes(cp_bytes) as cp:
       return bool(getattr(cp, "alphaLongitudinalAvailable", False))
+  except Exception:
+    return False
+
+def _get_has_rivian_angle_harness():
+  cp_bytes = _safe_params_get_live_raw("CarParamsPersistent")
+  if not cp_bytes:
+    return False
+
+  try:
+    with car.CarParams.from_bytes(cp_bytes) as cp:
+      return cp.brand == "rivian" and bool(int(getattr(cp, "flags", 0)) & RIVIAN_ANGLE_HARNESS_FLAG)
   except Exception:
     return False
 
@@ -4628,7 +4651,7 @@ def setup(app):
 
   @app.route("/api/favorites/slots", methods=["GET", "PUT"])
   def favorite_slots():
-    options = _get_favorite_slot_options()
+    options = _get_available_favorite_slot_options()
     option_by_key = {option["key"]: option for option in options}
     eligible_keys = set(option_by_key)
 
@@ -4678,7 +4701,7 @@ def setup(app):
 
   @app.route("/api/favorites/values", methods=["GET"])
   def favorite_values():
-    options = _get_favorite_slot_options()
+    options = _get_available_favorite_slot_options()
     eligible_keys = {option["key"] for option in options}
     slots = normalize_favorite_slots(params.get(FAVORITE_SLOTS_PARAM), params=params, eligible_keys=eligible_keys)
     return jsonify({"values": _configured_favorite_slot_values(slots)}), 200
@@ -4709,7 +4732,7 @@ def setup(app):
         if not isinstance(raw_slots, list):
           return jsonify({"error": "Favorite slots must be configured with the Favorites editor."}), 400
 
-        options = _get_favorite_slot_options()
+        options = _get_available_favorite_slot_options()
         option_by_key = {option["key"]: option for option in options}
         eligible_keys = set(option_by_key)
         slots = normalize_favorite_slots(raw_slots, params=params, eligible_keys=eligible_keys)
@@ -5070,6 +5093,8 @@ def setup(app):
       update_starpilot_toggles()
 
       response = {"message": f"Parameter '{key}' updated successfully."}
+      if key == "RivianAngleControl":
+        response["message"] = "Rivian steering mode updated. The safe channel handoff is in progress."
       updated = {}
       if key in PANDA_FIRMWARE_TOGGLE_KEYS:
         threading.Thread(target=_flash_panda_then_reboot, daemon=True).start()
@@ -5149,6 +5174,7 @@ def setup(app):
     result["HasRadar"] = _get_has_radar()
     result["VehicleParked"] = _get_vehicle_parked()
     result["AlphaLongitudinalAvailable"] = _get_alpha_longitudinal_available()
+    result["HasRivianAngleHarness"] = _get_has_rivian_angle_harness()
 
     return jsonify(_sanitize_json_value(result)), 200
 

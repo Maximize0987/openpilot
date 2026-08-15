@@ -4,6 +4,7 @@ import pyray as rl
 from dataclasses import dataclass
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.onroad.starpilot.torque_bar import TorqueBar
+from openpilot.selfdrive.ui.onroad.starpilot.rivian_lateral_mode import rivian_lateral_mode
 from openpilot.selfdrive.ui.mici.onroad.speed_limit_utils import resolve_display_speed_limit_ms
 from openpilot.selfdrive.ui.onroad.starpilot.navigation_card import NavigationCardRenderer
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
@@ -162,6 +163,7 @@ class HudRenderer(Widget):
 
     self._wheel_alpha_filter = FirstOrderFilter(0, 0.05, 1 / gui_app.target_fps)
     self._wheel_y_filter = FirstOrderFilter(0, 0.1, 1 / gui_app.target_fps)
+    self._wheel_tint: rl.Color | None = None
 
     self._set_speed_alpha_filter = FirstOrderFilter(0.0, 0.1, 1 / gui_app.target_fps)
     self._egpu_alpha_filter = FirstOrderFilter(0.0, 0.1, 1 / gui_app.target_fps)
@@ -185,10 +187,13 @@ class HudRenderer(Widget):
       self.is_cruise_set = False
       self.set_speed = SET_SPEED_NA
       self.speed = 0.0
+      self._wheel_tint = None
       return
 
     controls_state = sm['controlsState']
     car_state = sm['carState']
+    rivian_lateral_mode.update()
+    self._wheel_tint = rivian_lateral_mode.wheel_tint
 
     v_cruise_cluster = car_state.vCruiseCluster
     set_speed = (
@@ -380,7 +385,8 @@ class HudRenderer(Widget):
     origin = (wheel_txt.width / 2, wheel_txt.height / 2)
 
     # color and draw
-    color = rl.Color(255, 255, 255, int(self._wheel_alpha_filter.x))
+    base_color = self._wheel_tint if self._wheel_tint is not None and not self._show_wheel_critical else rl.Color(255, 255, 255, 255)
+    color = rl.Color(base_color.r, base_color.g, base_color.b, int(self._wheel_alpha_filter.x))
     rl.draw_texture_pro(wheel_txt, src_rect, dest_rect, origin, rotation, color)
 
     if self._show_wheel_critical:
