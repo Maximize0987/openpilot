@@ -48,7 +48,13 @@ from openpilot.system.version import get_build_metadata
 from openpilot.tools.longitudinal_maneuvers.capabilities import get_longitudinal_maneuver_support
 from panda import Panda
 
-from openpilot.starpilot.assets.model_manager import canonical_model_key, is_builtin_model_key, model_key_aliases
+from openpilot.starpilot.assets.model_manager import (
+  canonical_model_key,
+  external_gpu_available,
+  is_builtin_model_key,
+  model_key_aliases,
+  model_uses_external_gpu,
+)
 from openpilot.starpilot.assets.theme_manager import HOLIDAY_THEME_PATH, THEME_COMPONENT_PARAMS
 from openpilot.starpilot.common.accel_profile import (
   CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY,
@@ -5031,6 +5037,8 @@ def setup(app):
         selected_model = canonical_model_key(str_val.strip())
         if not selected_model:
           return jsonify({"error": "Driving model cannot be empty."}), 400
+        if model_uses_external_gpu(selected_model) and not external_gpu_available():
+          return jsonify({"error": "This model requires a detected external GPU."}), 409
 
         params.put("Model", selected_model)
         params.put("DrivingModel", selected_model)
@@ -5402,6 +5410,8 @@ def setup(app):
 
     if model["installed"]:
       return jsonify({"message": f"\"{model['label']}\" is already installed."}), 200
+    if model["requiresGpu"] and not model["gpuAvailable"]:
+      return jsonify({"error": "This model requires a detected external GPU."}), 409
 
     params_memory.remove(MODEL_CANCEL_DOWNLOAD_PARAM)
     params_memory.remove(MODEL_DOWNLOAD_ALL_PARAM)
@@ -5418,7 +5428,7 @@ def setup(app):
     if params_memory.get_bool(MODEL_DOWNLOAD_ALL_PARAM) or (params_memory.get(MODEL_DOWNLOAD_PARAM, encoding="utf-8") or ""):
       return jsonify({"error": "A model download is already in progress."}), 409
 
-    missing_models = [model for model in get_model_catalog() if not model["installed"]]
+    missing_models = [model for model in get_model_catalog() if not model["installed"] and (not model["requiresGpu"] or model["gpuAvailable"])]
     if not missing_models:
       return jsonify({"message": "All models are already installed."}), 200
 
@@ -5710,6 +5720,7 @@ def setup(app):
     except Exception:
       on_disk_files = set()
 
+    external_gpu_present = external_gpu_available()
     models_by_key = {}
     for i, key in enumerate(available):
       canonical_key = canonical_model_key(key)
@@ -5721,6 +5732,8 @@ def setup(app):
       artifact_format = artifact_formats[i] if i < len(artifact_formats) else ""
       model_series = series[i] if i < len(series) and series[i] else "Custom Series"
       released = released_dates[i] if i < len(released_dates) else ""
+      requires_external_gpu = model_uses_external_gpu(canonical_key)
+      gpu_available = not requires_external_gpu or external_gpu_present
 
       existing = models_by_key.get(canonical_key)
       if existing is None:
@@ -5730,6 +5743,8 @@ def setup(app):
           "series": model_series,
           "version": model_version,
           "artifactFormat": artifact_format,
+          "requiresGpu": requires_external_gpu,
+          "gpuAvailable": gpu_available,
           "released": released,
           "builtin": is_builtin_model_key(canonical_key),
           "communityFavorite": canonical_key in community_favorites,
@@ -5750,6 +5765,8 @@ def setup(app):
       existing["builtin"] = existing["builtin"] or is_builtin_model_key(canonical_key)
       existing["communityFavorite"] = existing["communityFavorite"] or canonical_key in community_favorites
       existing["userFavorite"] = existing["userFavorite"] or canonical_key in user_favorites
+      existing["requiresGpu"] = existing["requiresGpu"] or requires_external_gpu
+      existing["gpuAvailable"] = not existing["requiresGpu"] or external_gpu_present
 
     default_key = _default_model_key()
     default_entry = models_by_key.setdefault(default_key, {
@@ -5758,6 +5775,8 @@ def setup(app):
       "series": "Custom Series",
       "version": _default_model_version(),
       "artifactFormat": "tinygrad_single_v1",
+      "requiresGpu": False,
+      "gpuAvailable": True,
       "released": "",
       "builtin": True,
       "communityFavorite": default_key in community_favorites,

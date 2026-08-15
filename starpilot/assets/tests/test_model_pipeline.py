@@ -15,12 +15,12 @@ from openpilot.starpilot.assets.model_manager import MANIFEST_CANDIDATES, ModelM
 from openpilot.starpilot.common.model_versions import UNIFIED_ARTIFACT_FORMAT
 
 
-def test_v23_is_the_only_manifest_candidate():
-  assert MANIFEST_CANDIDATES == ("v23",)
+def test_v24_is_the_only_manifest_candidate():
+  assert MANIFEST_CANDIDATES == ("v24",)
 
 
-def test_v23_manifest_is_loaded_from_models_checkout():
-  assert ModelManager._manifest_paths("v23") == ("Models/model_names_v23.json",)
+def test_v24_manifest_is_loaded_from_models_checkout():
+  assert ModelManager._manifest_paths("v24") == ("Models/model_names_v24.json",)
 
 
 def test_old_manifest_ids_resolve_to_v23_namespace():
