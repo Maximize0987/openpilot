@@ -1,6 +1,9 @@
 import { html, reactive } from "/assets/vendor/arrow-core.js"
 import { isGalaxyTunnel } from "/assets/js/utils.js"
-import { requestSentryNotificationPermission } from "/assets/components/sentry_notifications.js"
+import {
+  enableSentryPush,
+  sendSentryTestPush,
+} from "/assets/components/sentry_notifications.js"
 
 const state = reactive({
   loading: true,
@@ -9,6 +12,7 @@ const state = reactive({
   status: {},
   event: {},
   testBusy: false,
+  pushBusy: false,
 })
 
 let pollTimer = null
@@ -80,6 +84,32 @@ async function sendTestEvent() {
     showSnackbar("Network error — is the device reachable?")
   } finally {
     state.testBusy = false
+  }
+}
+
+async function enablePush() {
+  if (state.pushBusy) return
+  state.pushBusy = true
+  try {
+    const result = await enableSentryPush()
+    showSnackbar(result.message)
+  } catch (error) {
+    showSnackbar(error.message || "Could not enable Chrome notifications.")
+  } finally {
+    state.pushBusy = false
+  }
+}
+
+async function sendTestPush() {
+  if (state.pushBusy) return
+  state.pushBusy = true
+  try {
+    await sendSentryTestPush()
+    showSnackbar("Test push sent. Check your Chrome notifications.")
+  } catch (error) {
+    showSnackbar(error.message || "Could not send the test push.")
+  } finally {
+    state.pushBusy = false
   }
 }
 
@@ -159,14 +189,15 @@ export function SentryMode() {
               @change="${(event) => saveParam("SentryModeNtfyUrl", event.currentTarget.value.trim())}" />
           </label>
 
-          <button
-            class="sentry-button"
-            @click="${async () => {
-              const permission = await requestSentryNotificationPermission()
-              showSnackbar(permission === "granted" ? "Browser alerts enabled." : "Browser alerts were not enabled.")
-            }}">
-            Enable browser alerts
-          </button>
+          <div class="sentry-action-row">
+            <button class="sentry-button" @click="${enablePush}" disabled="${() => state.pushBusy}">
+              ${() => state.pushBusy ? "Enabling…" : "Enable Chrome notifications"}
+            </button>
+            <button class="sentry-button sentry-button-secondary" @click="${sendTestPush}" disabled="${() => state.pushBusy}">
+              ${() => state.pushBusy ? "Sending…" : "Send test push"}
+            </button>
+          </div>
+          <p class="sentry-muted">Enable notifications once, then use the test push to verify Galaxy can reach this browser even when the page is not active.</p>
         `}
       </section>
 

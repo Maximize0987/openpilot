@@ -595,7 +595,142 @@ def _capture_sentry_test_images(event_id: str) -> list[str]:
   return paths
 
 
+_SENTRY_PUSH_LOCK = threading.Lock()
+_SENTRY_PUSH_PRIVATE_KEY_NAME = "sentry_vapid_private.pem"
+_SENTRY_PUSH_SUBSCRIPTIONS_NAME = "sentry_push_subscriptions.json"
+_SENTRY_PUSH_SUBJECT = os.getenv("STARPILOT_VAPID_SUBJECT", "mailto:galaxy@firestar.link")
+
+
+def _sentry_push_paths() -> tuple[Path, Path]:
+  galaxy_dir = _get_galaxy_dir()
+  return galaxy_dir / _SENTRY_PUSH_PRIVATE_KEY_NAME, galaxy_dir / _SENTRY_PUSH_SUBSCRIPTIONS_NAME
+
+
+def _load_sentry_push_subscriptions() -> list[dict]:
+  _, subscriptions_path = _sentry_push_paths()
+  try:
+    payload = json.loads(subscriptions_path.read_text())
+  except (OSError, TypeError, ValueError, json.JSONDecodeError):
+    return []
+
+  if not isinstance(payload, list):
+    return []
+  return [subscription for subscription in payload if isinstance(subscription, dict)]
+
+
+def _save_sentry_push_subscriptions(subscriptions: list[dict]) -> None:
+  _, subscriptions_path = _sentry_push_paths()
+  subscriptions_path.parent.mkdir(parents=True, exist_ok=True)
+  temporary_path = subscriptions_path.with_suffix(".tmp")
+  temporary_path.write_text(json.dumps(subscriptions, separators=(",", ":")))
+  temporary_path.chmod(0o600)
+  temporary_path.replace(subscriptions_path)
+
+
+def _normalize_sentry_push_subscription(payload) -> dict | None:
+  if not isinstance(payload, dict):
+    return None
+
+  subscription = payload.get("subscription", payload)
+  if not isinstance(subscription, dict):
+    return None
+
+  endpoint = str(subscription.get("endpoint") or "").strip()
+  keys = subscription.get("keys")
+  if not endpoint.startswith("https://") or len(endpoint) > 4096 or not isinstance(keys, dict):
+    return None
+
+  p256dh = str(keys.get("p256dh") or "").strip()
+  auth = str(keys.get("auth") or "").strip()
+  if not p256dh or not auth or len(p256dh) > 512 or len(auth) > 512:
+    return None
+
+  return {
+    "endpoint": endpoint,
+    "expirationTime": subscription.get("expirationTime"),
+    "keys": {"p256dh": p256dh, "auth": auth},
+  }
+
+
+def _get_sentry_vapid():
+  try:
+    from py_vapid import Vapid
+  except ModuleNotFoundError as error:
+    raise RuntimeError("pywebpush is not installed") from error
+
+  private_key_path, _ = _sentry_push_paths()
+  private_key_path.parent.mkdir(parents=True, exist_ok=True)
+  if private_key_path.is_file():
+    return Vapid.from_file(str(private_key_path))
+
+  vapid = Vapid()
+  vapid.generate_keys()
+  vapid.save_key(str(private_key_path))
+  private_key_path.chmod(0o600)
+  return vapid
+
+
+def _sentry_vapid_public_key(vapid) -> str:
+  from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+  raw_key = vapid.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+  return base64.urlsafe_b64encode(raw_key).rstrip(b"=").decode("ascii")
+
+
+def _sentry_push_subscription_count() -> int:
+  with _SENTRY_PUSH_LOCK:
+    return len(_load_sentry_push_subscriptions())
+
+
+def _dispatch_sentry_push(event: dict) -> None:
+  try:
+    from pywebpush import webpush
+
+    vapid = _get_sentry_vapid()
+  except Exception:
+    cloudlog.exception("Galaxy: Sentry Web Push is unavailable")
+    return
+
+  event_id = str(event.get("eventId") or "")
+  payload = {
+    "title": "StarPilot Sentry Mode",
+    "body": str(event.get("message") or "Movement detected while parked."),
+    "eventId": event_id,
+    "url": f"/sentry?event={quote(event_id, safe='')}",
+  }
+
+  with _SENTRY_PUSH_LOCK:
+    subscriptions = _load_sentry_push_subscriptions()
+
+  expired_endpoints = set()
+  for subscription in subscriptions:
+    endpoint = subscription.get("endpoint")
+    try:
+      webpush(
+        subscription_info=subscription,
+        data=json.dumps(payload, separators=(",", ":")),
+        vapid_private_key=vapid,
+        vapid_claims={"sub": _SENTRY_PUSH_SUBJECT},
+        ttl=300,
+        timeout=10,
+      )
+    except Exception as error:
+      response = getattr(error, "response", None)
+      if getattr(response, "status_code", None) in {404, 410}:
+        expired_endpoints.add(endpoint)
+      cloudlog.warning("Galaxy: Sentry Web Push delivery failed: %s", error)
+
+  if expired_endpoints:
+    with _SENTRY_PUSH_LOCK:
+      current = _load_sentry_push_subscriptions()
+      _save_sentry_push_subscriptions([
+        subscription for subscription in current
+        if subscription.get("endpoint") not in expired_endpoints
+      ])
+
+
 def _dispatch_sentry_event(event: dict) -> None:
+  _dispatch_sentry_push(event)
   message = f"🚨 StarPilot Sentry Mode: {event['message']}"
   webhook = (params.get("SentryModeWebhook", encoding="utf-8") or "").strip()
   if webhook:
@@ -6706,6 +6841,77 @@ def setup(app):
       "message": "Factory reset started. Device will reboot when complete.",
       "warning": "This wipes local params, backups, themes, models, maps, and route data.",
     }), 202
+
+  @app.route("/service-worker.js", methods=["GET"])
+  def sentry_service_worker():
+    response = send_from_directory(app.static_folder, "service-worker.js", mimetype="application/javascript")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
+  @app.route("/api/sentry/push/config", methods=["GET"])
+  def sentry_push_config():
+    try:
+      public_key = _sentry_vapid_public_key(_get_sentry_vapid())
+    except Exception:
+      return jsonify({"enabled": False, "error": "Web Push dependencies are unavailable."}), 503
+
+    return jsonify({
+      "enabled": True,
+      "publicKey": public_key,
+      "subscriptionCount": _sentry_push_subscription_count(),
+    })
+
+  @app.route("/api/sentry/push/subscribe", methods=["POST"])
+  def sentry_push_subscribe():
+    subscription = _normalize_sentry_push_subscription(request.get_json(silent=True))
+    if subscription is None:
+      return jsonify({"error": "Invalid browser push subscription."}), 400
+
+    try:
+      _get_sentry_vapid()
+    except Exception:
+      return jsonify({"error": "Web Push dependencies are unavailable."}), 503
+
+    with _SENTRY_PUSH_LOCK:
+      subscriptions = _load_sentry_push_subscriptions()
+      subscriptions = [
+        existing for existing in subscriptions
+        if existing.get("endpoint") != subscription["endpoint"]
+      ]
+      subscriptions.append(subscription)
+      _save_sentry_push_subscriptions(subscriptions)
+
+    return jsonify({"subscribed": True, "subscriptionCount": len(subscriptions)})
+
+  @app.route("/api/sentry/push/unsubscribe", methods=["POST"])
+  def sentry_push_unsubscribe():
+    payload = request.get_json(silent=True) or {}
+    endpoint = str(payload.get("endpoint") or "").strip()
+    if not endpoint:
+      return jsonify({"error": "Missing browser push endpoint."}), 400
+
+    with _SENTRY_PUSH_LOCK:
+      subscriptions = [
+        subscription for subscription in _load_sentry_push_subscriptions()
+        if subscription.get("endpoint") != endpoint
+      ]
+      _save_sentry_push_subscriptions(subscriptions)
+
+    return jsonify({"unsubscribed": True, "subscriptionCount": len(subscriptions)})
+
+  @app.route("/api/sentry/push/test", methods=["POST"])
+  def sentry_push_test():
+    if _sentry_push_subscription_count() == 0:
+      return jsonify({"error": "Enable Chrome notifications first."}), 409
+
+    event = {
+      "eventId": f"push-test-{int(time.time())}-{secrets.token_hex(4)}",
+      "kind": "warning",
+      "detectedAt": datetime.now(timezone.utc).isoformat(),
+      "message": "This is a test StarPilot Sentry push notification.",
+    }
+    threading.Thread(target=_dispatch_sentry_push, args=(event,), name="galaxy-sentry-push-test", daemon=True).start()
+    return jsonify({"accepted": True, "eventId": event["eventId"]}), 202
 
   @app.route("/api/sentry/status", methods=["GET"])
   def sentry_status():

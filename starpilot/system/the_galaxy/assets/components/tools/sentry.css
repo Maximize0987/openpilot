@@ -117,6 +117,12 @@
   white-space: nowrap;
 }
 
+.sentry-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
 .sentry-loading,
 .sentry-empty {
   color: var(--text-muted);
