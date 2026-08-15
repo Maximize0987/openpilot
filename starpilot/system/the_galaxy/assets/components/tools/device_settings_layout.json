@@ -14,40 +14,6 @@
     ]
   },
   {
-    "name": "Sentry Mode",
-    "icon": "bi-shield-exclamation",
-    "params": [
-      {
-        "key": "SentryModeEnabled",
-        "label": "Sentry Mode",
-        "description": "Detect movement while parked and send alerts through Galaxy.",
-        "data_type": "bool",
-        "ui_type": "toggle",
-        "settings_tier": "simple"
-      },
-      {
-        "key": "SentryModeWebhook",
-        "label": "Sentry Webhook",
-        "description": "Optional webhook that Galaxy will POST to when sentry mode detects movement. Discord webhooks are supported.",
-        "data_type": "string",
-        "ui_type": "text",
-        "input_type": "url",
-        "placeholder": "https://…",
-        "settings_tier": "simple"
-      },
-      {
-        "key": "SentryModeNtfyUrl",
-        "label": "Sentry ntfy URL",
-        "description": "Optional ntfy topic URL, for example https://ntfy.sh/my-starpilot-topic.",
-        "data_type": "string",
-        "ui_type": "text",
-        "input_type": "url",
-        "placeholder": "https://ntfy.sh/…",
-        "settings_tier": "simple"
-      }
-    ]
-  },
-  {
     "name": "Lateral (Steering)",
     "icon": "bi-arrows-move",
     "params": [

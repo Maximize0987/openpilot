@@ -1,7 +1,6 @@
 import { html, reactive } from "/assets/vendor/arrow-core.js"
 import { isGalaxyTunnel } from "/assets/js/utils.js"
 import { Modal } from "/assets/components/modal.js"
-import { requestSentryNotificationPermission } from "/assets/components/sentry_notifications.js"
 
 const state = reactive({
   paired: false,
@@ -11,13 +10,7 @@ const state = reactive({
   submitting: false,
   showUnpairModal: false,
   fetched: false,
-  sentryLoading: true,
-  sentryStatus: {},
-  sentryEvent: {},
-  sentryTestBusy: false,
 })
-
-let sentryPollTimer = null
 
 async function fetchStatus() {
   state.loading = true
@@ -30,91 +23,6 @@ async function fetchStatus() {
     console.error("Failed to fetch Galaxy status:", e)
   }
   state.loading = false
-}
-
-async function fetchSentryStatus() {
-  try {
-    const res = await fetch("/api/sentry/status", { cache: "no-store" })
-    if (!res.ok) return
-    const data = await res.json()
-    state.sentryStatus = data.status || {}
-    state.sentryEvent = data.lastEvent || {}
-  } catch (e) {
-    console.error("Failed to fetch Sentry status:", e)
-  } finally {
-    state.sentryLoading = false
-  }
-}
-
-function ensureSentryPolling() {
-  if (sentryPollTimer !== null) return
-  fetchSentryStatus()
-  sentryPollTimer = window.setInterval(fetchSentryStatus, 5000)
-}
-
-async function sendSentryTest() {
-  if (state.sentryTestBusy) return
-  state.sentryTestBusy = true
-  try {
-    const res = await fetch("/api/sentry/test", { method: "POST" })
-    const data = await res.json()
-    if (!res.ok) {
-      showSnackbar(data.error || "Sentry test failed.")
-      return
-    }
-    showSnackbar("Sentry test started. Galaxy will show the captured images when ready.")
-  } catch (e) {
-    showSnackbar("Network error — is the device reachable?")
-  } finally {
-    state.sentryTestBusy = false
-  }
-}
-
-function SentryEventPanel(showTestButton = true) {
-  return html`
-    <section class="sentry-event-widget">
-      <div class="sentry-event-heading">
-        <div>
-          <h3>Sentry Mode</h3>
-          <p class="galaxy-text">View the latest movement event and captured images directly in Galaxy.</p>
-        </div>
-        <span class="sentry-event-state">${() => state.sentryStatus.state || "unknown"}</span>
-      </div>
-
-      ${() => {
-        if (state.sentryLoading) return html`<div class="galaxy-loading">Checking Sentry status…</div>`
-        const event = state.sentryEvent || {}
-        if (!event.eventId) return html`<p class="sentry-empty">No Sentry events recorded yet.</p>`
-
-        return html`
-          <div class="sentry-event-meta">
-            <span class="sentry-event-kind">${String(event.kind || "event").toUpperCase()}</span>
-            <span>${event.detectedAt || ""}</span>
-          </div>
-          <p class="sentry-event-message">${event.message || "Movement detected while parked."}</p>
-          ${Array.isArray(event.imageUrls) && event.imageUrls.length > 0 ? html`
-            <div class="sentry-image-grid">
-              ${event.imageUrls.map((url, index) => html`
-                <a href="${url}" target="_blank" rel="noopener">
-                  <img src="${url}" alt="Sentry capture ${index + 1}" loading="lazy" />
-                </a>
-              `)}
-            </div>
-          ` : html`<p class="sentry-empty">No camera images were available for this event.</p>`}
-        `
-      }}
-
-      ${showTestButton ? html`
-        <button
-          class="galaxy-button"
-          @click="${sendSentryTest}"
-          disabled="${() => state.sentryTestBusy}"
-        >
-          ${() => state.sentryTestBusy ? "Capturing test images…" : "Send test event"}
-        </button>
-      ` : ""}
-    </section>
-  `
 }
 
 async function pair() {
@@ -170,17 +78,12 @@ async function unpair() {
 }
 
 export function GalaxyPairing() {
-  ensureSentryPolling()
-
   if (isGalaxyTunnel()) {
     return html`
-      <div class="galaxy-wrapper">
-        <div class="tunnel-notice">
-          <div class="tunnel-notice-icon">🛰️</div>
-          <h3 class="tunnel-notice-title">Galaxy Pairing Unavailable via Galaxy</h3>
-          <p class="tunnel-notice-body">Galaxy pairing requires a direct connection.<br>Connect to your device's local network to use this feature.</p>
-        </div>
-        ${SentryEventPanel(false)}
+      <div class="tunnel-notice">
+        <div class="tunnel-notice-icon">🛰️</div>
+        <h3 class="tunnel-notice-title">Galaxy Pairing Unavailable via Galaxy</h3>
+        <p class="tunnel-notice-body">Galaxy pairing requires a direct connection.<br>Connect to your device's local network to use this feature.</p>
       </div>
     `;
   }
@@ -211,15 +114,6 @@ export function GalaxyPairing() {
               <a class="galaxy-url" href="${state.url}" target="_blank" rel="noopener">
                 ${state.url}
               </a>
-              <button
-                class="galaxy-button"
-                @click="${async () => {
-                  const permission = await requestSentryNotificationPermission()
-                  showSnackbar(permission === "granted" ? "Browser sentry notifications enabled." : "Browser notifications were not enabled.")
-                }}"
-              >
-                Enable browser alerts
-              </button>
               <button
                 class="galaxy-button galaxy-button-danger"
                 @click="${() => { state.showUnpairModal = true }}"
@@ -267,7 +161,6 @@ export function GalaxyPairing() {
           </section>
         `
     }}
-      ${SentryEventPanel()}
     </div>
   `
 }

@@ -4182,6 +4182,8 @@ def setup(app):
       "/assets/components/tools/device_settings_layout.json",
       "/assets/components/tools/galaxy.js",
       "/assets/components/tools/galaxy.css",
+      "/assets/components/tools/sentry.js",
+      "/assets/components/tools/sentry.css",
       "/assets/components/tools/v_asm.js",
       "/assets/components/tools/v_asm.css",
       "/assets/components/tools/pip_sidecam.js",
