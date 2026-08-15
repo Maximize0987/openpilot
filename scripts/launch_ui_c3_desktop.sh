@@ -47,19 +47,19 @@ export PATH="${ROOT_DIR}/.venv/bin:${PATH}"
 export PYTHONPATH="${ROOT_DIR}:${ROOT_DIR}/starpilot/third_party"
 for d in "${ROOT_DIR}"/*_repo; do [[ -d "$d" ]] && export PYTHONPATH="${PYTHONPATH}:$d"; done
 [[ -d "${ROOT_DIR}/third_party/acados" ]] && export PYTHONPATH="${PYTHONPATH}:${ROOT_DIR}/third_party/acados"
-export OPENPILOT_ZMQ_NAMESPACE="${OPENPILOT_ZMQ_NAMESPACE:-desktop-raybig-$$}"
+export OPENPILOT_ZMQ_NAMESPACE="${OPENPILOT_ZMQ_NAMESPACE:-desktop-c3-$$}"
 export BIG=1
 export NOBOARD=1
 export SIMULATION=1
 export SKIP_FW_QUERY=1
 export USE_WEBCAM=1
 export PRIME_TYPE="${PRIME_TYPE:-0}"
-export SP_RAYBIG_FAKE_DRIVE_STATS="${SP_RAYBIG_FAKE_DRIVE_STATS:-1}"
+export SP_C3_FAKE_DRIVE_STATS="${SP_C3_FAKE_DRIVE_STATS:-1}"
 
-backup_dir="$(mktemp -d /tmp/starpilot_raybig_ui_backup.XXXXXX)"
+backup_dir="$(mktemp -d /tmp/starpilot_c3_ui_backup.XXXXXX)"
 backup_manifest="${backup_dir}/.artifact_manifest"
-PRE_TRACKED_DIRTY="$(mktemp /tmp/starpilot_raybig_pretracked.XXXXXX)"
-POST_TRACKED_DIRTY="$(mktemp /tmp/starpilot_raybig_posttracked.XXXXXX)"
+PRE_TRACKED_DIRTY="$(mktemp /tmp/starpilot_c3_pretracked.XXXXXX)"
+POST_TRACKED_DIRTY="$(mktemp /tmp/starpilot_c3_posttracked.XXXXXX)"
 FAKE_WIFI_PID=""
 
 runtime_artifacts=(
@@ -175,7 +175,7 @@ prepare_common_host_artifacts() {
 
 prepare_msgq_host_artifacts() {
   # Clear mixed-arch Python extension objects from both msgq trees. These
-  # commonly conflict after switching between ./build (larch64) and ./raybig (macOS).
+  # commonly conflict after switching between ./build (larch64) and ./c3 (macOS).
   remove_if_elf "msgq/ipc_pyx.o"
   remove_if_elf "msgq/visionipc/visionipc_pyx.o"
   remove_if_elf "msgq_repo/msgq/ipc_pyx.o"
@@ -268,12 +268,12 @@ run_scons() {
   fi
 }
 
-kill_stale_raybig_ui() {
+kill_stale_c3_ui() {
   pkill -f "selfdrive/ui/ui.py" >/dev/null 2>&1 || true
 }
 
 start_fake_wifi() {
-  if [[ ! "${SP_RAYBIG_FAKE_WIFI:-1}" =~ ^(1|true|yes|on)$ ]]; then
+  if [[ ! "${SP_C3_FAKE_WIFI:-1}" =~ ^(1|true|yes|on)$ ]]; then
     export SP_ALLOW_DESKTOP_FAKE_WIFI=0
     return
   fi
@@ -339,8 +339,8 @@ PY
   exit 1
 fi
 
-if [[ "${SP_RAYBIG_COMPILE_ONLY:-0}" == "1" ]]; then
-  echo "Raybig runtime artifacts prepared."
+if [[ "${SP_C3_COMPILE_ONLY:-0}" == "1" ]]; then
+  echo "C3 runtime artifacts prepared."
   exit 0
 fi
 
@@ -356,6 +356,6 @@ params.put_bool("IsDriverViewEnabled", False)
 PY
 
 seed_starpilot_theme
-kill_stale_raybig_ui
+kill_stale_c3_ui
 start_fake_wifi
 "${PY_BIN}" selfdrive/ui/ui.py "$@"

@@ -21,5 +21,5 @@ Quick start:
 
 Style guide:
 * All graphical elements should subclass [`Widget`](/system/ui/widgets/__init__.py).
-  * Prefer a stateful widget over a function for easy migration from QT
+  * Prefer a stateful widget over a function when it simplifies lifecycle management
 * All internal class variables and functions should be prefixed with `_`

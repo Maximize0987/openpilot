@@ -1217,6 +1217,15 @@ def test_gm_stock_truck_target_filter_bypasses_low_speed_and_other_cars():
   assert bolt_tuning.shape_gm_truck_accel_target(-0.10, 20.0, False) == pytest.approx(-0.10)
 
 
+def test_santa_fe_final_stop_cap_softens_only_last_kmh():
+  CP = make_longcontrol_cp(brand="hyundai", carFingerprint="HYUNDAI_SANTA_FE_2022")
+  tuning = LongControl(CP).vehicle_tuning
+
+  assert tuning.shape_stopping_accel(-2.0, -0.2, True, 0.2, False, -2.0) == pytest.approx(-0.30)
+  assert tuning.shape_stopping_accel(-2.0, -0.2, True, 1.5, False, -2.0) == pytest.approx(-2.0)
+  assert tuning.shape_stopping_accel(-2.0, 0.3, False, 0.2, False, -2.0) == pytest.approx(-2.0)
+
+
 def test_toyota_sienna_target_filter_smooths_mild_high_speed_handoffs():
   CP = make_longcontrol_cp(brand="toyota", carFingerprint=TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN)
   tuning = vehicle_tunes.LongControlVehicleTuning(CP)

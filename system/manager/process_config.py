@@ -105,83 +105,14 @@ def run_v_asm(started: bool, params: Params, CP: car.CarParams, starpilot_toggle
   return started and getattr(starpilot_toggles, "v_asm_enabled", False)
 
 
-class BigDeviceUIProcess:
-  name = "ui"
-  enabled = True
-  sigkill = False
-  daemon = False
-
-  def __init__(self, should_run, watchdog_max_dt=None):
-    self.should_run_fn = should_run
-    self.watchdog_max_dt = watchdog_max_dt
-    self._started = False
-    self._params = None
-    self._active_process = None
-    self._qt_process = NativeProcess("ui", "selfdrive/ui", ["./ui"], should_run, watchdog_max_dt=watchdog_max_dt)
-    self._raylib_process = NativeProcess(
-      "ui",
-      ".",
-      ["/usr/bin/env", "BIG=1", sys.executable, "-m", "openpilot.selfdrive.ui.ui"],
-      should_run,
-      watchdog_max_dt=watchdog_max_dt,
-    )
-
-  @property
-  def proc(self):
-    return self._active_process.proc if self._active_process is not None else None
-
-  @property
-  def shutting_down(self):
-    return self._active_process.shutting_down if self._active_process is not None else False
-
-  def prepare(self) -> None:
-    self._qt_process.prepare()
-
-  def should_run(self, started: bool, params: Params, CP: car.CarParams, starpilot_toggles: SimpleNamespace) -> bool:
-    self._started = started
-    self._params = params
-    return self.should_run_fn(started, params, CP, starpilot_toggles)
-
-  def _desired_process(self):
-    return self._qt_process if self._params is not None and self._params.get_bool("UseOldUI") else self._raylib_process
-
-  def start(self) -> None:
-    desired_process = self._desired_process()
-
-    # Never swap UI implementations mid-drive. Direct param writes while onroad
-    # take effect the next time the device is offroad.
-    if self._started and self._active_process is not None and self._active_process is not desired_process:
-      desired_process = self._active_process
-
-    if self._active_process is not None and self._active_process is not desired_process:
-      self._active_process.stop()
-
-    for process in (self._qt_process, self._raylib_process):
-      if process is not desired_process and process.proc is not None:
-        process.stop()
-
-    self._active_process = desired_process
-    self._active_process.start()
-
-  def stop(self, retry: bool = True, block: bool = True, sig=None):
-    ret = None
-    for process in (self._qt_process, self._raylib_process):
-      process_ret = process.stop(retry=retry, block=block, sig=sig)
-      if process is self._active_process:
-        ret = process_ret
-    return ret
-
-  def restart(self) -> None:
-    self.stop()
-    self.start()
-
-  def check_watchdog(self, started: bool) -> None:
-    if self._active_process is not None:
-      self._active_process.check_watchdog(started)
-
-  def get_process_state_msg(self):
-    process = self._active_process or self._qt_process
-    return process.get_process_state_msg()
+def big_device_ui_process() -> NativeProcess:
+  return NativeProcess(
+    "ui",
+    ".",
+    ["/usr/bin/env", "BIG=1", sys.executable, "-m", "openpilot.selfdrive.ui.ui"],
+    always_run,
+    watchdog_max_dt=UI_WATCHDOG_MAX_DT,
+  )
 
 
 procs = [
@@ -247,9 +178,8 @@ procs += [
 
 device_type = HARDWARE.get_device_type()
 if device_type in ("tici", "tizi"):
-  procs.append(BigDeviceUIProcess(always_run, watchdog_max_dt=UI_WATCHDOG_MAX_DT))
+  procs.append(big_device_ui_process())
 else:
-  # C4 (mici) already runs the Python raylib UI path; UseOldUI must not affect it.
   procs.append(PythonProcess("ui", "selfdrive.ui.ui", always_run, watchdog_max_dt=UI_WATCHDOG_MAX_DT))
 
 procs += [

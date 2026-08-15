@@ -52,6 +52,9 @@ HYUNDAI_ELANTRA_STOPPED_LEAD_MAX_EGO_SPEED = 2.0
 HYUNDAI_ELANTRA_STOPPED_LEAD_MAX_SPEED = 0.5
 HYUNDAI_ELANTRA_STOPPED_LEAD_MIN_CLOSING_SPEED = 0.25
 HYUNDAI_ELANTRA_STOPPED_LEAD_MAX_CREEP_ACCEL = 0.05
+HYUNDAI_SANTA_FE_FINAL_STOP_MAX_SPEED = 1.0
+HYUNDAI_SANTA_FE_FINAL_STOP_CAP_BP = [0.0, 0.2, 0.5, HYUNDAI_SANTA_FE_FINAL_STOP_MAX_SPEED]
+HYUNDAI_SANTA_FE_FINAL_STOP_CAP_V = [-0.25, -0.30, -0.50, -0.90]
 
 
 def get_bolt_acc_pedal_friction_bias(output_accel, a_target, v_ego):
@@ -131,6 +134,9 @@ class LongControlVehicleTuning:
     self.is_hyundai_elantra_2021 = bool(
       CP.brand == "hyundai" and str(getattr(CP, "carFingerprint", "")) == "HYUNDAI_ELANTRA_2021"
     )
+    self.is_hyundai_santa_fe_2022 = bool(
+      CP.brand == "hyundai" and str(getattr(CP, "carFingerprint", "")) == "HYUNDAI_SANTA_FE_2022"
+    )
     self.is_bolt_acc_pedal_friction_car = bool(
       CP.brand == "gm" and
       CP.enableGasInterceptorDEPRECATED and
@@ -153,6 +159,14 @@ class LongControlVehicleTuning:
 
   def shape_stopping_accel(self, output_accel, a_target, should_stop, v_ego, has_lead, stop_accel):
     """Release a stale hard lead brake once the stop target has eased."""
+    if (
+      self.is_hyundai_santa_fe_2022 and
+      v_ego <= HYUNDAI_SANTA_FE_FINAL_STOP_MAX_SPEED and
+      a_target <= 0.1
+    ):
+      final_stop_cap = float(interp(v_ego, HYUNDAI_SANTA_FE_FINAL_STOP_CAP_BP, HYUNDAI_SANTA_FE_FINAL_STOP_CAP_V))
+      return max(float(output_accel), final_stop_cap)
+
     if (
       not self.is_hyundai_elantra_2021 or
       not has_lead or not should_stop or v_ego > 2.0 or

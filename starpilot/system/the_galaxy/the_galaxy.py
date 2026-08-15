@@ -163,13 +163,6 @@ def _is_comma_device_runtime() -> bool:
     return False
 
 
-def _raylib_ui_toggle_affects_device() -> bool:
-  try:
-    return HARDWARE.get_device_type() in ("tici", "tizi")
-  except Exception:
-    return False
-
-
 def _get_param_key_type(params_obj, key):
   getter = getattr(params_obj, "get_key_type", None)
   if getter is None:
@@ -542,6 +535,64 @@ def _normalize_sentry_event(payload) -> dict | None:
     "message": str(payload.get("message") or "Movement detected while parked.")[:500],
     "imagePaths": _safe_sentry_image_paths(payload.get("imagePaths")),
   }
+
+
+def _sentry_image_path(event_id: str, filename: str) -> Path | None:
+  if not event_id or Path(event_id).name != event_id:
+    return None
+  if filename not in {"wide.jpg", "driver.jpg"} or Path(filename).name != filename:
+    return None
+
+  for root in _sentry_event_roots():
+    path = (root / event_id / filename).resolve()
+    if root in path.parents and path.is_file():
+      return path
+  return None
+
+
+def _public_sentry_event(event: dict) -> dict:
+  public_event = dict(event)
+  public_event.pop("imagePaths", None)
+  public_event["imageUrls"] = []
+  event_id = str(public_event.get("eventId") or "")
+  for raw_path in event.get("imagePaths", []):
+    path = Path(str(raw_path)).resolve()
+    if path.parent.name != event_id:
+      continue
+    if _sentry_image_path(event_id, path.name) == path:
+      public_event["imageUrls"].append(
+        f"/api/sentry/images/{quote(event_id, safe='')}/{quote(path.name, safe='')}"
+      )
+  return public_event
+
+
+def _capture_sentry_test_images(event_id: str) -> list[str]:
+  from openpilot.system.camerad.snapshot import jpeg_write, snapshot
+
+  params.put_bool("SentryModeCapture", True)
+  try:
+    rear, front = snapshot(allow_existing=True)
+  except Exception:
+    cloudlog.exception("Galaxy: sentry test snapshot failed")
+    return []
+  finally:
+    params.put_bool("SentryModeCapture", False)
+
+  if rear is None and front is None:
+    return []
+
+  directory = _sentry_event_roots()[0] / event_id
+  directory.mkdir(parents=True, exist_ok=True)
+  paths = []
+  if rear is not None:
+    path = directory / "wide.jpg"
+    jpeg_write(str(path), rear)
+    paths.append(str(path))
+  if front is not None:
+    path = directory / "driver.jpg"
+    jpeg_write(str(path), front)
+    paths.append(str(path))
+  return paths
 
 
 def _dispatch_sentry_event(event: dict) -> None:
@@ -2756,18 +2807,6 @@ def _is_blank_param_raw(raw_value):
     return len(raw_value.strip()) == 0
   return False
 
-def _get_use_old_ui_enabled():
-  if not _raylib_ui_toggle_affects_device():
-    return False
-
-  raw_value = _safe_params_get_live_raw("UseOldUI")
-  if _is_blank_param_raw(raw_value):
-    legacy_raw_value = _safe_params_get_live_raw("TryRaylibUI")
-    if not _is_blank_param_raw(legacy_raw_value):
-      return not _coerce_param_value(legacy_raw_value, bool)
-
-  return _coerce_param_value(raw_value, bool)
-
 def _has_runtime_default_value(key, raw_value):
   if _is_blank_param_raw(raw_value):
     return False
@@ -2846,11 +2885,6 @@ def _get_runtime_default_param_overrides():
   return overrides
 
 def _get_current_param_value(key, value_type, defaults_lookup=None):
-  if key == "UseOldUI":
-    return _get_use_old_ui_enabled()
-  if key == "TryRaylibUI":
-    return _raylib_ui_toggle_affects_device() and not _get_use_old_ui_enabled()
-
   if key == CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY:
     return _get_custom_accel_profile_initialized()
 
@@ -4147,6 +4181,7 @@ def setup(app):
       "/assets/components/tools/device_settings.css",
       "/assets/components/tools/device_settings_layout.json",
       "/assets/components/tools/galaxy.js",
+      "/assets/components/tools/galaxy.css",
       "/assets/components/tools/v_asm.js",
       "/assets/components/tools/v_asm.css",
       "/assets/components/tools/pip_sidecam.js",
@@ -4582,26 +4617,6 @@ def setup(app):
       if key not in allowed_keys:
         return jsonify({"error": f"Parameter '{key}' is not editable."}), 403
 
-      if key in {"UseOldUI", "TryRaylibUI"}:
-        enabled = str_val.strip() in ("1", "true", "True")
-        use_old_ui = enabled if key == "UseOldUI" else not enabled
-        updated = {"UseOldUI": use_old_ui, "TryRaylibUI": not use_old_ui}
-        if not _raylib_ui_toggle_affects_device():
-          return jsonify({
-            "message": "Use Old UI is only available on tici/tizi devices.",
-            "updated": {"UseOldUI": False, "TryRaylibUI": False},
-          }), 200
-
-        if params.get_bool("IsOnroad"):
-          return jsonify({"error": "Cannot change Use Old UI while driving."}), 403
-
-        params.put_bool("UseOldUI", use_old_ui)
-        params.put_bool("TryRaylibUI", not use_old_ui)
-        return jsonify({
-          "message": f"{'Old' if use_old_ui else 'Raylib'} UI selected. UI will restart shortly.",
-          "updated": updated,
-        }), 200
-
       if key == "AlphaLongitudinalEnabled":
         if not _get_alpha_longitudinal_available():
           return jsonify({"error": "Alpha Longitudinal is not available for the detected vehicle."}), 403
@@ -4954,10 +4969,6 @@ def setup(app):
       return _serialize_param_write_value(_get_custom_accel_profile_initialized()), 200
     if request_key == "LeadIndicator":
       return _serialize_param_write_value(_get_lead_indicator_enabled()), 200
-    if request_key == "UseOldUI":
-      return ("1" if _get_use_old_ui_enabled() else "0"), 200
-    if request_key == "TryRaylibUI":
-      return ("1" if _raylib_ui_toggle_affects_device() and not _get_use_old_ui_enabled() else "0"), 200
     if request_key == "IsRHD" and not params.get_bool("IsRHDOverride"):
       return ("1" if params.get_bool("IsRhdDetected") else "0"), 200
     value = params.get(request_key) or ""
@@ -5015,11 +5026,7 @@ def setup(app):
       default_val = defaults_lookup.get(key)
 
       try:
-        if key == "UseOldUI":
-          result[key] = False
-        elif key == "TryRaylibUI":
-          result[key] = _raylib_ui_toggle_affects_device()
-        elif t == bool:
+        if t == bool:
           if isinstance(default_val, bytes):
             default_str = default_val.decode("utf-8", errors="replace")
           else:
@@ -6714,8 +6721,39 @@ def setup(app):
     return jsonify({
       "enabled": params.get_bool("SentryModeEnabled"),
       "status": status if isinstance(status, dict) else {},
-      "lastEvent": last_event if isinstance(last_event, dict) else {},
+      "lastEvent": _public_sentry_event(last_event) if isinstance(last_event, dict) else {},
     })
+
+  @app.route("/api/sentry/images/<event_id>/<filename>", methods=["GET"])
+  def sentry_image(event_id, filename):
+    image_path = _sentry_image_path(event_id, filename)
+    if image_path is None:
+      return jsonify({"error": "Sentry image not found."}), 404
+    return send_file(image_path, mimetype="image/jpeg", max_age=0)
+
+  @app.route("/api/sentry/test", methods=["POST"])
+  def sentry_test():
+    if request.remote_addr not in {None, "127.0.0.1", "::1"}:
+      return jsonify({"error": "Sentry tests must originate on the device."}), 403
+    if not params.get_bool("IsOffroad"):
+      return jsonify({"error": "Sentry tests are only available while parked."}), 409
+
+    event_id = f"test-{int(time.time())}-{secrets.token_hex(4)}"
+    event = {
+      "eventId": event_id,
+      "kind": "alarm",
+      "detectedAt": datetime.now(timezone.utc).isoformat(),
+      "imagePaths": [],
+      "message": "Test sentry event.",
+    }
+
+    def capture_and_publish():
+      event["imagePaths"] = _capture_sentry_test_images(event_id)
+      params.put("SentryModeLastEvent", json.dumps(event, separators=(",", ":")))
+      threading.Thread(target=_dispatch_sentry_event, args=(event,), name="galaxy-sentry-test-notify", daemon=True).start()
+
+    threading.Thread(target=capture_and_publish, name="galaxy-sentry-test-capture", daemon=True).start()
+    return jsonify({"accepted": True, "eventId": event_id}), 202
 
   @app.route("/api/sentry/events", methods=["POST"])
   def sentry_event():
