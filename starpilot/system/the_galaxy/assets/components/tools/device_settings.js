@@ -1662,7 +1662,7 @@ function renderSettingRow(p) {
   }
 
   return html`
-    <div class="ds-row ${isNumeric ? "ds-row-numeric" : ""} ${isChild}">
+    <div class="ds-row ${isNumeric ? "ds-row-numeric" : ""} ${isText ? "ds-row-text-input" : ""} ${isChild}">
       <div class="ds-row-info">
         <div class="ds-row-text">
           <div class="ds-row-heading">
