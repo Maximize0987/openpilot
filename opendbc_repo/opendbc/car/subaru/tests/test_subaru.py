@@ -5,14 +5,16 @@ from types import SimpleNamespace
 import pytest
 
 from opendbc.can import CANPacker, CANParser
-from opendbc.car import Bus, structs
+from opendbc.car import Bus, fw_versions, structs
+from opendbc.car.fw_query_definitions import StdQueries
 from opendbc.car.subaru import subarucan
 from opendbc.car.subaru.carcontroller import CarController
 from opendbc.car.subaru.carstate import CarState
 from opendbc.car.subaru.fingerprints import FW_VERSIONS
 from opendbc.car.fw_versions import match_fw_to_car
 from opendbc.car.subaru.interface import CarInterface
-from opendbc.car.subaru.values import CAR, DBC, CanBus, SubaruFlags, SubaruSafetyFlags
+from opendbc.car.subaru.values import CAR, DBC, FW_QUERY_CONFIG, SUBARU_ALT_VERSION_REQUEST, SUBARU_VERSION_REQUEST, CanBus, \
+  SubaruFlags, SubaruSafetyFlags
 from opendbc.car.structs import CarParams
 
 
@@ -66,6 +68,32 @@ def test_preglobal_sng_does_not_send_standstill_keepalive_without_manual_toggle(
 
 
 class TestSubaruFingerprint:
+  def test_eyesight_queries_do_not_change_diagnostic_state(self, monkeypatch):
+    camera_requests = [request for request in FW_QUERY_CONFIG.requests if CarParams.Ecu.fwdCamera in request.whitelist_ecus]
+
+    assert CarParams.Ecu.fwdCamera in FW_QUERY_CONFIG.non_tester_present_ecus
+    assert {tuple(request.request) for request in camera_requests} == {
+      (SUBARU_VERSION_REQUEST,),
+      (SUBARU_ALT_VERSION_REQUEST,),
+    }
+    for request in camera_requests:
+      assert StdQueries.TESTER_PRESENT_REQUEST not in request.request
+      assert StdQueries.DEFAULT_DIAGNOSTIC_REQUEST not in request.request
+
+    queried_ecus = set()
+
+    def collect_queries(_can_recv, _can_send, queries, _responses, timeout):
+      queried_ecus.update(queries)
+      return set()
+
+    monkeypatch.setattr(fw_versions, "REQUESTS", [("subaru", FW_QUERY_CONFIG, request) for request in FW_QUERY_CONFIG.requests])
+    monkeypatch.setattr(fw_versions, "VERSIONS", {"subaru": FW_VERSIONS})
+    monkeypatch.setattr(fw_versions, "get_ecu_addrs", collect_queries)
+    fw_versions.get_present_ecus(lambda **_kwargs: [], lambda _msgs: None, lambda _enabled: None)
+
+    assert queried_ecus
+    assert all(address != 0x787 for address, _subaddress, _bus in queried_ecus)
+
   def test_fw_version_format(self):
     for platform, fws_per_ecu in FW_VERSIONS.items():
       for (ecu, _, _), fws in fws_per_ecu.items():

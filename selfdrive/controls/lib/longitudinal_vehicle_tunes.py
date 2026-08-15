@@ -18,6 +18,8 @@ TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MIN_MODEL_PROB = 0.95
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_LATERAL_OFFSET = 1.75
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MIN_BRAKE = 0.18
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_BRAKE = 0.32
+TOYOTA_CAMRY_TSS2_FORCE_STOP_HANDOFF_M = 4.5
+DEFAULT_FORCE_STOP_HANDOFF_M = 6.0
 
 
 def is_toyota_rav4_tss2_post_departure_tune(CP):
@@ -109,3 +111,10 @@ def get_toyota_sienna_post_departure_restop_cap(CP, lead, v_ego, accel_min,
     TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_BRAKE,
   ))
   return brake_floor if accel_min >= 0.0 else max(float(accel_min), brake_floor)
+
+
+def get_force_stop_handoff_distance(car_fingerprint):
+  """Return the distance at which force-stop control hands off to MPC."""
+  if str(car_fingerprint) == "TOYOTA_CAMRY_TSS2":
+    return TOYOTA_CAMRY_TSS2_FORCE_STOP_HANDOFF_M
+  return DEFAULT_FORCE_STOP_HANDOFF_M
