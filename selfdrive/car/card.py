@@ -337,7 +337,7 @@ class Car:
     if not self.sm.seen['pandaStates'] or not self.sm.valid['pandaStates']:
       return False
 
-    panda_states = self.sm['pandaStates'].pandaStates
+    panda_states = self.sm['pandaStates']
     return any(
       int(getattr(state.safetyModel, "raw", state.safetyModel)) in HYUNDAI_SAFETY_MODELS
       for state in panda_states
