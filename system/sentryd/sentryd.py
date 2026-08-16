@@ -161,7 +161,7 @@ class SentryMode:
       return
 
     try:
-      detection = self.detector.update(message.acceleration.v, now=now)
+      detection = self.detector.update(list(message.acceleration.v), now=now)
     except (TypeError, ValueError):
       self._write_status("sensor_unavailable")
       return
