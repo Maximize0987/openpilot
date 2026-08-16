@@ -21,6 +21,7 @@ from openpilot.selfdrive.controls.lib.lead_follow_policy import is_nonurgent_dup
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_far_follow_output_slew_rates,
   get_follow_prebrake_min_headway,
+  get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
@@ -2181,7 +2182,10 @@ class LongitudinalPlanner:
     force_stop_x = None
     force_stop_handoff_m = get_force_stop_handoff_distance(self.CP.carFingerprint)
     if sm['starpilotPlan'].forcingStop and sm['starpilotPlan'].forcingStopLength > force_stop_handoff_m:
-      force_stop_x = float(sm['starpilotPlan'].forcingStopLength) + STOP_DISTANCE
+      force_stop_x = (
+        float(sm['starpilotPlan'].forcingStopLength) + STOP_DISTANCE +
+        get_force_stop_distance_bias(self.CP.carFingerprint)
+      )
 
     self.mpc.update(sm['radarState'], v_cruise, x, v, a, j,
                     sm['starpilotPlan'].dangerFactor, effective_t_follow,

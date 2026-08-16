@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+from functools import cached_property
 import os
+import struct
 from openpilot.system.hardware import TICI
 os.environ['GMMU'] = '0'
 os.environ['DEV'] = 'QCOM' if TICI else 'LLVM'
+from tinygrad.device import Device
 from tinygrad.tensor import Tensor
 import threading
 import time
@@ -13,6 +16,7 @@ from cereal import car, log
 from pathlib import Path
 from setproctitle import setproctitle
 from cereal.messaging import PubMaster, SubMaster
+from cereal.services import SERVICE_LIST
 from msgq.visionipc import VisionIpcClient, VisionStreamType, VisionBuf
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.params import Params
@@ -70,6 +74,15 @@ BIG_MODEL_RUN_WAIT_TIMEOUT_MS = 3000
 LAT_SMOOTH_BP = [2.0, 8.0]
 
 
+def _set_hcq_wait_timeout(timeout_ms: int) -> None:
+  """Update tinygrad's cached HCQ timeout for the external-GPU load/run phase."""
+  os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = str(timeout_ms)
+  # tinygrad.getenv is cached. Updating os.environ alone leaves the first value
+  # in effect for the lifetime of modeld.
+  from tinygrad.helpers import getenv
+  getenv.cache_clear()
+
+
 def get_lateral_smooth_seconds(v_ego: float, maximum: float = 0.0) -> float:
   return float(np.interp(v_ego, LAT_SMOOTH_BP, [maximum, 0.0]))
 
@@ -78,6 +91,67 @@ def get_car_lateral_smooth_seconds(brand: str, v_ego: float, maximum: float) -> 
   if brand == "rivian":
     return get_lateral_smooth_seconds(v_ego, maximum)
   return maximum
+
+
+class ChestnutState:
+  """Publish bounded external-GPU and ASM2464 telemetry from modeld."""
+
+  def __init__(self, pm: PubMaster, big: bool):
+    self.pm = pm
+    self.big = big
+    self.valid = True
+    self.sends = 0
+    self.metrics = {}
+
+  @cached_property
+  def power_limit(self) -> int:
+    smu = Device["AMD"].iface.dev_impl.smu
+    return smu._send_msg(smu.smu_mod.PPSMC_MSG_GetPptLimit, 0, read_back_arg=True, timeout=100)
+
+  def send(self) -> None:
+    msg = messaging.new_message("chestnutState")
+    state = msg.chestnutState
+    self.sends += 1
+
+    # SMU metrics are relatively expensive, so update them at 0.1 Hz while
+    # publishing the cached values with the 10 Hz ASM link telemetry.
+    if self.big and "AMD" in Device._opened_devices and self.sends % 100 == 1:
+      try:
+        smu = Device["AMD"].iface.dev_impl.smu
+        smu._send_msg(smu.smu_mod.PPSMC_MSG_TransferTableSmu2Dram, smu.smu_mod.TABLE_SMU_METRICS, timeout=100)
+        metrics = smu.read_table(smu.smu_mod.SmuMetricsExternal_t, smu.smu_mod.TABLE_SMU_METRICS).SmuMetrics
+        self.metrics = {
+          "tempC": metrics.AvgTemperature[smu.smu_mod.TEMP_HOTSPOT],
+          "memoryTempC": metrics.AvgTemperature[smu.smu_mod.TEMP_MEM],
+          "powerDrawW": metrics.AverageSocketPower,
+          "powerLimitW": self.power_limit,
+          "gpuUsagePercent": metrics.AverageGfxActivity,
+          "gpuClockMhz": metrics.AverageGfxclkFrequencyPostDs,
+          "fanSpeedRpm": metrics.AvgFanRpm,
+        }
+        self.valid = True
+      except Exception:
+        if self.valid:
+          cloudlog.exception("chestnut state read failed")
+        self.valid = False
+        self.metrics.clear()
+
+    if self.big:
+      for key, value in self.metrics.items():
+        setattr(state, key, value)
+
+    asm_valid = False
+    if "AMD" in Device._opened_devices:
+      try:
+        asm = Device["AMD"].iface.pci_dev.usb
+        state.pcieLtssm = asm.read(0xB450, 1)[0]
+        state.supplyVoltage, state.supplyCurrent = struct.unpack("<Hh", bytes(asm.usb.control_read(0xC0, 5))[:4])
+        asm_valid = True
+      except Exception:
+        pass
+
+    msg.valid = asm_valid and (not self.big or self.valid)
+    self.pm.send("chestnutState", msg)
 
 
 def _get_param_str(params: Params, key: str, default: str = "") -> str:
@@ -571,7 +645,7 @@ def main(demo=False):
     # Loading the large artifact competes with the rest of on-road startup.
     # Keep the short watchdog for inference, but allow tinygrad's normal wait
     # while model weights are being streamed into VRAM.
-    os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = str(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
+    _set_hcq_wait_timeout(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
     from tinygrad.helpers import DEV
     device_config = tinygrad_dev_config(True, TICI)
     DEV.value = device_config
@@ -629,7 +703,7 @@ def main(demo=False):
     loader = threading.Thread(target=load_big_model, name="big_model_loader", daemon=True)
     loader.start()
     loader.join(BIG_MODEL_TIMEOUT)
-    os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = str(BIG_MODEL_RUN_WAIT_TIMEOUT_MS)
+    _set_hcq_wait_timeout(BIG_MODEL_RUN_WAIT_TIMEOUT_MS)
     if loader.is_alive():
       cloudlog.error(f"external GPU model load timed out after {BIG_MODEL_TIMEOUT}s")
     model = big_model
@@ -651,10 +725,14 @@ def main(demo=False):
   cloudlog.warning(f"model loaded in {time.monotonic() - start_time:.1f}s, modeld starting")
 
   # messaging
-  pm = PubMaster(["modelV2", "drivingModelData", "cameraOdometry", "starpilotModelV2"])
+  publish_services = ["modelV2", "drivingModelData", "cameraOdometry", "starpilotModelV2"]
+  if external_gpu_requested:
+    publish_services.append("chestnutState")
+  pm = PubMaster(publish_services)
   sm = SubMaster(["deviceState", "carState", "roadCameraState", "liveCalibration", "driverMonitoringState", "carControl", "liveDelay", "starpilotPlan"])
 
   publish_state = PublishState()
+  chestnut_state = ChestnutState(pm, external_gpu_active) if external_gpu_requested else None
   # setup filter to track dropped frames
   frame_dropped_filter = FirstOrderFilter(0., 10., 1. / ModelConstants.MODEL_FREQ)
   frame_id = 0
@@ -809,6 +887,8 @@ def main(demo=False):
       params.put_bool("UsbGpuActive", False)
       model = small_model
       external_gpu_active = False
+      if chestnut_state is not None:
+        chestnut_state.big = False
       run_count = 0
       model_output = None
     mt2 = time.perf_counter()
@@ -856,6 +936,9 @@ def main(demo=False):
     # Update planner-driven parameters
     if sm.updated['starpilotPlan']:
       starpilot_toggles = get_starpilot_toggles(sm)
+
+    if chestnut_state is not None and run_count % round(ModelConstants.MODEL_FREQ / SERVICE_LIST["chestnutState"].frequency) == 0:
+      chestnut_state.send()
 
 if __name__ == "__main__":
   try:

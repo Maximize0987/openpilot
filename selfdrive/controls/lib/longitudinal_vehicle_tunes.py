@@ -28,6 +28,7 @@ TOYOTA_RAV4_TSS2_EARLY_LEAD_MIN_BRAKE = 0.8
 TOYOTA_RAV4_TSS2_EARLY_LEAD_MAX_BRAKE = 2.0
 TOYOTA_RAV4_TSS2_EARLY_LEAD_MAX_DECEL = 0.5
 TOYOTA_CAMRY_TSS2_FORCE_STOP_HANDOFF_M = 4.5
+TOYOTA_CAMRY_TSS2_FORCE_STOP_DISTANCE_BIAS_M = 2.0
 DEFAULT_FORCE_STOP_HANDOFF_M = 6.0
 
 
@@ -170,3 +171,9 @@ def get_force_stop_handoff_distance(car_fingerprint):
   if str(car_fingerprint) == "TOYOTA_CAMRY_TSS2":
     return TOYOTA_CAMRY_TSS2_FORCE_STOP_HANDOFF_M
   return DEFAULT_FORCE_STOP_HANDOFF_M
+
+
+def get_force_stop_distance_bias(car_fingerprint):
+  if str(car_fingerprint) == "TOYOTA_CAMRY_TSS2":
+    return TOYOTA_CAMRY_TSS2_FORCE_STOP_DISTANCE_BIAS_M
+  return 0.0
