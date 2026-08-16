@@ -140,9 +140,10 @@ class SentryMode:
       "imagePaths": [],
       "message": "Movement detected while parked." if kind == "warning" else "Sustained movement detected while parked.",
     }
-    if kind == "alarm":
+    if kind in {"warning", "alarm"}:
       event["imagePaths"] = self._capture_images(event_id)
-      self._trim_old_events()
+      if kind == "alarm":
+        self._trim_old_events()
     self._publish_event(event)
 
   def update(self) -> None:
