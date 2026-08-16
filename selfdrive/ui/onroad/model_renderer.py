@@ -521,7 +521,8 @@ class ModelRenderer(Widget):
   def _draw_lead_metrics(self, adjacent, chevron, lead_data):
     is_metric = ui_state.is_metric
     use_si_metrics = ui_state.starpilot_toggles.get("UseSiMetrics", False)
-
+    devside = ui_state.starpilot_toggles.get("developer_sidebar", False)
+    
     if is_metric or use_si_metrics:
       lead_distance_unit = "m"
       distance_conversion = 1.0
@@ -581,7 +582,10 @@ class ModelRenderer(Widget):
       if sz.x > max_text_width:
         max_text_width = sz.x
 
-    centerX = 942  # centerX = chevron[1][0]
+    if devside:
+      centerX = 930  # centerX = chevron[1][0]
+    else:
+      centerX = 1080
     startY = 900  # startY = max(chevron[0][1], chevron[2][1]) + line_height + 5
 
     x_margin = max_text_width * 0.1
