@@ -143,6 +143,22 @@ def _select_builtin_model(params: Params) -> None:
   params.put("DrivingModelName", "Regret Driven Framework V4")
 
 
+def _close_tinygrad_disk_cache_connection() -> None:
+  """Drop a tinygrad cache connection before handing work to another thread."""
+  import tinygrad.helpers as tinygrad_helpers
+
+  connection = getattr(tinygrad_helpers, "_db_connection", None)
+  if connection is None:
+    return
+
+  try:
+    connection.close()
+  except Exception:
+    cloudlog.exception("failed to close tinygrad disk cache connection")
+  finally:
+    tinygrad_helpers._db_connection = None
+
+
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                           lat_action_t: float, long_action_t: float, v_ego: float, mlsim: bool,
                           is_v9: bool, is_v14: bool, is_v15: bool, starpilot_toggles,
@@ -593,15 +609,22 @@ def main(demo=False):
 
     def load_big_model() -> None:
       nonlocal big_model
+      candidate = None
       try:
         wait_usbgpu_link()
         candidate = ModelState(vipc_client_main.width, vipc_client_main.height, True)
         if not candidate.uses_external_gpu:
           raise RuntimeError("external GPU model resolved to the builtin model")
         candidate.warmup()
-        big_model = candidate
       except Exception:
         cloudlog.exception("external GPU model load or warmup failed")
+        candidate = None
+      finally:
+        # tinygrad's global SQLite cache connection is thread-bound. Loading and
+        # warming here can create it in this worker, so close it here before the
+        # model (or native fallback) runs on modeld's main thread.
+        _close_tinygrad_disk_cache_connection()
+      big_model = candidate
 
     loader = threading.Thread(target=load_big_model, name="big_model_loader", daemon=True)
     loader.start()

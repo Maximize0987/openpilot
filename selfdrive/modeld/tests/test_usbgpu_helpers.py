@@ -19,6 +19,25 @@ def test_external_gpu_uses_a_longer_load_watchdog():
   assert modeld.BIG_MODEL_RUN_WAIT_TIMEOUT_MS == 3000
 
 
+def test_tinygrad_disk_cache_connection_is_closed_before_thread_handoff(monkeypatch):
+  import tinygrad.helpers as tinygrad_helpers
+
+  class FakeConnection:
+    def __init__(self):
+      self.closed = False
+
+    def close(self):
+      self.closed = True
+
+  connection = FakeConnection()
+  monkeypatch.setattr(tinygrad_helpers, "_db_connection", connection)
+
+  modeld._close_tinygrad_disk_cache_connection()
+
+  assert connection.closed
+  assert tinygrad_helpers._db_connection is None
+
+
 def test_out_of_band_artifact_round_trip():
   artifact = {"weights": np.arange(32, dtype=np.float32), "metadata": {"version": 1}}
   stream = io.BytesIO()
