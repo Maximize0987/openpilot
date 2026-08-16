@@ -12,6 +12,15 @@ def test_legacy_volt_stock_acc_models_share_sng_and_auto_hold_scope():
   }
 
 
+def test_tss2_toyota_keeps_main_aol_button_path():
+  assert spv._lkas_allowed_for_aol("toyota", 0, []) is False
+
+
+def test_hyundai_and_honda_keep_lkas_aol_button_path():
+  assert spv._lkas_allowed_for_aol("honda", 0, []) is True
+  assert spv._lkas_allowed_for_aol("hyundai", spv.HyundaiFlags.CANFD, []) is True
+
+
 def test_jeep_brake_hold_scope_is_grand_cherokee_only():
   assert {str(car) for car in spv.CHRYSLER_JEEPS} == {
     "JEEP_GRAND_CHEROKEE",

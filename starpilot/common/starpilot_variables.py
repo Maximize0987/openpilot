@@ -22,7 +22,7 @@ from opendbc.car.interfaces import TORQUE_SUBSTITUTE_PATH, CarInterfaceBase, Gea
 from opendbc.car.mock.values import CAR as MOCK
 from opendbc.car.subaru.values import SubaruFlags
 from opendbc.car.tesla.values import CAR as TESLA_CAR
-from opendbc.car.toyota.values import CAR as TOYOTA_CAR, TSS2_CAR, ToyotaStarPilotFlags
+from opendbc.car.toyota.values import CAR as TOYOTA_CAR, ToyotaStarPilotFlags
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.constants import CV
 from openpilot.common.params import Params
@@ -63,6 +63,18 @@ NON_DRIVING_GEARS = [GearShifter.neutral, GearShifter.park, GearShifter.reverse,
 
 # Temporary fallback until the weather-compatible API is hosted locally.
 STARPILOT_API = os.getenv("STARPILOT_API", "https://frogpilot.com/api")
+
+
+def _lkas_allowed_for_aol(car_make, cp_flags, fpcp_safety_configs) -> bool:
+  hyundai_has_lda_button = (
+    car_make == "hyundai" and
+    len(fpcp_safety_configs) > 0 and
+    bool(fpcp_safety_configs[-1].safetyParam & HyundaiStarPilotSafetyFlags.HAS_LDA_BUTTON.value)
+  )
+  hyundai_can_use_lkas_for_aol = car_make == "hyundai" and (
+    bool(cp_flags & HyundaiFlags.CANFD) or hyundai_has_lda_button
+  )
+  return hyundai_can_use_lkas_for_aol or car_make == "honda"
 
 LEGACY_CARMODEL_MIGRATIONS = {
   "CHEVROLET_BOLT_CC_2019_2021": "CHEVROLET_BOLT_CC_2018_2021",
@@ -611,16 +623,10 @@ class StarPilotVariables:
     latAccelFactor = CP.lateralTuning.torque.latAccelFactor
     if not math.isfinite(latAccelFactor):
       latAccelFactor = 0.0
-    hyundai_has_lda_button = (
-      toggle.car_make == "hyundai" and
-      len(FPCP.safetyConfigs) > 0 and
-      bool(FPCP.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.HAS_LDA_BUTTON.value)
+    toggle.lkas_allowed_for_aol = _lkas_allowed_for_aol(
+      toggle.car_make, CP.flags, FPCP.safetyConfigs,
     )
-    hyundai_can_use_lkas_for_aol = toggle.car_make == "hyundai" and (
-      bool(CP.flags & HyundaiFlags.CANFD) or hyundai_has_lda_button
-    )
-    toyota_can_use_lkas_for_aol = toggle.car_make == "toyota" and CP.carFingerprint in TSS2_CAR
-    toggle.lkas_allowed_for_aol = hyundai_can_use_lkas_for_aol or toggle.car_make == "honda" or toyota_can_use_lkas_for_aol
+    hyundai_can_use_lkas_for_aol = toggle.car_make == "hyundai" and toggle.lkas_allowed_for_aol
     longitudinalActuatorDelay = CP.longitudinalActuatorDelay
     toggle.openpilot_longitudinal = CP.openpilotLongitudinalControl and not toggle.disable_openpilot_long
     if not toggle.redneck_cruise_available or (toggle.openpilot_longitudinal and FPCP.pcmCruiseSpeed):
