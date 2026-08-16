@@ -67,6 +67,17 @@ MIN_LAT_CONTROL_SPEED = 0.3
 BIG_MODEL_TIMEOUT = 60
 BIG_MODEL_LOAD_WAIT_TIMEOUT_MS = 30000
 BIG_MODEL_RUN_WAIT_TIMEOUT_MS = 3000
+LAT_SMOOTH_BP = [2.0, 8.0]
+
+
+def get_lateral_smooth_seconds(v_ego: float, maximum: float = 0.0) -> float:
+  return float(np.interp(v_ego, LAT_SMOOTH_BP, [maximum, 0.0]))
+
+
+def get_car_lateral_smooth_seconds(brand: str, v_ego: float, maximum: float) -> float:
+  if brand == "rivian":
+    return get_lateral_smooth_seconds(v_ego, maximum)
+  return maximum
 
 
 def _get_param_str(params: Params, key: str, default: str = "") -> str:
