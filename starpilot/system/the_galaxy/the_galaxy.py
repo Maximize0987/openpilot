@@ -7,6 +7,7 @@ import math
 import numbers
 import os
 import sys
+import sysconfig
 import tarfile
 
 from io import BytesIO
@@ -112,11 +113,30 @@ MODEL_SMOOTHING_KEYS = {"LatSmoothSeconds", "LongSmoothSeconds"}
 GALAXY_DEPS_PATH = "/data/galaxy_deps"
 LEGACY_GALAXY_DEPS_PATH = "/data/" + "".join(chr(code) for code in (112, 111, 110, 100)) + "_deps"
 GALAXY_DEPS_PATHS = (GALAXY_DEPS_PATH, LEGACY_GALAXY_DEPS_PATH)
-for deps_path in GALAXY_DEPS_PATHS:
+
+
+def _galaxy_runtime_dependency_paths() -> tuple[str, ...]:
+  """Return existing dependency locations used by Galaxy on-device and in builds."""
+  repo_root = REPO_THIRD_PARTY_PATH.parent.parent
+  candidates = [
+    sysconfig.get_paths().get("purelib", ""),
+    "/usr/local/venv/lib/python3.12/site-packages",
+  ]
+
+  for venv_name in (".venv", ".venv-linux-arm64"):
+    venv_path = repo_root / venv_name / "lib"
+    if venv_path.is_dir():
+      candidates.extend(str(path) for path in venv_path.glob("python*/site-packages"))
+
+  return tuple(dict.fromkeys(path for path in candidates if path and os.path.isdir(path)))
+
+
+REPO_THIRD_PARTY_PATH = Path(__file__).resolve().parents[2] / "third_party"
+GALAXY_RUNTIME_DEPENDENCY_PATHS = _galaxy_runtime_dependency_paths()
+for deps_path in GALAXY_DEPS_PATHS + GALAXY_RUNTIME_DEPENDENCY_PATHS:
   if os.path.isdir(deps_path) and deps_path not in sys.path:
     sys.path.insert(0, deps_path)
 
-REPO_THIRD_PARTY_PATH = Path(__file__).resolve().parents[2] / "third_party"
 if REPO_THIRD_PARTY_PATH.is_dir() and str(REPO_THIRD_PARTY_PATH) not in sys.path:
   sys.path.insert(0, str(REPO_THIRD_PARTY_PATH))
 
@@ -692,7 +712,7 @@ def _sentry_push_subscription_count() -> int:
 
 def _dispatch_sentry_push(event: dict) -> None:
   try:
-    from pywebpush import webpush
+    from openpilot.starpilot.system.the_galaxy.web_push import webpush
 
     vapid = _get_sentry_vapid()
   except Exception:
@@ -4339,6 +4359,7 @@ def setup(app):
     if request.path in {
       "/assets/components/router.js",
       "/assets/components/sentry_notifications.js",
+      "/assets/js/utils.js",
       "/assets/components/home/home.js",
       "/assets/components/home/home.css",
       "/assets/components/tools/device_settings.js",

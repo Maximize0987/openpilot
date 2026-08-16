@@ -409,8 +409,7 @@ def process_hud_alert(enabled, fingerprint, hud_control):
 
 
 def preserve_stock_canfd_lfa_status(car_fingerprint) -> bool:
-  # The 2022-24 Carnival expects a clean replacement status payload after its radar ECU is disabled.
-  return car_fingerprint != CAR.KIA_CARNIVAL_4TH_GEN
+  return car_fingerprint not in (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN)
 
 
 def suppress_redundant_gv70_brake_cancel(CP, brake_pressed: bool, lat_active: bool) -> bool:

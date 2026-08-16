@@ -125,15 +125,14 @@ def get_test_toggles() -> SimpleNamespace:
 
 
 class TestHyundaiFingerprint:
-  def test_carnival_2024_uses_clean_canfd_lfa_status(self):
-    assert not preserve_stock_canfd_lfa_status(CAR.KIA_CARNIVAL_4TH_GEN)
-    assert preserve_stock_canfd_lfa_status(CAR.KIA_CARNIVAL_2025)
-    assert preserve_stock_canfd_lfa_status(CAR.KIA_CARNIVAL_HEV_4TH_GEN)
+  @pytest.mark.parametrize("candidate", (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN))
+  def test_carnival_uses_clean_canfd_lfa_status(self, candidate):
+    assert not preserve_stock_canfd_lfa_status(candidate)
     assert preserve_stock_canfd_lfa_status(CAR.HYUNDAI_IONIQ_6)
 
     CP = CarParams.new_message()
-    CP.carFingerprint = CAR.KIA_CARNIVAL_4TH_GEN
-    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.RADAR_SCC)
+    CP.carFingerprint = candidate
+    CP.flags = int(HyundaiFlags.CANFD | (HyundaiFlags.RADAR_SCC if candidate == CAR.KIA_CARNIVAL_4TH_GEN else HyundaiFlags.CCNC))
     CP.openpilotLongitudinalControl = True
     packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
     can_bus = CanBus(CP)

@@ -1,3 +1,16 @@
+self.addEventListener("install", () => self.skipWaiting())
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()))
+
+const appBasePath = self.location.pathname.replace(/\/service-worker\.js$/, "").replace(/\/$/, "")
+
+function scopedUrl(path) {
+  const url = new URL(path || "/sentry", self.location.origin)
+  if (appBasePath && url.pathname !== appBasePath && !url.pathname.startsWith(`${appBasePath}/`)) {
+    url.pathname = `${appBasePath}${url.pathname}`
+  }
+  return url.href
+}
+
 self.addEventListener("push", (event) => {
   let data = {}
   try {
@@ -10,9 +23,9 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body || "Movement detected while parked.",
     tag: `starpilot-sentry-${data.eventId || "event"}`,
-    data: { url: data.url || "/sentry" },
-    icon: "/assets/images/favicon.ico",
-    badge: "/assets/images/favicon-32x32.png",
+    data: { url: scopedUrl(data.url || "/sentry") },
+    icon: scopedUrl("/assets/images/favicon.ico"),
+    badge: scopedUrl("/assets/images/favicon-32x32.png"),
     requireInteraction: true,
   }
 
@@ -21,7 +34,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
-  const targetUrl = new URL(event.notification.data?.url || "/sentry", self.location.origin).href
+  const targetUrl = scopedUrl(event.notification.data?.url || "/sentry")
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {

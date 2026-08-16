@@ -1,5 +1,5 @@
 import { html, reactive } from "/assets/vendor/arrow-core.js"
-import { isGalaxyTunnel } from "/assets/js/utils.js"
+import { galaxyPath, isGalaxyTunnel } from "/assets/js/utils.js"
 import {
   enableSentryPush,
   sendSentryTestPush,
@@ -19,7 +19,7 @@ let pollTimer = null
 
 async function fetchParams() {
   try {
-    const response = await fetch("/api/params/all", { cache: "no-store" })
+    const response = await fetch(galaxyPath("/api/params/all"), { cache: "no-store" })
     if (response.ok) state.params = await response.json()
   } catch (error) {
     console.error("Failed to fetch Sentry settings:", error)
@@ -30,7 +30,7 @@ async function fetchParams() {
 
 async function fetchStatus() {
   try {
-    const response = await fetch("/api/sentry/status", { cache: "no-store" })
+    const response = await fetch(galaxyPath("/api/sentry/status"), { cache: "no-store" })
     if (!response.ok) return
     const payload = await response.json()
     state.status = payload.status || {}
@@ -50,7 +50,7 @@ function startPolling() {
 async function saveParam(key, value) {
   state.savingKey = key
   try {
-    const response = await fetch("/api/params", {
+    const response = await fetch(galaxyPath("/api/params"), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value }),
@@ -73,7 +73,7 @@ async function sendTestEvent() {
   if (state.testBusy) return
   state.testBusy = true
   try {
-    const response = await fetch("/api/sentry/test", { method: "POST" })
+    const response = await fetch(galaxyPath("/api/sentry/test"), { method: "POST" })
     const payload = await response.json()
     if (!response.ok) {
       showSnackbar(payload.error || "Sentry test failed.")
@@ -126,8 +126,8 @@ function renderEvent() {
     ${Array.isArray(event.imageUrls) && event.imageUrls.length > 0 ? html`
       <div class="sentry-image-grid">
         ${event.imageUrls.map((url, index) => html`
-          <a href="${url}" target="_blank" rel="noopener">
-            <img src="${url}" alt="Sentry capture ${index + 1}" loading="lazy" />
+          <a href="${galaxyPath(url)}" target="_blank" rel="noopener">
+            <img src="${galaxyPath(url)}" alt="Sentry capture ${index + 1}" loading="lazy" />
           </a>
         `)}
       </div>

@@ -1,3 +1,5 @@
+import { galaxyPath } from "/assets/js/utils.js"
+
 const STORAGE_KEY = "starpilot.sentry.last-event"
 const POLL_INTERVAL_MS = 5000
 const SERVICE_WORKER_PATH = "/service-worker.js"
@@ -96,13 +98,15 @@ export async function enableSentryPush() {
     return { ok: false, message: "Chrome notification permission was not granted." }
   }
 
-  const configResponse = await fetch("/api/sentry/push/config", { cache: "no-store" })
+  const configResponse = await fetch(galaxyPath("/api/sentry/push/config"), { cache: "no-store" })
   const config = await readJsonResponse(configResponse)
   if (!configResponse.ok || !config.enabled || !config.publicKey) {
     return { ok: false, message: config.error || "Galaxy Web Push is unavailable." }
   }
 
-  await navigator.serviceWorker.register(SERVICE_WORKER_PATH, { scope: "/" })
+  const serviceWorkerPath = galaxyPath(SERVICE_WORKER_PATH)
+  const serviceWorkerScope = galaxyPath("/")
+  await navigator.serviceWorker.register(serviceWorkerPath, { scope: serviceWorkerScope })
   const registration = await navigator.serviceWorker.ready
   let subscription = await registration.pushManager.getSubscription()
   if (!subscription) {
@@ -112,7 +116,7 @@ export async function enableSentryPush() {
     })
   }
 
-  const response = await fetch("/api/sentry/push/subscribe", {
+  const response = await fetch(galaxyPath("/api/sentry/push/subscribe"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(subscriptionPayload(subscription)),
@@ -123,7 +127,7 @@ export async function enableSentryPush() {
 }
 
 export async function sendSentryTestPush() {
-  const response = await fetch("/api/sentry/push/test", { method: "POST" })
+  const response = await fetch(galaxyPath("/api/sentry/push/test"), { method: "POST" })
   const payload = await readJsonResponse(response)
   if (!response.ok) throw new Error(payload.error || "Galaxy could not send the test push.")
   return payload
