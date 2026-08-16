@@ -997,7 +997,7 @@ class SpeedLimitVisionDaemon:
 
       if self.coexistence_mode:
         cpu_usage = list(self.sm["deviceState"].cpuUsagePercent) if self.sm is not None and self.sm.valid.get("deviceState", False) else []
-        factor = device_cpu_throttle_factor(cpu_usage, name="SpeedLimit")
+        factor = device_cpu_throttle_factor(cpu_usage, name="SpeedLimit", cores=SPEED_LIMIT_VISION_COEXISTENCE_AFFINITY_CORES)
         if factor > 1.05:
           self.last_cpu_busy = True
           interval *= factor
@@ -1348,7 +1348,7 @@ class SpeedLimitVisionDaemon:
       return max(interval, MEMORY_PRESSURE_CLASSIFICATION_INTERVAL)
     if self.coexistence_mode:
       cpu_usage = list(self.sm["deviceState"].cpuUsagePercent) if self.sm is not None and self.sm.valid.get("deviceState", False) else []
-      if device_cpu_throttle_factor(cpu_usage, name="SpeedLimit") > 1.05:
+      if device_cpu_throttle_factor(cpu_usage, name="SpeedLimit", cores=SPEED_LIMIT_VISION_COEXISTENCE_AFFINITY_CORES) > 1.05:
         return max(interval, TRACK_BUSY_CLASSIFICATION_INTERVAL)
     elif self._device_cpu_busy():
       return max(interval, TRACK_BUSY_CLASSIFICATION_INTERVAL)

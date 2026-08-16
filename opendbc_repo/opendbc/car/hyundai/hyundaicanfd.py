@@ -183,6 +183,8 @@ def create_steering_messages(packer, CP, CAN, enabled, lat_active, apply_torque,
   else:
     lkas_values = copy.copy(control_values)
     lkas_values["LKA_AVAILABLE"] = 0
+    if CP.carFingerprint in (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN):
+      lkas_values["DAMP_FACTOR"] = 100
 
   if lfa_base_values:
     # Preserve stock UI/status fields and only override the actuation-relevant signals.

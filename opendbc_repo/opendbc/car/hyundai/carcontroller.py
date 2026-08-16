@@ -412,6 +412,10 @@ def preserve_stock_canfd_lfa_status(car_fingerprint) -> bool:
   return car_fingerprint not in (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN)
 
 
+def preserve_stock_canfd_lkas_status(car_fingerprint) -> bool:
+  return car_fingerprint not in (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN)
+
+
 def suppress_redundant_gv70_brake_cancel(CP, brake_pressed: bool, lat_active: bool) -> bool:
   return bool(
     CP.carFingerprint == CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN and
@@ -806,7 +810,8 @@ class CarController(CarControllerBase):
     # payload. Forwarding its stock status bits leaves lane-safety state asserted
     # while StarPilot is suppressing the stock LFA path.
     preserve_stock_lkas = bool(self.CP.flags & HyundaiFlags.CANFD_LKA_STEERING) and \
-      not self.long_active_ecu and self.CP.carFingerprint != CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
+      not self.long_active_ecu and self.CP.carFingerprint != CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN and \
+      preserve_stock_canfd_lkas_status(self.CP.carFingerprint)
     angle_lkas_alt = bool(self.CP.flags & HyundaiFlags.CANFD_ANGLE_STEERING and
                           self.CP.flags & HyundaiFlags.CANFD_LKA_STEERING_ALT)
     ccnc_angle_long = self.CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR and \
