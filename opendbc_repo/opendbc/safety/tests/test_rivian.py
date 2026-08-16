@@ -6,7 +6,7 @@ from opendbc.car import STD_CARGO_KG, scale_rot_inertia, scale_tire_stiffness
 from opendbc.car.lateral import get_max_angle_delta_vm, get_max_angle_vm
 from opendbc.car.structs import CarParams
 from opendbc.car.vehicle_model import VehicleModel
-from opendbc.car.rivian.values import CarControllerParams
+from opendbc.car.rivian.values import CarControllerParams, MAX_ALLOWED_LATERAL_ACCEL
 from opendbc.safety.tests.libsafety import libsafety_py
 import opendbc.safety.tests.common as common
 from opendbc.safety.tests.common import CANPackerSafety
@@ -168,8 +168,14 @@ class TestRivianAngleSafetyBase(TestRivianSafetyBase, common.AngleSteeringSafety
     return self.packer.make_can_msg_safety("EPAS_AdasStatus", 0, {"EPAS_InternalSas": angle})
 
   def test_angle_cmd_when_enabled(self):
-    # The VM-based lateral acceleration and jerk limits are exercised below.
-    pass
+    # The VM-based lateral acceleration and jerk limits are exercised by the
+    # dedicated tests below; keep this common-suite hook explicit rather than
+    # silently skipping the enabled-angle coverage.
+    self._check_lateral_accel_limit()
+    self._check_lateral_jerk_limit()
+
+  def test_product_lateral_accel_limit(self):
+    self.assertLessEqual(CarControllerParams.ANGLE_LIMITS.MAX_LATERAL_ACCEL, MAX_ALLOWED_LATERAL_ACCEL)
 
   def _can_to_deg(self, can_value):
     return can_value / self.DEG_TO_CAN
@@ -180,7 +186,7 @@ class TestRivianAngleSafetyBase(TestRivianSafetyBase, common.AngleSteeringSafety
     stored = round(speed_kph_can / 3.6 * 1000)
     return max(stored / 1000.0 - 1.0, 1.0)
 
-  def test_lateral_accel_limit(self):
+  def _check_lateral_accel_limit(self):
     for speed in np.linspace(0, 40, 100):
       speed = max(self._round_speed(speed), 1)
       for sign in (-1, 1):
@@ -198,7 +204,7 @@ class TestRivianAngleSafetyBase(TestRivianSafetyBase, common.AngleSteeringSafety
         should_tx = above_can > self.STEER_ANGLE_MAX * self.DEG_TO_CAN
         self.assertEqual(should_tx, self._tx(self._angle_cmd_msg(above_deg, True)))
 
-  def test_lateral_jerk_limit(self):
+  def _check_lateral_jerk_limit(self):
     for speed in np.linspace(0, 40, 100):
       speed = max(self._round_speed(speed), 1)
       for sign in (-1, 1):

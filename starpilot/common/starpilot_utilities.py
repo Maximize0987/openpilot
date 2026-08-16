@@ -210,9 +210,16 @@ def flash_panda(params_memory):
   for serial in Panda.list():
     try:
       with Panda(serial=serial) as panda:
-        if serial in usb_serials and is_rivian_bridge_panda(panda, rivian):
-          print(f"Skipping Rivian harness bridge {serial}")
-          continue
+        if serial in usb_serials and not panda.is_internal() and panda.get_type() == Panda.HW_TYPE_BLACK:
+          if is_rivian_bridge_panda(panda, rivian):
+            print(f"Skipping Rivian harness bridge {serial}")
+            continue
+          if rivian:
+            # Never let the generic updater overwrite an unverified external
+            # Black Panda while a Rivian configuration is active. Provision a
+            # bridge explicitly before allowing it into the normal updater.
+            print(f"Skipping unverified external Black Panda on Rivian {serial}")
+            continue
         print(f"Flashing Panda {serial}")
         flash_fn = None
         app_fn = panda.get_mcu_type().config.app_fn

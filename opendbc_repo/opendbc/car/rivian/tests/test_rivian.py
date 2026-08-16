@@ -14,7 +14,8 @@ from opendbc.car.rivian.fingerprints import FW_VERSIONS
 from opendbc.car.rivian.interface import CarInterface
 from opendbc.car.rivian.toi_controller import (TOI_ACK_FRAMES, TOI_MAX_ANGLE_FRAMES,
                                                TOI_RECOVERY_TIMEOUT_FRAMES, ToiController, ToiState)
-from opendbc.car.rivian.values import CAR, FW_QUERY_CONFIG, WMI, ModelLine, ModelYear, RivianFlags, RivianSafetyFlags
+from opendbc.car.rivian.values import (CAR, FW_QUERY_CONFIG, MAX_ALLOWED_LATERAL_ACCEL, CarControllerParams, WMI,
+                                       ModelLine, ModelYear, RivianFlags, RivianSafetyFlags)
 
 
 class TestRivian:
@@ -172,6 +173,9 @@ class TestRivian:
       controller._update_angle(car_state, True, desired_angle=400.0, desired_lat_accel=0.8)
 
     assert not controller.angle_saturated
+
+  def test_angle_command_envelope_is_below_product_lateral_accel_limit(self):
+    assert 0.0 < CarControllerParams.ANGLE_LIMITS.MAX_LATERAL_ACCEL <= MAX_ALLOWED_LATERAL_ACCEL
 
   def test_angle_saturation_param_is_seeded_and_edge_written(self):
     writes = []

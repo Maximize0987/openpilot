@@ -46,8 +46,10 @@ def test_outdated_rivian_bridge_uses_bridge_flash_path():
     panda_class.usb_list.return_value = ["bridge"]
     panda_class.get_signature_from_firmware.return_value = b"expected"
 
+    # An unknown firmware image cannot be safely identified as the bridge and
+    # must be left to explicit provisioning instead of being overwritten.
     assert flasher.prepare_rivian_bridge(["internal", "bridge"]) == {"bridge"}
-    flash_panda.assert_called_once_with(panda)
+    flash_panda.assert_not_called()
 
 
 def test_non_rivian_matching_bridge_is_reserved_without_flashing():
@@ -77,4 +79,19 @@ def test_non_rivian_external_black_panda_is_not_misidentified():
     panda_class.get_signature_from_firmware.return_value = b"expected"
 
     assert flasher.prepare_rivian_bridge(["internal", "external"]) == set()
+    flash_panda.assert_not_called()
+
+
+def test_bootstub_external_black_panda_is_not_misidentified():
+  panda = _external_black_panda(signature=b"expected", bootstub=True)
+  with patch.object(flasher, "_is_rivian", return_value=True), \
+       patch.object(flasher.os.path, "isfile", return_value=True), \
+       patch.object(flasher, "Panda", wraps=flasher.Panda) as panda_class, \
+       patch.object(flasher, "_flash_panda") as flash_panda:
+    panda_class.return_value = panda
+    panda_class.HW_TYPE_BLACK = b"\x03"
+    panda_class.usb_list.return_value = ["bridge"]
+    panda_class.get_signature_from_firmware.return_value = b"expected"
+
+    assert flasher.prepare_rivian_bridge(["bridge"]) == {"bridge"}
     flash_panda.assert_not_called()

@@ -113,6 +113,7 @@ GEAR_MAP = {
 }
 
 AVERAGE_ROAD_ROLL = 0.06  # ~3.4 degrees, conservative banked-road allowance for angle safety
+MAX_ALLOWED_LATERAL_ACCEL = 4.0  # m/s^2; hard product requirement for Rivian angle control
 
 
 class CarControllerParams:
@@ -139,7 +140,10 @@ class CarControllerParams:
     500,
     ([], []),
     ([], []),
-    MAX_LATERAL_ACCEL=ISO_LATERAL_ACCEL + (ACCELERATION_DUE_TO_GRAVITY * AVERAGE_ROAD_ROLL),
+    # Keep the vehicle-model command envelope below the product's absolute
+    # lateral-acceleration ceiling, including the road-roll allowance.
+    MAX_LATERAL_ACCEL=min(MAX_ALLOWED_LATERAL_ACCEL,
+                          ISO_LATERAL_ACCEL + (ACCELERATION_DUE_TO_GRAVITY * AVERAGE_ROAD_ROLL)),
     MAX_LATERAL_JERK=3.0 + (ACCELERATION_DUE_TO_GRAVITY * AVERAGE_ROAD_ROLL),
     MAX_ANGLE_RATE=2.5,
   )

@@ -77,13 +77,13 @@ def _flash_panda(panda: Panda) -> None:
 def is_rivian_bridge_panda(panda: Panda, rivian: bool | None = None) -> bool:
   if panda.is_internal() or panda.get_type() != Panda.HW_TYPE_BLACK:
     return False
-  if rivian is None:
-    rivian = _is_rivian()
-  if rivian or panda.bootstub:
-    return rivian
+  # A cached Rivian CarParams record is not sufficient evidence to identify a
+  # bridge. An arbitrary external Black Panda may be connected at the same
+  # time, and flashing it would permanently replace its firmware. Only the
+  # signed bridge image can positively identify the hardware.
   try:
     expected_signature = Panda.get_signature_from_firmware(FW_PATH)
-    return panda.get_signature() == expected_signature
+    return not panda.bootstub and panda.get_signature() == expected_signature
   except Exception:
     return False
 
@@ -108,12 +108,14 @@ def prepare_rivian_bridge(panda_serials: list[str]) -> set[str]:
         continue
 
       bridge_confirmed = is_rivian_bridge_panda(panda, rivian)
-      if not bridge_confirmed:
+      if not bridge_confirmed and not rivian:
         continue
 
       bridge_serials.add(serial)
-      if rivian and firmware_available:
+      if bridge_confirmed and rivian and firmware_available:
         _flash_panda(panda)
+      elif rivian:
+        cloudlog.warning(f"External Black Panda {serial} is not signed with the Rivian bridge firmware; leaving it untouched")
     except Exception:
       cloudlog.exception(f"Failed to prepare Rivian Extreme harness bridge {serial}")
     finally:
