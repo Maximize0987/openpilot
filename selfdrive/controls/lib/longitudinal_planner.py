@@ -23,6 +23,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_follow_prebrake_min_headway,
   get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
+  allow_radar_standstill_gap_settle,
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
   get_toyota_rav4_tss2_early_lead_cap,
@@ -2458,7 +2459,12 @@ class LongitudinalPlanner:
       slow_creep_depart_detected and
       self.slow_creep_lead_depart_elapsed >= STANDSTILL_LEAD_CREEP_RELEASE_CONFIRM_TIME
     )
-    radar_gap_settle_active = self.update_radar_standstill_gap_settle(sm, standstill_nudge_gap)
+    radar_gap_settle_active = False
+    if allow_radar_standstill_gap_settle(self.CP):
+      radar_gap_settle_active = self.update_radar_standstill_gap_settle(sm, standstill_nudge_gap)
+    else:
+      self.radar_standstill_gap_settle_elapsed = 0.0
+      self.radar_standstill_gap_settle_active = False
 
     standstill_stopped_lead_guard_cap = None
     standstill_guard_lead_present = any(bool(getattr(lead, "status", False)) for lead in (self.lead_one, self.lead_two))

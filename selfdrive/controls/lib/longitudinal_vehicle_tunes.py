@@ -83,6 +83,14 @@ def get_toyota_rav4_tss2_early_lead_cap(CP, lead, v_ego, accel_min):
   return max(float(accel_min), -min(TOYOTA_RAV4_TSS2_EARLY_LEAD_MAX_DECEL, decel))
 
 
+def allow_radar_standstill_gap_settle(CP):
+  """Keep the generic stopped-lead gap nudge out of the early RAV4 TSS2 path."""
+  return not (
+    getattr(CP, "brand", "") == "toyota" and
+    str(getattr(CP, "carFingerprint", "")) == "TOYOTA_RAV4_TSS2"
+  )
+
+
 def get_far_follow_output_slew_rates(CP):
   if CP.brand == "honda" and str(CP.carFingerprint) == "HONDA_HRV_3G":
     return (
