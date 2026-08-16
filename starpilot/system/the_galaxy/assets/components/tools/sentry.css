@@ -117,6 +117,17 @@
   white-space: nowrap;
 }
 
+.sentry-button-danger {
+  border-color: var(--danger-bg);
+  color: var(--danger-fg);
+  white-space: nowrap;
+}
+
+.sentry-button-danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--color-white);
+}
+
 .sentry-action-row {
   display: flex;
   flex-wrap: wrap;

@@ -642,12 +642,6 @@ class StarPilotVariables:
     toggle.stoppingDecelRate = CP.stoppingDecelRate
     toggle.vEgoStarting = CP.vEgoStarting
     toggle.vEgoStopping = CP.vEgoStopping
-    if toggle.openpilot_longitudinal and toggle.car_make == "toyota":
-      # Preserve StarPilot's established Toyota stop-state behavior without
-      # coupling it to the removed FrogsGoMoo controller experiment.
-      toggle.stoppingDecelRate = 0.01
-      toggle.vEgoStarting = 0.1
-      toggle.vEgoStopping = 0.5
 
     # Keep stock tuning params synchronized for all device UIs.
     self._migrate_steer_delay_mode(steerActuatorDelay)

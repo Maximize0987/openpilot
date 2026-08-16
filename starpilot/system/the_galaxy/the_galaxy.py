@@ -7031,6 +7031,36 @@ def setup(app):
       "lastEvent": _public_sentry_event(last_event) if isinstance(last_event, dict) else {},
     })
 
+  @app.route("/api/sentry/events/<event_id>", methods=["DELETE"])
+  def delete_sentry_event(event_id):
+    if not params.get_bool("IsOffroad"):
+      return jsonify({"error": "Sentry events can only be deleted while parked."}), 409
+    if not event_id or event_id in {".", ".."} or Path(event_id).name != event_id:
+      return jsonify({"error": "Invalid Sentry event ID."}), 400
+
+    deleted_storage = False
+    for root in _sentry_event_roots():
+      directory = (root / event_id).resolve()
+      if root not in directory.parents or not directory.is_dir():
+        continue
+      shutil.rmtree(directory)
+      deleted_storage = True
+
+    raw_event = params.get("SentryModeLastEvent", encoding="utf-8") or "{}"
+    try:
+      current_event = raw_event if isinstance(raw_event, dict) else json.loads(raw_event)
+    except (TypeError, ValueError, json.JSONDecodeError):
+      current_event = {}
+
+    cleared_latest = isinstance(current_event, dict) and str(current_event.get("eventId") or "") == event_id
+    if cleared_latest:
+      params.remove("SentryModeLastEvent")
+
+    if not deleted_storage and not cleared_latest:
+      return jsonify({"error": "Sentry event not found."}), 404
+
+    return jsonify({"deleted": True, "eventId": event_id})
+
   @app.route("/api/sentry/images/<event_id>/<filename>", methods=["GET"])
   def sentry_image(event_id, filename):
     image_path = _sentry_image_path(event_id, filename)

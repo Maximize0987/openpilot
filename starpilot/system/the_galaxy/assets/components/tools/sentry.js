@@ -14,6 +14,7 @@ const state = reactive({
   liveCapture: {},
   testBusy: false,
   liveBusy: false,
+  deleteBusy: false,
   pushBusy: false,
 })
 
@@ -145,6 +146,30 @@ async function sendTestPush() {
   }
 }
 
+async function deleteEvent() {
+  const eventId = String(state.event?.eventId || "")
+  if (!eventId || state.deleteBusy) return
+  if (!window.confirm("Delete this Sentry event and its camera images? This cannot be undone.")) return
+
+  state.deleteBusy = true
+  try {
+    const response = await fetch(galaxyPath(`/api/sentry/events/${encodeURIComponent(eventId)}`), {
+      method: "DELETE",
+    })
+    const payload = await readJsonResponse(response)
+    if (!response.ok) {
+      showSnackbar(payload.error || "Sentry event deletion failed.")
+      return
+    }
+    state.event = {}
+    showSnackbar("Sentry event deleted.")
+  } catch (error) {
+    showSnackbar(error.message || "Network error — is the device reachable?")
+  } finally {
+    state.deleteBusy = false
+  }
+}
+
 function renderEvent() {
   const event = state.event || {}
   if (!event.eventId) return html`<p class="sentry-empty">No Sentry events recorded yet.</p>`
@@ -271,11 +296,18 @@ export function SentryMode() {
             <h3>Latest Event</h3>
             <p class="sentry-muted">Events refresh automatically every five seconds.</p>
           </div>
-          ${remote ? "" : html`
-            <button class="sentry-button sentry-button-secondary" @click="${sendTestEvent}" disabled="${() => state.testBusy}">
-              ${() => state.testBusy ? "Capturing…" : "Send test capture"}
-            </button>
-          `}
+          <div class="sentry-action-row">
+            ${remote ? "" : html`
+              <button class="sentry-button sentry-button-secondary" @click="${sendTestEvent}" disabled="${() => state.testBusy}">
+                ${() => state.testBusy ? "Capturing…" : "Send test capture"}
+              </button>
+            `}
+            ${() => state.event?.eventId ? html`
+              <button class="sentry-button sentry-button-danger" @click="${deleteEvent}" disabled="${() => state.deleteBusy}">
+                ${() => state.deleteBusy ? "Deleting…" : "Delete event"}
+              </button>
+            ` : ""}
+          </div>
         </div>
         ${() => renderEvent()}
       </section>
