@@ -503,6 +503,7 @@ def main(demo=False):
   params.put_bool("UsbGpuActive", False)
   params.put_bool("UsbGpuLoading", external_gpu_requested)
   if external_gpu_requested:
+    os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = "3000"
     from tinygrad.helpers import DEV
     device_config = tinygrad_dev_config(True, TICI)
     DEV.value = device_config

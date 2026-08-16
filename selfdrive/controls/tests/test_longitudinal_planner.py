@@ -20,6 +20,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import Longi
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_follow_prebrake_min_headway,
+  get_toyota_rav4_tss2_early_lead_cap,
   get_toyota_sienna_post_departure_restop_cap,
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
@@ -2778,6 +2779,26 @@ def test_rav4_tss2_variants_use_the_car_specific_post_departure_tune():
   assert is_toyota_rav4_tss2_post_departure_tune(rav4_2019_cp)
   assert is_toyota_rav4_tss2_post_departure_tune(rav4_2023_cp)
   assert not is_toyota_rav4_tss2_post_departure_tune(other_cp)
+
+
+def test_rav4_tss2_early_lead_cap_starts_a_mild_response():
+  CP = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2023)
+  lead = make_lead(status=True, d_rel=100.0, v_lead=13.0, a_lead=-1.1, model_prob=0.9)
+
+  cap = get_toyota_rav4_tss2_early_lead_cap(CP, lead, 21.0, -3.5)
+
+  assert cap is not None
+  assert -0.5 <= cap < 0.0
+
+
+def test_rav4_tss2_early_lead_cap_does_not_change_other_paths():
+  rav4 = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2023)
+  other = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2022)
+  lead = make_lead(status=True, d_rel=100.0, v_lead=13.0, a_lead=-1.1, model_prob=0.9)
+  radar_lead = make_lead(status=True, d_rel=100.0, v_lead=13.0, a_lead=-1.1, radar=True, model_prob=1.0)
+
+  assert get_toyota_rav4_tss2_early_lead_cap(other, lead, 21.0, -3.5) is None
+  assert get_toyota_rav4_tss2_early_lead_cap(rav4, radar_lead, 21.0, -3.5) is None
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])

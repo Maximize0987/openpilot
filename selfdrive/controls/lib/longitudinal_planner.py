@@ -24,6 +24,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_force_stop_handoff_distance,
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
+  get_toyota_rav4_tss2_early_lead_cap,
   get_toyota_sienna_post_departure_restop_cap,
   get_untracked_slow_lead_decel_scale,
 )
@@ -2321,11 +2322,17 @@ class LongitudinalPlanner:
       output_a_target = min(output_a_target, approach_lift_cap)
 
     close_lead_caps = []
+    rav4_early_lead_caps = []
     tracked_vision_approach_caps = []
     vision_low_speed_stop_active = False
     vision_brake_cap_active = False
     if lead_control_active:
       for lead in (self.lead_one, self.lead_two):
+        rav4_early_lead_cap = get_toyota_rav4_tss2_early_lead_cap(
+          self.CP, lead, v_ego, output_accel_min,
+        )
+        if rav4_early_lead_cap is not None:
+          rav4_early_lead_caps.append(rav4_early_lead_cap)
         cap = self.get_close_lead_brake_cap(lead, v_ego, output_accel_min)
         if cap is not None:
           close_lead_caps.append(cap)
@@ -2724,6 +2731,11 @@ class LongitudinalPlanner:
     if close_final_guard_cap is not None:
       self.a_desired = min(self.a_desired, close_final_guard_cap)
       output_a_target = min(output_a_target, close_final_guard_cap)
+
+    if rav4_early_lead_caps:
+      rav4_early_lead_cap = min(rav4_early_lead_caps)
+      self.a_desired = min(self.a_desired, rav4_early_lead_cap)
+      output_a_target = min(output_a_target, rav4_early_lead_cap)
 
     if close_release_hold_cap is not None:
       self.a_desired = min(self.a_desired, close_release_hold_cap)

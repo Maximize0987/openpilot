@@ -130,8 +130,13 @@ struct OnroadEvent @0xc4fa6047f024e718 {
     userBookmark @95;
     excessiveActuation @96;
     audioFeedback @97;
+    bigModelLoading @100;
+    bigModelFailed @102;
 
     soundsUnavailableDEPRECATED @47;
+    stockLkasDEPRECATED @98;
+    lateralManeuverDEPRECATED @99;
+    bigModelReadyDEPRECATED @101;
   }
 }
 
