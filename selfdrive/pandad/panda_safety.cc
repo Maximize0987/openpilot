@@ -2,6 +2,8 @@
 #include "cereal/messaging/messaging.h"
 #include "common/swaglog.h"
 
+static constexpr uint16_t HYUNDAI_AOL_LKAS_ON_INIT = 128U;
+
 void PandaSafety::configureSafetyMode(bool is_onroad) {
   if (is_onroad && !safety_configured_) {
     updateMultiplexingMode();
@@ -73,6 +75,10 @@ void PandaSafety::setSafetyMode(const std::string &params_string) {
 
   auto starpilot_safety_configs = starpilot_car_params.getSafetyConfigs();
   alternative_experience |= starpilot_car_params.getAlternativeExperience();
+  const bool hyundai_lkas_aol_pending = params_.getBool("HyundaiLkasAolPending");
+  if (hyundai_lkas_aol_pending) {
+    params_.putBool("HyundaiLkasAolPending", false);
+  }
 
   for (int i = 0; i < pandas_.size(); ++i) {
     // Default to SILENT safety model if not specified
@@ -85,6 +91,13 @@ void PandaSafety::setSafetyMode(const std::string &params_string) {
 
     if (i < starpilot_safety_configs.size()) {
       safety_param |= starpilot_safety_configs[i].getSafetyParam();
+    }
+
+    const bool hyundai_safety = safety_model == cereal::CarParams::SafetyModel::HYUNDAI ||
+                                safety_model == cereal::CarParams::SafetyModel::HYUNDAI_CANFD ||
+                                safety_model == cereal::CarParams::SafetyModel::HYUNDAI_LEGACY;
+    if (hyundai_lkas_aol_pending && hyundai_safety) {
+      safety_param |= HYUNDAI_AOL_LKAS_ON_INIT;
     }
 
     LOGW("Panda %d: setting safety model: %d, param: %d, alternative experience: %d", i, (int)safety_model, safety_param, alternative_experience);
