@@ -69,7 +69,7 @@ class SentryMode:
       return
     status = {**status_values, "updatedAt": _utc_now()}
     try:
-      self.params.put("SentryModeStatus", json.dumps(status, separators=(",", ":")))
+      self.params.put("SentryModeStatus", status)
     except Exception:
       cloudlog.exception("sentryd: failed to write status")
     self._last_status = status_values
@@ -114,7 +114,7 @@ class SentryMode:
       cloudlog.exception("sentryd: failed to trim old events")
 
   def _publish_event(self, event: dict) -> None:
-    self.params.put("SentryModeLastEvent", json.dumps(event, separators=(",", ":")))
+    self.params.put("SentryModeLastEvent", event)
     self._write_status(event["kind"], eventId=event["eventId"])
 
     def publish():
