@@ -39,12 +39,6 @@ from openpilot.starpilot.controls.starpilot_card import StarPilotCard
 REPLAY = "REPLAY" in os.environ
 OPENPILOT_LEAD_MIN_DISTANCE = 0.1
 REDNECK_DECREASE_LOOKAHEAD_POINTS = 10
-HYUNDAI_SAFETY_MODELS = {
-  int(structs.CarParams.SafetyModel.hyundai),
-  int(structs.CarParams.SafetyModel.hyundaiCanfd),
-  int(structs.CarParams.SafetyModel.hyundaiLegacy),
-}
-
 EventName = log.OnroadEvent.EventName
 
 # forward
@@ -205,8 +199,6 @@ class Car:
     self.rk = Ratekeeper(100, print_delay_threshold=None)
 
     self.resume_prev_button = False
-    self.hyundai_lkas_aol_pending = False
-
     self.starpilot_toggles = get_starpilot_toggles(read_persisted_force_params=True)
 
     self.FPCP.alternativeExperience |= interface_alternative_experience
@@ -329,30 +321,7 @@ class Car:
       self.resume_prev_button = False
 
     FPCS = self.starpilot_card.update(CS, FPCS, self.sm, self.starpilot_toggles)
-    self._latch_pre_safety_hyundai_lkas_button(CS)
-
     return CS, RD, FPCS
-
-  def _hyundai_safety_active(self) -> bool:
-    if not self.sm.seen['pandaStates'] or not self.sm.valid['pandaStates']:
-      return False
-
-    panda_states = self.sm['pandaStates']
-    return any(
-      int(getattr(state.safetyModel, "raw", state.safetyModel)) in HYUNDAI_SAFETY_MODELS
-      for state in panda_states
-    )
-
-  def _latch_pre_safety_hyundai_lkas_button(self, CS: car.CarState) -> None:
-    if self.CP.brand != "hyundai" or not getattr(self.starpilot_toggles, "always_on_lateral_lkas", False):
-      return
-    if self.hyundai_lkas_aol_pending or self._hyundai_safety_active() or not any(
-      button.type == ButtonType.lkas and button.pressed for button in CS.buttonEvents
-    ):
-      return
-
-    self.hyundai_lkas_aol_pending = True
-    self.params.put_bool_nonblocking("HyundaiLkasAolPending", True)
 
   def state_publish(self, CS: car.CarState, RD: structs.RadarDataT | None, FPCS: custom.StarPilotCarState):
     """carState and carParams publish loop"""

@@ -572,21 +572,6 @@ class TestHyundaiAolLkasOnEngageStockSafety(HyundaiAolLkasOnEngageStockBase, Tes
     self.safety.init_tests()
 
 
-class TestHyundaiAolLkasOnInitSafety(TestHyundaiSafety):
-  def setUp(self):
-    self.packer = CANPackerSafety("hyundai_kia_generic")
-    self.safety = libsafety_py.libsafety
-    self.safety.set_safety_hooks(CarParams.SafetyModel.hyundai, HyundaiStarPilotSafetyFlags.AOL_LKAS_ON_INIT)
-    self.safety.init_tests()
-
-  def test_pending_lkas_press_allows_aol_after_safety_init(self):
-    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL)
-    self._rx(self._button_msg(Buttons.NONE))
-
-    self.assertTrue(self.safety.get_lkas_on())
-    self.assertTrue(self.safety.get_aol_allowed())
-
-
 class TestHyundaiAolMainLkasSyncSafety(TestHyundaiSafety):
   def setUp(self):
     self.packer = CANPackerSafety("hyundai_kia_generic")

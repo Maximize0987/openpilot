@@ -77,7 +77,6 @@ void hyundai_common_init(uint16_t param) {
   const uint16_t HYUNDAI_PARAM_FCEV_GAS = 256;
   const uint16_t HYUNDAI_PARAM_ALT_LIMITS_2 = 512;
 
-  const uint16_t HYUNDAI_PARAM_AOL_LKAS_ON_INIT = 128;
   const int HYUNDAI_PARAM_HAS_LDA_BUTTON = 1024;
   const uint16_t HYUNDAI_PARAM_AOL_LKAS_ON_ENGAGE = 2048;
   const uint16_t HYUNDAI_PARAM_NON_SCC = 4096;
@@ -100,10 +99,6 @@ void hyundai_common_init(uint16_t param) {
   hyundai_cancel_button_enable = GET_FLAG(param, HYUNDAI_PARAM_CANCEL_BTN_ENABLE);
   hyundai_can_refresh_msgs = GET_FLAG(param, HYUNDAI_PARAM_CAN_REFRESH_MSGS);
   hyundai_aol_main_lkas_sync = false;
-
-  if (GET_FLAG(param, HYUNDAI_PARAM_AOL_LKAS_ON_INIT)) {
-    lkas_on = true;
-  }
 
   hyundai_last_button_interaction = HYUNDAI_PREV_BUTTON_SAMPLES;
   acc_main_on_prev = false;
