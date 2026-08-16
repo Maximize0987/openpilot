@@ -623,6 +623,39 @@ def _capture_sentry_test_images(event_id: str) -> list[str]:
   return paths
 
 
+_SENTRY_LIVE_CAPTURE_LOCK = threading.Lock()
+_SENTRY_LIVE_EVENT_ID = "live"
+
+
+def _capture_sentry_live_images() -> list[str]:
+  from openpilot.system.camerad.snapshot import jpeg_write, snapshot
+
+  params.put_bool("SentryModeCapture", True)
+  try:
+    rear, front = snapshot(allow_existing=True, include_front=True)
+  except Exception:
+    cloudlog.exception("Galaxy: live Sentry snapshot failed")
+    return []
+  finally:
+    params.put_bool("SentryModeCapture", False)
+
+  if rear is None and front is None:
+    return []
+
+  directory = _sentry_event_roots()[0] / _SENTRY_LIVE_EVENT_ID
+  directory.mkdir(parents=True, exist_ok=True)
+  paths = []
+  if rear is not None:
+    path = directory / "wide.jpg"
+    jpeg_write(str(path), rear)
+    paths.append(str(path))
+  if front is not None:
+    path = directory / "driver.jpg"
+    jpeg_write(str(path), front)
+    paths.append(str(path))
+  return paths
+
+
 _SENTRY_PUSH_LOCK = threading.Lock()
 _SENTRY_PUSH_PRIVATE_KEY_NAME = "sentry_vapid_private.pem"
 _SENTRY_PUSH_SUBSCRIPTIONS_NAME = "sentry_push_subscriptions.json"
@@ -7004,6 +7037,23 @@ def setup(app):
     if image_path is None:
       return jsonify({"error": "Sentry image not found."}), 404
     return send_file(image_path, mimetype="image/jpeg", max_age=0)
+
+  @app.route("/api/sentry/live", methods=["GET"])
+  def sentry_live():
+    if not params.get_bool("IsOffroad"):
+      return jsonify({"error": "Live Sentry view is only available while parked."}), 409
+
+    with _SENTRY_LIVE_CAPTURE_LOCK:
+      image_paths = _capture_sentry_live_images()
+    if not image_paths:
+      return jsonify({"error": "Unable to capture the Sentry cameras."}), 503
+
+    captured_at = datetime.now(timezone.utc).isoformat()
+    event = _public_sentry_event({
+      "eventId": _SENTRY_LIVE_EVENT_ID,
+      "imagePaths": image_paths,
+    })
+    return jsonify({"capturedAt": captured_at, "imageUrls": event["imageUrls"]})
 
   @app.route("/api/sentry/test", methods=["POST"])
   def sentry_test():

@@ -11,7 +11,9 @@ const state = reactive({
   params: {},
   status: {},
   event: {},
+  liveCapture: {},
   testBusy: false,
+  liveBusy: false,
   pushBusy: false,
 })
 
@@ -87,6 +89,36 @@ async function sendTestEvent() {
   }
 }
 
+async function readJsonResponse(response) {
+  const body = await response.text()
+  if (!body) return {}
+
+  try {
+    return JSON.parse(body)
+  } catch {
+    throw new Error(`Galaxy returned an unexpected ${response.status} response. Check the device connection or Galaxy tunnel.`)
+  }
+}
+
+async function viewLive() {
+  if (state.liveBusy) return
+  state.liveBusy = true
+  try {
+    const response = await fetch(galaxyPath("/api/sentry/live"), { cache: "no-store" })
+    const payload = await readJsonResponse(response)
+    if (!response.ok) {
+      showSnackbar(payload.error || "Live camera capture failed.")
+      return
+    }
+    state.liveCapture = payload
+    showSnackbar("Live camera snapshot captured.")
+  } catch (error) {
+    showSnackbar(error.message || "Network error — is the device reachable?")
+  } finally {
+    state.liveBusy = false
+  }
+}
+
 async function enablePush() {
   if (state.pushBusy) return
   state.pushBusy = true
@@ -132,6 +164,24 @@ function renderEvent() {
         `)}
       </div>
     ` : html`<p class="sentry-empty">No camera images were available for this event.</p>`}
+  `
+}
+
+function renderLiveCapture() {
+  const capture = state.liveCapture || {}
+  const imageUrls = Array.isArray(capture.imageUrls) ? capture.imageUrls : []
+  if (imageUrls.length === 0) return html`<p class="sentry-empty">No live snapshot captured yet.</p>`
+
+  const cacheKey = encodeURIComponent(capture.capturedAt || "")
+  return html`
+    <p class="sentry-muted">Captured ${capture.capturedAt || "just now"}.</p>
+    <div class="sentry-image-grid">
+      ${imageUrls.map((url, index) => html`
+        <a href="${galaxyPath(`${url}?t=${cacheKey}`)}" target="_blank" rel="noopener">
+          <img src="${galaxyPath(`${url}?t=${cacheKey}`)}" alt="Live Sentry camera ${index + 1}" />
+        </a>
+      `)}
+    </div>
   `
 }
 
@@ -198,7 +248,21 @@ export function SentryMode() {
             </button>
           </div>
           <p class="sentry-muted">Enable notifications once, then use the test push to verify Galaxy can reach this browser even when the page is not active.</p>
+          <p class="sentry-muted">iPhone users: add Galaxy to your Home Screen as a web app before enabling notifications. iOS web push requires the Home Screen web app.</p>
         `}
+      </section>
+
+      <section class="sentry-card">
+        <div class="sentry-card-heading">
+          <div>
+            <h3>Live view</h3>
+            <p class="sentry-muted">Capture one still from both cameras while parked.</p>
+          </div>
+          <button class="sentry-button sentry-button-secondary" @click="${viewLive}" disabled="${() => state.liveBusy}">
+            ${() => state.liveBusy ? "Capturing…" : "View live"}
+          </button>
+        </div>
+        ${() => renderLiveCapture()}
       </section>
 
       <section class="sentry-card">

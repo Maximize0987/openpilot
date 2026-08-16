@@ -73,14 +73,14 @@ def get_snapshots(frame="roadCameraState", front_frame="driverCameraState"):
   return rear, front
 
 
-def snapshot(allow_existing=False):
+def snapshot(allow_existing=False, include_front=None):
   params = Params()
 
   if (not params.get_bool("IsOffroad")) or params.get_bool("IsTakingSnapshot"):
     print("Already taking snapshot")
     return None, None
 
-  front_camera_allowed = params.get_bool("RecordFront")
+  front_camera_allowed = params.get_bool("RecordFront") if include_front is None else bool(include_front)
   params.put_bool("IsTakingSnapshot", True)
   set_offroad_alert("Offroad_IsTakingSnapshot", True)
   time.sleep(2.0)  # Give hardwared time to read the param, or if just started give camerad time to start
