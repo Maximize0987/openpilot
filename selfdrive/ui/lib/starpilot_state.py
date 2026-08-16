@@ -15,6 +15,7 @@ from openpilot.starpilot.common.lateral_delay import full_lateral_delay
 class StarPilotCarState:
     # ========== Car Type Detection ==========
     isGM: bool = False
+    isFord: bool = False
     isHKG: bool = False
     isJeep: bool = False
     isToyota: bool = False
@@ -91,6 +92,7 @@ class StarPilotState:
             brand = FINGERPRINT_MAKE_TO_VALUES_DIR.get(fallback_make_lower, fallback_make_lower)
             fallback_model_str = fallback_model or ""
             self.car_state.isGM = brand == "gm"
+            self.car_state.isFord = brand == "ford"
             self.car_state.isHKG = brand == "hyundai"
             self.car_state.isJeep = brand == "chrysler" and fallback_model_str.startswith("JEEP_")
             self.car_state.isSubaru = brand == "subaru"
@@ -164,6 +166,7 @@ class StarPilotState:
             self.car_state.isAngleCar = self._safe_get(CP, "steerControlType", None) == car.CarParams.SteerControlType.angle
             self.car_state.isBolt = car_fingerprint.startswith("CHEVROLET_BOLT")
             self.car_state.isGM = car_make == "gm"
+            self.car_state.isFord = car_make == "ford"
             self.car_state.isHKG = car_make == "hyundai"
             self.car_state.isHKGCanFd = self.car_state.isHKG and safety_model == car.CarParams.SafetyModel.hyundaiCanfd
             self.car_state.isJeep = car_make == "chrysler" and car_fingerprint.startswith("JEEP_")
