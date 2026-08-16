@@ -65,6 +65,8 @@ def _model_smooth_seconds(params, key, default):
   return round(min(max(value, SMOOTH_SECONDS_STEP), 2.0) / SMOOTH_SECONDS_STEP) * SMOOTH_SECONDS_STEP
 MIN_LAT_CONTROL_SPEED = 0.3
 BIG_MODEL_TIMEOUT = 60
+BIG_MODEL_LOAD_WAIT_TIMEOUT_MS = 30000
+BIG_MODEL_RUN_WAIT_TIMEOUT_MS = 3000
 
 
 def _get_param_str(params: Params, key: str, default: str = "") -> str:
@@ -539,7 +541,10 @@ def main(demo=False):
   params.put_bool("UsbGpuActive", False)
   params.put_bool("UsbGpuLoading", external_gpu_requested)
   if external_gpu_requested:
-    os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = "3000"
+    # Loading the large artifact competes with the rest of on-road startup.
+    # Keep the short watchdog for inference, but allow tinygrad's normal wait
+    # while model weights are being streamed into VRAM.
+    os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = str(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
     from tinygrad.helpers import DEV
     device_config = tinygrad_dev_config(True, TICI)
     DEV.value = device_config
@@ -590,6 +595,7 @@ def main(demo=False):
     loader = threading.Thread(target=load_big_model, name="big_model_loader", daemon=True)
     loader.start()
     loader.join(BIG_MODEL_TIMEOUT)
+    os.environ["HCQDEV_WAIT_TIMEOUT_MS"] = str(BIG_MODEL_RUN_WAIT_TIMEOUT_MS)
     if loader.is_alive():
       cloudlog.error(f"external GPU model load timed out after {BIG_MODEL_TIMEOUT}s")
     model = big_model

@@ -14,6 +14,11 @@ def test_external_gpu_keeps_the_native_device_available():
   assert tinygrad_dev_config(True, tici=False) == "CPU:LLVM;USB+AMD:LLVM"
 
 
+def test_external_gpu_uses_a_longer_load_watchdog():
+  assert modeld.BIG_MODEL_LOAD_WAIT_TIMEOUT_MS == 30000
+  assert modeld.BIG_MODEL_RUN_WAIT_TIMEOUT_MS == 3000
+
+
 def test_out_of_band_artifact_round_trip():
   artifact = {"weights": np.arange(32, dtype=np.float32), "metadata": {"version": 1}}
   stream = io.BytesIO()
