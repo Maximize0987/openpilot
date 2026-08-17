@@ -384,8 +384,8 @@ class Controls:
       self.ecu_disable_failed = self.params.get_bool("EcuDisableFailed")
       self.ecu_disable_failed_checked = True
       if self.ecu_disable_failed and self.CP.carFingerprint == NISSAN_CAR.NISSAN_LEAF:
-        self.CP.openpilotLongitudinalControl = False
-        self.CP.pcmCruise = True
+        self.CP = messaging.log_from_bytes(self.params.get("CarParams"), car.CarParams)
+        self.FPCP = messaging.log_from_bytes(self.params.get("StarPilotCarParams"), custom.StarPilotCarParams)
 
   def state_control(self):
     CS = self.sm['carState']
