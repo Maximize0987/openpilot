@@ -503,13 +503,14 @@ class TestHyundaiFingerprint:
     assert CP.flags & HyundaiFlags.HYBRID
     assert CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.HYBRID_GAS
 
-  def test_carnival_2025_hda2_detects_alternate_buttons(self):
+  @pytest.mark.parametrize("candidate", (CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN))
+  def test_carnival_hda2_detects_alternate_buttons(self, candidate):
     fingerprint = gen_empty_fingerprint()
     CAN = CanBus(None, fingerprint)
     fingerprint[CAN.CAM] = {0x110: 32}
     fingerprint[1] = {0x1aa: 16}
 
-    carnival_cp = CarInterface.get_params(CAR.KIA_CARNIVAL_2025, fingerprint, [], False, False, False, None)
+    carnival_cp = CarInterface.get_params(candidate, fingerprint, [], False, False, False, None)
     assert carnival_cp.flags & HyundaiFlags.CANFD_LKA_STEERING_ALT
     assert carnival_cp.flags & HyundaiFlags.CANFD_ALT_BUTTONS
     assert carnival_cp.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.CANFD_ALT_BUTTONS

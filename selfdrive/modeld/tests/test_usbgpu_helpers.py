@@ -37,6 +37,46 @@ def test_external_gpu_uses_a_longer_load_watchdog():
   assert modeld.BIG_MODEL_RUN_WAIT_TIMEOUT_MS == 3000
 
 
+def test_external_gpu_power_must_be_stable_after_vehicle_start():
+  panda_type = modeld.log.PandaState.PandaType.tres
+
+  def panda_state(voltage):
+    return SimpleNamespace(pandaType=panda_type, voltage=voltage)
+
+  ready, stable_since, voltage = modeld._external_gpu_power_ready([panda_state(12800)], 10.0, None)
+  assert not ready
+  assert stable_since is None
+  assert voltage == 12800
+
+  ready, stable_since, voltage = modeld._external_gpu_power_ready([panda_state(14100)], 11.0, stable_since)
+  assert not ready
+  assert stable_since == 11.0
+  assert voltage == 14100
+
+  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(14100)], 13.9, stable_since)
+  assert not ready
+  assert stable_since == 11.0
+
+  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(11900)], 14.0, stable_since)
+  assert not ready
+  assert stable_since is None
+
+  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(14100)], 15.0, stable_since)
+  assert not ready
+  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(14100)], 18.0, stable_since)
+  assert ready
+  assert stable_since == 15.0
+
+
+def test_external_gpu_power_ignores_unknown_pandas():
+  panda_states = [
+    SimpleNamespace(pandaType=modeld.log.PandaState.PandaType.unknown, voltage=15000),
+    SimpleNamespace(pandaType=modeld.log.PandaState.PandaType.tres, voltage=0),
+  ]
+
+  assert modeld._external_gpu_power_ready(panda_states, 10.0, None) == (False, None, None)
+
+
 def test_external_gpu_wait_timeout_updates_tinygrad_cache(monkeypatch):
   from tinygrad.helpers import getenv
 

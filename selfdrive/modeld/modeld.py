@@ -68,9 +68,11 @@ def _model_smooth_seconds(params, key, default):
   value = params.get_float(key, return_default=True, default=default)
   return round(min(max(value, SMOOTH_SECONDS_STEP), 2.0) / SMOOTH_SECONDS_STEP) * SMOOTH_SECONDS_STEP
 MIN_LAT_CONTROL_SPEED = 0.3
-BIG_MODEL_TIMEOUT = 60
 BIG_MODEL_LOAD_WAIT_TIMEOUT_MS = 30000
 BIG_MODEL_RUN_WAIT_TIMEOUT_MS = 3000
+EXTERNAL_GPU_POWER_READY_MV = 13000
+EXTERNAL_GPU_POWER_STABLE_SECONDS = 3.0
+EXTERNAL_GPU_POWER_LOG_INTERVAL_SECONDS = 10.0
 LAT_SMOOTH_BP = [2.0, 8.0]
 
 
@@ -81,6 +83,40 @@ def _set_hcq_wait_timeout(timeout_ms: int) -> None:
   # in effect for the lifetime of modeld.
   from tinygrad.helpers import getenv
   getenv.cache_clear()
+
+
+def _external_gpu_power_ready(panda_states, now: float, stable_since: float | None) -> tuple[bool, float | None, int | None]:
+  voltages = [
+    int(state.voltage) for state in panda_states
+    if state.pandaType != log.PandaState.PandaType.unknown and int(state.voltage) > 0
+  ]
+  voltage = max(voltages, default=None)
+  if voltage is None or voltage < EXTERNAL_GPU_POWER_READY_MV:
+    return False, None, voltage
+
+  stable_since = now if stable_since is None else stable_since
+  return now - stable_since >= EXTERNAL_GPU_POWER_STABLE_SECONDS, stable_since, voltage
+
+
+def wait_for_external_gpu_power_ready() -> None:
+  """Wait until the vehicle's 12 V rail is in its post-start charging state."""
+  sm = SubMaster(["pandaStates"])
+  stable_since = None
+  last_log = 0.0
+
+  while True:
+    sm.update(1000)
+    now = time.monotonic()
+    ready, stable_since, voltage = _external_gpu_power_ready(sm["pandaStates"], now, stable_since)
+    if ready:
+      cloudlog.warning(f"vehicle power stable at {voltage / 1000:.2f} V; starting external GPU load")
+      return
+
+    if now - last_log >= EXTERNAL_GPU_POWER_LOG_INTERVAL_SECONDS:
+      detail = "unavailable" if voltage is None else f"{voltage / 1000:.2f} V"
+      cloudlog.warning(f"external GPU load deferred: vehicle power is {detail}; waiting for " +
+                       f"{EXTERNAL_GPU_POWER_READY_MV / 1000:.1f} V to remain stable")
+      last_log = now
 
 
 def get_lateral_smooth_seconds(v_ego: float, maximum: float = 0.0) -> float:
@@ -328,9 +364,11 @@ class ModelState:
     )
     return numpy_inputs, prev_desired_curv_key
 
-  def __init__(self, cam_w: int, cam_h: int, external_gpu_active: bool = False):
+  def __init__(self, cam_w: int, cam_h: int, external_gpu_active: bool = False,
+               model_id_override: str | None = None, write_model_version: bool = True):
     params = Params()
-    model_id = _canonical_model_id(_resolve_mirrored_param(params, "Model", "DrivingModel") or BUILTIN_MODEL_KEY)
+    selected_model = model_id_override or _resolve_mirrored_param(params, "Model", "DrivingModel") or BUILTIN_MODEL_KEY
+    model_id = _canonical_model_id(selected_model)
     requires_external_gpu = model_uses_external_gpu(model_id)
     if requires_external_gpu and not external_gpu_active:
       cloudlog.error(f"Model {model_id} requires an external GPU; falling back to {BUILTIN_MODEL_KEY}")
@@ -423,8 +461,9 @@ class ModelState:
     self.is_v14 = self.policy_generation == "v14"
     self.is_v15 = self.policy_generation == "v15"
     self.mlsim = is_tinygrad_model_version(self.policy_generation)
-    params.put("ModelVersion", self.policy_generation)
-    params.put("DrivingModelVersion", self.policy_generation)
+    if write_model_version:
+      params.put("ModelVersion", self.policy_generation)
+      params.put("DrivingModelVersion", self.policy_generation)
 
     if self.prev_desired_curv_key is not None:
       self.full_prev_desired_curv = np.zeros(
@@ -641,15 +680,6 @@ def main(demo=False):
   params.put_bool("UsbGpuCompiled", external_artifact_ready)
   params.put_bool("UsbGpuActive", False)
   params.put_bool("UsbGpuLoading", external_gpu_requested)
-  if external_gpu_requested:
-    # Loading the large artifact competes with the rest of on-road startup.
-    # Keep the short watchdog for inference, but allow tinygrad's normal wait
-    # while model weights are being streamed into VRAM.
-    _set_hcq_wait_timeout(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
-    from tinygrad.helpers import DEV
-    device_config = tinygrad_dev_config(True, TICI)
-    DEV.value = device_config
-    os.environ["DEV"] = device_config
 
   # visionipc clients
   while True:
@@ -678,15 +708,52 @@ def main(demo=False):
   cloudlog.warning("loading model")
   model = None
   small_model = None
+  big_model = None
+  loader = None
+  loader_done = threading.Event()
+  native_model_ready = threading.Event()
+  loader_result_handled = False
   if external_gpu_requested:
-    big_model = None
+    # Never make on-road startup depend on the external GPU. The native model
+    # starts immediately while the GPU loader waits out the vehicle's power
+    # transition in the background.
+    small_model = ModelState(
+      vipc_client_main.width,
+      vipc_client_main.height,
+      False,
+      model_id_override=BUILTIN_MODEL_KEY,
+      write_model_version=False,
+    )
+    model = small_model
 
     def load_big_model() -> None:
       nonlocal big_model
       candidate = None
       try:
+        if not demo:
+          wait_for_external_gpu_power_ready()
+
+        # Let the native model complete one real frame first. Besides ensuring
+        # model output is available, this lets the main thread release
+        # tinygrad's thread-bound SQLite cache before this worker uses it.
+        native_model_ready.wait()
+
+        # Loading the large artifact streams weights into VRAM. Use a longer
+        # queue watchdog only for that phase; normal inference restores the
+        # short watchdog before activation.
+        _set_hcq_wait_timeout(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
+        from tinygrad.helpers import DEV
+        device_config = tinygrad_dev_config(True, TICI)
+        DEV.value = device_config
+        os.environ["DEV"] = device_config
         wait_usbgpu_link()
-        candidate = ModelState(vipc_client_main.width, vipc_client_main.height, True)
+        candidate = ModelState(
+          vipc_client_main.width,
+          vipc_client_main.height,
+          True,
+          model_id_override=selected_model,
+          write_model_version=False,
+        )
         if not candidate.uses_external_gpu:
           raise RuntimeError("external GPU model resolved to the builtin model")
         candidate.warmup()
@@ -698,31 +765,22 @@ def main(demo=False):
         # warming here can create it in this worker, so close it here before the
         # model (or native fallback) runs on modeld's main thread.
         _close_tinygrad_disk_cache_connection()
-      big_model = candidate
+        big_model = candidate
+        loader_done.set()
 
     loader = threading.Thread(target=load_big_model, name="big_model_loader", daemon=True)
     loader.start()
-    loader.join(BIG_MODEL_TIMEOUT)
-    _set_hcq_wait_timeout(BIG_MODEL_RUN_WAIT_TIMEOUT_MS)
-    if loader.is_alive():
-      cloudlog.error(f"external GPU model load timed out after {BIG_MODEL_TIMEOUT}s")
-    model = big_model
-
-    # Keep the native model ready so a GPU error never takes modeld down.
-    small_model = ModelState(vipc_client_main.width, vipc_client_main.height, False)
-    if model is None:
-      model = small_model
-    else:
-      params.put("ModelVersion", model.policy_generation)
-      params.put("DrivingModelVersion", model.policy_generation)
   else:
     model = _load_model_state(vipc_client_main.width, vipc_client_main.height, selected_model, False, params)
 
   external_gpu_active = model.uses_external_gpu
   params.put_bool("UsbGpuCompiled", external_model_selected and file_chunked_exists(external_artifact))
   params.put_bool("UsbGpuActive", external_gpu_active)
-  params.put_bool("UsbGpuLoading", False)
-  cloudlog.warning(f"model loaded in {time.monotonic() - start_time:.1f}s, modeld starting")
+  params.put_bool("UsbGpuLoading", external_gpu_requested)
+  if external_gpu_requested:
+    cloudlog.warning(f"native model loaded in {time.monotonic() - start_time:.1f}s; external GPU load scheduled")
+  else:
+    cloudlog.warning(f"model loaded in {time.monotonic() - start_time:.1f}s, modeld starting")
 
   # messaging
   publish_services = ["modelV2", "drivingModelData", "cameraOdometry", "starpilotModelV2"]
@@ -798,6 +856,30 @@ def main(demo=False):
       meta_extra = meta_main
 
     sm.update(0)
+
+    if external_gpu_requested and loader_done.is_set() and not loader_result_handled:
+      loader.join()
+      _set_hcq_wait_timeout(BIG_MODEL_RUN_WAIT_TIMEOUT_MS)
+      loader_result_handled = True
+      if big_model is None:
+        params.put_bool("UsbGpuLoading", False)
+        cloudlog.error("external GPU model unavailable; continuing with builtin model")
+
+    # A model swap resets recurrent state, so only activate the external model
+    # while controls are known to be disengaged. The native model keeps
+    # publishing normally until this condition is met.
+    if big_model is not None and not external_gpu_active and sm.seen["carControl"] and not sm["carControl"].enabled:
+      model = big_model
+      external_gpu_active = True
+      params.put("ModelVersion", model.policy_generation)
+      params.put("DrivingModelVersion", model.policy_generation)
+      params.put_bool("UsbGpuActive", True)
+      params.put_bool("UsbGpuLoading", False)
+      if chestnut_state is not None:
+        chestnut_state.big = True
+      run_count = 0
+      cloudlog.warning(f"external GPU model {selected_model} activated while controls disengaged")
+
     long_smooth_seconds = _model_smooth_seconds(params, "LongSmoothSeconds", LONG_SMOOTH_SECONDS)
     long_delay = CP.longitudinalActuatorDelay + long_smooth_seconds
     desire = DH.desire
@@ -886,11 +968,22 @@ def main(demo=False):
       cloudlog.exception("external GPU model failed, falling back to builtin model")
       params.put_bool("UsbGpuActive", False)
       model = small_model
+      big_model = None
       external_gpu_active = False
+      params.put("ModelVersion", model.policy_generation)
+      params.put("DrivingModelVersion", model.policy_generation)
+      params.put_bool("UsbGpuLoading", False)
       if chestnut_state is not None:
         chestnut_state.big = False
       run_count = 0
       model_output = None
+
+    if external_gpu_requested and not native_model_ready.is_set() and model_output is not None:
+      # The cache connection was created on this thread while preparing the
+      # native model. Close it here before permitting the loader thread to use
+      # tinygrad's process-global connection.
+      _close_tinygrad_disk_cache_connection()
+      native_model_ready.set()
     mt2 = time.perf_counter()
     model_execution_time = mt2 - mt1
 
