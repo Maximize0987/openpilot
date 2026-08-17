@@ -43,7 +43,8 @@ if __name__ == '__main__':
 
   with tempfile.TemporaryDirectory() as tmp:
     for directory in DIRS:
-      shutil.copytree(BASEDIR + '/' + directory, tmp + '/' + directory, symlinks=False, dirs_exist_ok=True, copy_function=copy)
+      shutil.copytree(BASEDIR + '/' + directory, tmp + '/' + directory, symlinks=False, ignore_dangling_symlinks=True,
+                      dirs_exist_ok=True, copy_function=copy)
     entry = f'{args.module}:{args.entrypoint}'
     zipapp.create_archive(tmp, target=args.output, interpreter=INTERPRETER, main=entry)
 

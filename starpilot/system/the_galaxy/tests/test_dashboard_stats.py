@@ -584,6 +584,23 @@ def test_route_listing_uses_all_segment_times_when_segment_zero_was_touched(tmp_
   assert end == "2026-07-18T07:22:00"
 
 
+def test_route_listing_prefers_logged_time_after_offline_clock_reset(tmp_path, monkeypatch):
+  route_start = utilities.datetime(2026, 7, 18, 7, 19, 0)
+  route_name = "000011e3--6e01289631"
+  segment = tmp_path / f"{route_name}--0"
+  segment.mkdir()
+  (segment / "qlog.zst").write_bytes(b"placeholder")
+
+  stale_time = utilities.datetime(2025, 7, 18, 7, 20, 0).timestamp()
+  os.utime(segment, (stale_time, stale_time))
+  monkeypatch.setattr(utilities, "_route_logged_start_time", lambda _path: route_start)
+
+  routes = utilities._list_dashboard_routes([tmp_path])
+
+  assert routes[0]["startedAt"] == route_start
+  assert routes[0]["timeSource"] == utilities.DASHBOARD_TIME_SOURCE_LOG
+
+
 def test_top_models_are_ranked_from_persisted_usage_not_favorites():
   params = FakeParams({
     "AvailableModels": "orion,vega,atlas,nova",

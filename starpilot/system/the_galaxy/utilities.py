@@ -994,9 +994,18 @@ def _select_dashboard_segment_candidate(candidates):
   return next((candidate for candidate in candidates if _segment_has_dashboard_log(candidate)), candidates[0])
 
 
-def _estimate_route_started_at(segments):
+def _estimate_route_start_details(segments):
   estimates = []
+  time_source = DASHBOARD_TIME_SOURCE_FILESYSTEM
   for segment in segments:
+    log_path = get_route_log_path(segment.get("path"))
+    if log_path is not None:
+      logged_time = _route_logged_start_time(log_path)
+      if logged_time is not None and _dashboard_time_is_valid(logged_time, require_recent=True):
+        estimates.append(logged_time.timestamp())
+        time_source = DASHBOARD_TIME_SOURCE_LOG
+        continue
+
     segment_num = max(0, _safe_int(segment.get("num", 0), 0))
     # Segment directory mtimes normally land at the end of their one-minute segment.
     estimate = _segment_mtime(segment.get("path")) - (segment_num + 1) * 60
@@ -1004,7 +1013,11 @@ def _estimate_route_started_at(segments):
     if parsed is not None:
       estimates.append(parsed.timestamp())
   # Dashboard analysis can touch a segment directory later, but cannot make it older.
-  return datetime.fromtimestamp(min(estimates)) if estimates else None
+  return (datetime.fromtimestamp(min(estimates)), time_source) if estimates else (None, "")
+
+
+def _estimate_route_started_at(segments):
+  return _estimate_route_start_details(segments)[0]
 
 
 def _list_dashboard_routes(footage_paths, limit=DASHBOARD_ROUTE_SCAN_LIMIT):
@@ -1049,7 +1062,7 @@ def _list_dashboard_routes(footage_paths, limit=DASHBOARD_ROUTE_SCAN_LIMIT):
     if not segments:
       continue
 
-    started_at = _estimate_route_started_at(segments)
+    started_at, time_source = _estimate_route_start_details(segments)
 
     route_infos.append({
       "name": route["name"],
@@ -1057,7 +1070,7 @@ def _list_dashboard_routes(footage_paths, limit=DASHBOARD_ROUTE_SCAN_LIMIT):
       "segmentCount": len(segments),
       "startedAt": started_at,
       "modifiedAt": route["modified_at"],
-      "timeSource": DASHBOARD_TIME_SOURCE_FILESYSTEM if started_at is not None else "",
+      "timeSource": time_source,
     })
 
   route_infos.sort(key=lambda route: (
@@ -2901,6 +2914,37 @@ def get_route_log_path(path):
   return None
 
 
+def _route_logged_start_time(log_path, reader=None):
+  """Recover a route's wall-clock start when filesystem time was reset at boot."""
+  try:
+    if reader is None:
+      from openpilot.tools.lib.logreader import _LogFileReader
+      reader = _LogFileReader(str(log_path))
+
+    first_mono_time = None
+    for message in reader:
+      mono_time = _safe_float(getattr(message, "logMonoTime", 0), 0.0) / 1e9
+      if mono_time <= 0.0:
+        continue
+      first_mono_time = mono_time if first_mono_time is None else min(first_mono_time, mono_time)
+
+      message_type = _message_type(message)
+      payload = _message_payload(message, message_type)
+      wall_time = _wall_time_seconds_from_payload(payload)
+      if wall_time is None:
+        wall_time = _wall_time_seconds_from_payload(message)
+      if wall_time is None:
+        continue
+
+      start_seconds = wall_time - (mono_time - first_mono_time)
+      start_time = datetime.fromtimestamp(start_seconds)
+      if _dashboard_time_is_valid(start_time):
+        return start_time
+  except Exception:
+    return None
+  return None
+
+
 def get_route_start_time(path):
   log_path = get_route_log_path(path)
   if log_path is None:
@@ -2916,6 +2960,10 @@ def get_route_start_time(path):
 
   if modified_time <= 0:
     return None
+
+  logged_time = _route_logged_start_time(log_path)
+  if logged_time is not None:
+    return logged_time
 
   return datetime.fromtimestamp(modified_time)
 

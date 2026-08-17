@@ -69,7 +69,7 @@ def sensord_run(started: bool, params: Params, CP: car.CarParams, starpilot_togg
   return started or params.get_bool("SentryModeEnabled")
 
 def camera_run(started: bool, params: Params, CP: car.CarParams, starpilot_toggles: SimpleNamespace) -> bool:
-  return driverview(started, params, CP, starpilot_toggles) or params.get_bool("SentryModeCapture")
+  return driverview(started, params, CP, starpilot_toggles) or (not started and params.get_bool("SentryModeCapture"))
 
 def livestream(started: bool, params: Params, CP: car.CarParams, starpilot_toggles: SimpleNamespace) -> bool:
   return params.get_bool("IsLiveStreaming")

@@ -85,6 +85,11 @@ def snapshot(allow_existing=False, include_front=None):
   set_offroad_alert("Offroad_IsTakingSnapshot", True)
   time.sleep(2.0)  # Give hardwared time to read the param, or if just started give camerad time to start
 
+  if not params.get_bool("IsOffroad"):
+    params.put_bool("IsTakingSnapshot", False)
+    set_offroad_alert("Offroad_IsTakingSnapshot", False)
+    return None, None
+
   # Check if camerad is already started
   camerad_already_running = False
   try:
@@ -106,6 +111,8 @@ def snapshot(allow_existing=False, include_front=None):
     frame = "wideRoadCameraState"
     front_frame = "driverCameraState" if front_camera_allowed else None
     rear, front = get_snapshots(frame, front_frame)
+    if not params.get_bool("IsOffroad"):
+      rear, front = None, None
   finally:
     if not camerad_already_running:
       managed_processes['camerad'].stop()

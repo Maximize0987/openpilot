@@ -49,7 +49,7 @@ def _utc_now() -> str:
 class SentryMode:
   def __init__(self, params: Params | None = None, sm=None, clock=time.monotonic):
     self.params = params or Params(return_defaults=True)
-    self.sm = sm or messaging.SubMaster(["accelerometer"])
+    self.sm = sm if sm is not None else messaging.SubMaster(["accelerometer", "deviceState"])
     self.clock = clock
     self.detector = MotionDetector(
       sensitivity=SENSITIVITY,
@@ -62,6 +62,13 @@ class SentryMode:
     self.started_at = clock()
     self.armed = False
     self._last_status = None
+
+  def _is_onroad(self) -> bool:
+    try:
+      device_state = self.sm["deviceState"]
+    except (KeyError, TypeError, AttributeError):
+      return False
+    return device_state is not None and bool(getattr(device_state, "started", False))
 
   def _write_status(self, state: str, **extra) -> None:
     status_values = {"state": state, **extra}
@@ -132,6 +139,9 @@ class SentryMode:
     threading.Thread(target=publish, name="sentryd-galaxy-publish", daemon=True).start()
 
   def _handle_detection(self, kind: str) -> None:
+    if self._is_onroad():
+      return
+
     event_id = f"{int(time.time())}-{uuid4().hex[:8]}"
     event = {
       "eventId": event_id,
@@ -147,6 +157,10 @@ class SentryMode:
     self._publish_event(event)
 
   def update(self) -> None:
+    if self._is_onroad():
+      self._write_status("disabled", reason="onroad")
+      return
+
     now = self.clock()
     if now - self.started_at < ARM_DELAY_SECONDS:
       self._write_status("arming", secondsRemaining=max(0, int(ARM_DELAY_SECONDS - (now - self.started_at))))
@@ -174,6 +188,9 @@ class SentryMode:
     self._write_status("starting")
     while self.params.get_bool("SentryModeEnabled"):
       self.sm.update(0)
+      if self._is_onroad():
+        self._write_status("disabled", reason="onroad")
+        break
       self.update()
       time.sleep(LOOP_INTERVAL_SECONDS)
     self._write_status("disabled")
