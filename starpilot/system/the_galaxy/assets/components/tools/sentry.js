@@ -2,7 +2,7 @@ import { html, reactive } from "/assets/vendor/arrow-core.js"
 import { galaxyPath, isGalaxyTunnel } from "/assets/js/utils.js"
 import {
   enableSentryPush,
-  sendSentryTestPush,
+  sendSentryTestNotification,
 } from "/assets/components/sentry_notifications.js"
 
 const state = reactive({
@@ -127,20 +127,23 @@ async function enablePush() {
     const result = await enableSentryPush()
     showSnackbar(result.message)
   } catch (error) {
-    showSnackbar(error.message || "Could not enable Chrome notifications.")
+    showSnackbar(error.message || "Could not enable browser notifications.")
   } finally {
     state.pushBusy = false
   }
 }
 
-async function sendTestPush() {
+async function sendTestNotification() {
   if (state.pushBusy) return
   state.pushBusy = true
   try {
-    await sendSentryTestPush()
-    showSnackbar("Test push sent. Check your Chrome notifications.")
+    const payload = await sendSentryTestNotification()
+    const channels = Object.entries(payload.channels || {})
+      .filter(([, configured]) => configured)
+      .map(([channel]) => channel === "webPush" ? "browser" : channel)
+    showSnackbar(`Test notification sent through ${channels.join(", ")}.`)
   } catch (error) {
-    showSnackbar(error.message || "Could not send the test push.")
+    showSnackbar(error.message || "Could not send the test notification.")
   } finally {
     state.pushBusy = false
   }
@@ -188,7 +191,9 @@ function renderEvent() {
           </a>
         `)}
       </div>
-    ` : html`<p class="sentry-empty">No camera images were available for this event.</p>`}
+    ` : event.kind === "power_off"
+      ? html`<p class="sentry-empty">Power-off alerts do not include camera captures because the device is shutting down.</p>`
+      : html`<p class="sentry-empty">No camera images were available for this event.</p>`}
   `
 }
 
@@ -266,13 +271,13 @@ export function SentryMode() {
 
           <div class="sentry-action-row">
             <button class="sentry-button" @click="${enablePush}" disabled="${() => state.pushBusy}">
-              ${() => state.pushBusy ? "Enabling…" : "Enable Chrome notifications"}
+              ${() => state.pushBusy ? "Enabling…" : "Enable browser notifications"}
             </button>
-            <button class="sentry-button sentry-button-secondary" @click="${sendTestPush}" disabled="${() => state.pushBusy}">
-              ${() => state.pushBusy ? "Sending…" : "Send test push"}
+            <button class="sentry-button sentry-button-secondary" @click="${sendTestNotification}" disabled="${() => state.pushBusy}">
+              ${() => state.pushBusy ? "Sending…" : "Send test notification"}
             </button>
           </div>
-          <p class="sentry-muted">Enable notifications once, then use the test push to verify Galaxy can reach this browser even when the page is not active.</p>
+          <p class="sentry-muted">The test notification uses every configured channel: browser Web Push, ntfy, and webhook.</p>
           <p class="sentry-muted">iPhone users: add Galaxy to your Home Screen as a web app before enabling notifications. iOS web push requires the Home Screen web app.</p>
         `}
       </section>

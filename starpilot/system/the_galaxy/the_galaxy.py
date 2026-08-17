@@ -553,16 +553,20 @@ def _normalize_sentry_event(payload) -> dict | None:
 
   event_id = str(payload.get("eventId") or "").strip()
   kind = str(payload.get("kind") or "").strip().lower()
-  if not event_id or kind not in {"warning", "alarm"}:
+  if not event_id or kind not in {"warning", "alarm", "power_off"}:
     return None
 
-  return {
+  event = {
     "eventId": event_id[:96],
     "kind": kind,
     "detectedAt": str(payload.get("detectedAt") or ""),
     "message": str(payload.get("message") or "Movement detected while parked.")[:500],
     "imagePaths": _safe_sentry_image_paths(payload.get("imagePaths")),
   }
+  reason = str(payload.get("reason") or "").strip()
+  if reason:
+    event["reason"] = reason[:96]
+  return event
 
 
 def _sentry_image_path(event_id: str, filename: str) -> Path | None:
@@ -741,6 +745,24 @@ def _sentry_vapid_public_key(vapid) -> str:
 def _sentry_push_subscription_count() -> int:
   with _SENTRY_PUSH_LOCK:
     return len(_load_sentry_push_subscriptions())
+
+
+def _sentry_notification_channels() -> dict[str, bool]:
+  return {
+    "webPush": _sentry_push_subscription_count() > 0,
+    "webhook": bool((params.get("SentryModeWebhook", encoding="utf-8") or "").strip()),
+    "ntfy": bool((params.get("SentryModeNtfyUrl", encoding="utf-8") or "").strip()),
+  }
+
+
+def _sentry_test_notification_event() -> dict:
+  return {
+    "eventId": f"notification-test-{int(time.time())}-{secrets.token_hex(4)}",
+    "kind": "warning",
+    "detectedAt": datetime.now(timezone.utc).isoformat(),
+    "message": "This is a test StarPilot Sentry notification.",
+    "imagePaths": [],
+  }
 
 
 def _dispatch_sentry_push(event: dict) -> None:
@@ -7001,16 +7023,33 @@ def setup(app):
   @app.route("/api/sentry/push/test", methods=["POST"])
   def sentry_push_test():
     if _sentry_push_subscription_count() == 0:
-      return jsonify({"error": "Enable Chrome notifications first."}), 409
+      return jsonify({"error": "Enable browser notifications first."}), 409
 
-    event = {
-      "eventId": f"push-test-{int(time.time())}-{secrets.token_hex(4)}",
-      "kind": "warning",
-      "detectedAt": datetime.now(timezone.utc).isoformat(),
-      "message": "This is a test StarPilot Sentry push notification.",
-    }
+    event = _sentry_test_notification_event()
     threading.Thread(target=_dispatch_sentry_push, args=(event,), name="galaxy-sentry-push-test", daemon=True).start()
     return jsonify({"accepted": True, "eventId": event["eventId"]}), 202
+
+  @app.route("/api/sentry/test-notification", methods=["POST"])
+  def sentry_test_notification():
+    channels = _sentry_notification_channels()
+    if not any(channels.values()):
+      return jsonify({
+        "error": "Configure browser notifications, ntfy, or a webhook before sending a test notification.",
+        "channels": channels,
+      }), 409
+
+    event = _sentry_test_notification_event()
+    threading.Thread(
+      target=_dispatch_sentry_event,
+      args=(event,),
+      name="galaxy-sentry-notification-test",
+      daemon=True,
+    ).start()
+    return jsonify({
+      "accepted": True,
+      "eventId": event["eventId"],
+      "channels": channels,
+    }), 202
 
   @app.route("/api/sentry/status", methods=["GET"])
   def sentry_status():
@@ -7119,7 +7158,10 @@ def setup(app):
       return jsonify({"error": "Invalid sentry event."}), 400
 
     params.put("SentryModeLastEvent", json.dumps(event, separators=(",", ":")))
-    threading.Thread(target=_dispatch_sentry_event, args=(event,), name="galaxy-sentry-notify", daemon=True).start()
+    if request.args.get("blocking") == "1":
+      _dispatch_sentry_event(event)
+    else:
+      threading.Thread(target=_dispatch_sentry_event, args=(event,), name="galaxy-sentry-notify", daemon=True).start()
     return jsonify({"accepted": True, "eventId": event["eventId"]}), 202
 
   # ── Galaxy pairing (mirrors settings.cc L262-282) ──────────────────
