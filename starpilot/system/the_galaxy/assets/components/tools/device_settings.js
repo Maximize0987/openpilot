@@ -201,6 +201,7 @@ function scheduleSyncInputs() {
 function applySelectOptions(el, options) {
   el.innerHTML = ""
   for (const opt of options || []) {
+    if (opt?.developer_only && !state.values[GALAXY_DEVELOPER_MODE_KEY]) continue
     const o = document.createElement("option")
     o.value = String(opt.value)
     o.textContent = opt.label

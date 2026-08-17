@@ -3055,6 +3055,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3113,6 +3118,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3171,6 +3181,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3229,6 +3244,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3287,6 +3307,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3345,6 +3370,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3407,6 +3437,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3499,6 +3534,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3557,6 +3597,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3615,6 +3660,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3673,6 +3723,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3731,6 +3786,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -3789,6 +3849,11 @@
           {
             "value": 13,
             "label": "Favorite #3"
+          },
+          {
+            "value": 14,
+            "label": "Pulse and Glide",
+            "developer_only": true
           }
         ],
         "settings_tier": "simple"
@@ -4107,6 +4172,19 @@
         "description": "On supported Hyundai stock-cruise cars, use RES/SET button presses to match the cluster set speed to StarPilot's target.",
         "data_type": "bool",
         "ui_type": "toggle",
+        "parent_key": "GalaxyDeveloperMode",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "PulseGlideSpeedDelta",
+        "label": "Pulse and Glide Speed Delta",
+        "description": "When Pulse and Glide is assigned to a wheel button, coast this far below the current cruise target before accelerating back up.",
+        "data_type": "float",
+        "ui_type": "numeric",
+        "min": 0.5,
+        "max": 30.0,
+        "step": 0.5,
+        "precision": 1,
         "parent_key": "GalaxyDeveloperMode",
         "settings_tier": "advanced"
       },

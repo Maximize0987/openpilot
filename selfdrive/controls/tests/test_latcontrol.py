@@ -105,6 +105,8 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_sienna_4th_gen_ff_scale,
   get_sienna_4th_gen_friction_threshold,
   get_sienna_4th_gen_high_speed_output_taper_scale,
+  get_toyota_corolla_tss2_center_output_scale,
+  get_toyota_corolla_tss2_ff_scale,
   get_lexus_is_ff_scale,
   get_camry_ff_scale,
   get_ioniq_5_ff_scale,
@@ -402,6 +404,22 @@ class TestLatControl:
     assert turn_in_right > steady_right
     assert unwind_left < steady_left
     assert unwind_right < steady_right
+
+  def test_toyota_corolla_tss2_ff_scale_is_transition_only(self):
+    assert get_toyota_corolla_tss2_ff_scale(0.0, 0.0, 10.0) == 1.0
+    steady = get_toyota_corolla_tss2_ff_scale(0.5, 0.0, 10.0)
+    turn_in = get_toyota_corolla_tss2_ff_scale(0.5, 0.8, 10.0)
+    unwind = get_toyota_corolla_tss2_ff_scale(0.5, -0.8, 10.0)
+    assert turn_in > steady
+    assert unwind < steady
+    assert get_toyota_corolla_tss2_ff_scale(0.5, 0.8, 40.0) < turn_in
+
+  def test_toyota_corolla_tss2_center_output_taper_is_low_speed_and_center_only(self):
+    crawl_center = get_toyota_corolla_tss2_center_output_scale(0.0, 1.0)
+    cruise_center = get_toyota_corolla_tss2_center_output_scale(0.0, 15.0)
+    crawl_curve = get_toyota_corolla_tss2_center_output_scale(0.6, 1.0)
+    assert 0.65 <= crawl_center < cruise_center <= 1.0
+    assert crawl_curve > crawl_center
 
   def test_flm_standard_friction_curve_override(self):
     base = get_standard_friction_threshold(10.0)

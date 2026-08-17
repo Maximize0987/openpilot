@@ -55,6 +55,7 @@ class StarPilotCard:
     self.cancelPressed_previously = False
     self.distancePressed_previously = False
     self.force_coast = False
+    self.pulse_and_glide = False
     self.modePressed_previously = False
     self.mode_counter = 0
     self.customPressed_previously = False
@@ -85,6 +86,9 @@ class StarPilotCard:
       self.handle_bookmark()
     elif getattr(starpilot_toggles, f"force_coast_via_{key}"):
       self.force_coast = not self.force_coast
+    elif getattr(starpilot_toggles, f"pulse_and_glide_via_{key}"):
+      if getattr(sm["carControl"], "longActive", False):
+        self.pulse_and_glide = not self.pulse_and_glide
     elif getattr(starpilot_toggles, f"pause_lateral_via_{key}"):
       self.pause_lateral = not self.pause_lateral
     elif getattr(starpilot_toggles, f"pause_longitudinal_via_{key}"):
@@ -298,6 +302,10 @@ class StarPilotCard:
         self.handle_button_event("star_long", sm, starpilot_toggles)
         self.handle_button_event("star_very_long", sm, starpilot_toggles)
 
+    if not getattr(starpilot_toggles, "pulse_and_glide_available", False):
+      self.pulse_and_glide = False
+    self.pulse_and_glide &= bool(getattr(sm["carControl"], "longActive", False))
+    self.pulse_and_glide &= not (carState.brakePressed or carState.gasPressed)
     self.force_coast &= not (carState.brakePressed or carState.gasPressed)
 
     starpilotCarState.accelPressed = self.accel_pressed
@@ -309,6 +317,7 @@ class StarPilotCard:
     starpilotCarState.distanceLongPressed = self.very_long_press_threshold > self.gap_counter >= self.long_press_threshold
     starpilotCarState.distanceVeryLongPressed = self.gap_counter >= self.very_long_press_threshold
     starpilotCarState.forceCoast = self.force_coast
+    starpilotCarState.pulseAndGlide = self.pulse_and_glide
     starpilotCarState.isParked = carState.gearShifter == GearShifter.park
     starpilotCarState.pauseLateral = self.pause_lateral
     starpilotCarState.pauseLongitudinal = self.pause_longitudinal

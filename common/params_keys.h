@@ -522,6 +522,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"PreviousSpeedLimit", {PERSISTENT, FLOAT, "0.0", "0.0"}},
     {"PromptDistractedVolume", {PERSISTENT, INT, "101", "101", 2, SETTINGS_SIMPLE}},
     {"PromptVolume", {PERSISTENT, INT, "101", "101", 2, SETTINGS_SIMPLE}},
+    {"PulseGlideSpeedDelta", {PERSISTENT, FLOAT, "5.0", "5.0", 3}},
     {"QOLLateral", {PERSISTENT, BOOL, "1", "0", 1, SETTINGS_SIMPLE}},
     {"QOLLongitudinal", {PERSISTENT, BOOL, "1", "0", 1, SETTINGS_SIMPLE}},
     {"QOLVisuals", {PERSISTENT, BOOL, "1", "0", 0, SETTINGS_SIMPLE}},

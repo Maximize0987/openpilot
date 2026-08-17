@@ -9,6 +9,7 @@ from openpilot.selfdrive.ui.mici.onroad.speed_limit_utils import resolve_display
 from openpilot.selfdrive.ui.onroad.starpilot.navigation_card import NavigationCardRenderer
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.system.ui.lib.application import gui_app, FontWeight
+from openpilot.system.ui.lib.utils import draw_circle_gradient_compat
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
@@ -408,8 +409,8 @@ class HudRenderer(Widget):
 
     # draw drop shadow
     circle_radius = 162 // 2
-    rl.draw_circle_gradient(rl.Vector2(x + circle_radius, y + circle_radius), circle_radius,
-                            rl.Color(0, 0, 0, int(255 / 2 * alpha)), rl.BLANK)
+    draw_circle_gradient_compat(x + circle_radius, y + circle_radius, circle_radius,
+                                rl.Color(0, 0, 0, int(255 / 2 * alpha)), rl.BLANK)
 
     set_speed_color = rl.Color(255, 255, 255, int(255 * 0.9 * alpha))
     max_color = rl.Color(255, 255, 255, int(255 * 0.9 * alpha))
@@ -630,7 +631,7 @@ class HudRenderer(Widget):
     center = rl.Vector2(button_rect.x + button_rect.width / 2, button_rect.y + button_rect.height / 2)
     radius = min(button_rect.width, button_rect.height) / 2
 
-    rl.draw_circle_gradient(center, radius, rl.Color(0, 0, 0, 90), rl.BLANK)
+    draw_circle_gradient_compat(center.x, center.y, radius, rl.Color(0, 0, 0, 90), rl.BLANK)
     rl.draw_circle(int(center.x), int(center.y), radius, fill)
     rl.draw_ring(center, radius - 6, radius, 0, 360, 48, outline)
 

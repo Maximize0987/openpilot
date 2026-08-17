@@ -83,7 +83,7 @@ from openpilot.starpilot.common.favorite_slots import (
 )
 from openpilot.starpilot.common.lateral_delay import full_lateral_delay
 from openpilot.starpilot.common.starpilot_utilities import delete_file, get_lock_status, run_cmd
-from openpilot.starpilot.common.starpilot_variables import ACTIVE_THEME_PATH, ERROR_LOGS_PATH, EXCLUDED_KEYS, LEGACY_STARPILOT_PARAM_RENAMES, MAPS_PATH, MODELS_PATH, RESOURCES_REPO, SCREEN_RECORDINGS_PATH, STOCK_THEME_PATH, THEME_SAVE_PATH,\
+from openpilot.starpilot.common.starpilot_variables import ACTIVE_THEME_PATH, BUTTON_FUNCTIONS, ERROR_LOGS_PATH, EXCLUDED_KEYS, LEGACY_STARPILOT_PARAM_RENAMES, MAPS_PATH, MODELS_PATH, RESOURCES_REPO, SCREEN_RECORDINGS_PATH, STOCK_THEME_PATH, THEME_SAVE_PATH,\
                                                            default_ev_tuning_enabled, migrate_cancel_button_controls, update_starpilot_toggles
 from openpilot.starpilot.common.testing_grounds import (
   DEFAULT_TESTING_GROUND_VARIANT as SHARED_DEFAULT_TESTING_GROUND_VARIANT,
@@ -109,6 +109,13 @@ LEGACY_LATERAL_METHOD_API_PREFIX = "/api/" + "".join(("f", "t", "m"))
 VASM_CONFIGURATION_KEYS = {"VASMEnabled", "VASMConfidenceThreshold", "VASMSmoothSeconds", "VASMAnnotationConfig"}
 PIP_PREVIEW_CONFIGURATION_KEYS = {"PIPPreviewEnabled", "PIPPreviewMask", "PIPPreviewShowOnBlinker", "PIPPreviewShowOnBSM"}
 MODEL_SMOOTHING_KEYS = {"LatSmoothSeconds", "LongSmoothSeconds"}
+PULSE_GLIDE_BUTTON_KEYS = {
+  "CancelButtonControl", "DistanceButtonControl",
+  "LongCancelButtonControl", "LongDistanceButtonControl",
+  "VeryLongCancelButtonControl", "VeryLongDistanceButtonControl",
+  "LKASButtonControl", "ModeButtonControl", "LongModeButtonControl", "VeryLongModeButtonControl",
+  "StarButtonControl", "LongStarButtonControl", "VeryLongStarButtonControl",
+}
 SENTRY_NUMERIC_PARAM_BOUNDS = {
   "SentryModeSensitivity": (0.005, 1.0, 0.005),
   "SentryModeWarningTime": (0.1, 10.0, 0.1),
@@ -4888,6 +4895,10 @@ def setup(app):
       allowed_keys, _ = _get_param_type_info()
       if key not in allowed_keys:
         return jsonify({"error": f"Parameter '{key}' is not editable."}), 403
+
+      if key == "PulseGlideSpeedDelta" or (key in PULSE_GLIDE_BUTTON_KEYS and str_val.strip() == str(BUTTON_FUNCTIONS["PULSE_AND_GLIDE"])):
+        if not params.get_bool("GalaxyDeveloperMode"):
+          return jsonify({"error": "Pulse and Glide is available only with Galaxy Developer Mode enabled."}), 403
 
       if key in SENTRY_NUMERIC_PARAM_BOUNDS:
         minimum, maximum, step = SENTRY_NUMERIC_PARAM_BOUNDS[key]

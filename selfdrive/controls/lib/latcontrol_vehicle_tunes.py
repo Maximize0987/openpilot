@@ -180,6 +180,10 @@ SIENNA_4TH_GEN_CARS = (
   TOYOTA_CAR.TOYOTA_SIENNA_4TH_GEN,
 )
 
+TOYOTA_COROLLA_TSS2_CARS = (
+  TOYOTA_CAR.TOYOTA_COROLLA_TSS2,
+)
+
 LEXUS_IS_CARS = (
   TOYOTA_CAR.LEXUS_IS,
 )
@@ -232,7 +236,7 @@ GENESIS_G70_FRICTION_JERK_DEADZONE_LAT = 0.30
 GENESIS_G70_FRICTION_JERK_DEADZONE_LAT_WIDTH = 0.08
 GENESIS_G70_FRICTION_JERK_DEADZONE_SPEED = 12.0
 GENESIS_G70_FRICTION_JERK_DEADZONE_SPEED_WIDTH = 3.5
-GENESIS_G70_CENTER_OUTPUT_TAPER_MAX = 0.10
+GENESIS_G70_CENTER_OUTPUT_TAPER_MAX = 0.12
 GENESIS_G70_CENTER_OUTPUT_TAPER_LAT = 0.30
 GENESIS_G70_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.10
 GENESIS_G70_CENTER_OUTPUT_TAPER_SPEED = 18.0
@@ -255,7 +259,7 @@ GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT = 0.14
 GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT_WIDTH = 0.05
 GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED = 6.0
 GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_SPEED_WIDTH = 1.5
-GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST = 0.06
+GENESIS_G70_CURVE_UNWIND_OUTPUT_BOOST = 0.04
 GENESIS_G70_CURVE_UNWIND_SPEED = 18.0
 GENESIS_G70_CURVE_UNWIND_SPEED_WIDTH = 3.0
 GENESIS_G70_CURVE_UNWIND_LAT = 0.25
@@ -1062,6 +1066,21 @@ SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_ONSET_WIDTH = 2.0
 SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED = 27.0
 SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED_WIDTH = 3.0
 
+TOYOTA_COROLLA_TSS2_PHASE_SCALE = 0.12
+TOYOTA_COROLLA_TSS2_TURN_IN_FF_BOOST = 0.035
+TOYOTA_COROLLA_TSS2_UNWIND_FF_REDUCTION = 0.06
+TOYOTA_COROLLA_TSS2_CURVE_LAT_ONSET = 0.24
+TOYOTA_COROLLA_TSS2_CURVE_LAT_WIDTH = 0.10
+TOYOTA_COROLLA_TSS2_SPEED_ONSET = 4.0
+TOYOTA_COROLLA_TSS2_SPEED_ONSET_WIDTH = 1.5
+TOYOTA_COROLLA_TSS2_SPEED_CUTOFF = 24.0
+TOYOTA_COROLLA_TSS2_SPEED_CUTOFF_WIDTH = 3.0
+TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_MAX = 0.30
+TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_LAT = 0.18
+TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.08
+TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_SPEED = 4.5
+TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 1.5
+
 LEXUS_IS_PHASE_SCALE = 0.10
 # The Lexus route still fell short during a clean high-speed turn-in while
 # already at the controller limit. Keep this correction small and phase-gated
@@ -1558,6 +1577,41 @@ def get_sienna_4th_gen_high_speed_output_taper_scale(v_ego: float) -> float:
   cutoff = _sigmoid((SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED - v_ego) /
                     SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX_SPEED_WIDTH)
   return 1.0 - SIENNA_4TH_GEN_HIGH_SPEED_OUTPUT_TAPER_MAX * onset * cutoff
+
+
+def get_toyota_corolla_tss2_ff_scale(desired_lateral_accel: float,
+                                     desired_lateral_jerk: float,
+                                     v_ego: float) -> float:
+  """Add a small, transition-only turn-in correction for Corolla TSS2 torque EPS."""
+  if desired_lateral_accel == 0.0:
+    return 1.0
+
+  phase = math.tanh((desired_lateral_accel * desired_lateral_jerk) /
+                    TOYOTA_COROLLA_TSS2_PHASE_SCALE)
+  turn_in_weight = max(phase, 0.0)
+  unwind_weight = max(-phase, 0.0)
+  curve_weight = _sigmoid((abs(desired_lateral_accel) - TOYOTA_COROLLA_TSS2_CURVE_LAT_ONSET) /
+                          TOYOTA_COROLLA_TSS2_CURVE_LAT_WIDTH)
+  speed_weight = (_sigmoid((v_ego - TOYOTA_COROLLA_TSS2_SPEED_ONSET) /
+                           TOYOTA_COROLLA_TSS2_SPEED_ONSET_WIDTH) *
+                  _sigmoid((TOYOTA_COROLLA_TSS2_SPEED_CUTOFF - v_ego) /
+                           TOYOTA_COROLLA_TSS2_SPEED_CUTOFF_WIDTH))
+  boost = _flm_vehicle_knob("toyota_corolla_tss2.turn_in_ff_boost",
+                            TOYOTA_COROLLA_TSS2_TURN_IN_FF_BOOST)
+  unwind_reduction = _flm_vehicle_knob("toyota_corolla_tss2.unwind_ff_reduction",
+                                       TOYOTA_COROLLA_TSS2_UNWIND_FF_REDUCTION)
+  return 1.0 + curve_weight * speed_weight * (boost * turn_in_weight - unwind_reduction * unwind_weight)
+
+
+def get_toyota_corolla_tss2_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  """Taper only near-center crawl-speed torque during manual handoff."""
+  center_weight = _sigmoid((TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
+                           TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_LAT_WIDTH)
+  low_speed_weight = _sigmoid((TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_SPEED - v_ego) /
+                              TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_SPEED_WIDTH)
+  reduction = _flm_vehicle_knob("toyota_corolla_tss2.center_output_taper_max",
+                                TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_MAX) * center_weight * low_speed_weight
+  return max(1.0 - reduction, 0.65)
 
 
 def get_lexus_is_ff_scale(desired_lateral_accel: float, desired_lateral_jerk: float, v_ego: float) -> float:

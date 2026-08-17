@@ -155,6 +155,7 @@ BUTTON_FUNCTIONS = {
   "NOTHING": 0,
   "PERSONALITY_PROFILE": 1,
   "FORCE_COAST": 2,
+  "PULSE_AND_GLIDE": 14,
   "PAUSE_LATERAL": 3,
   "PAUSE_LONGITUDINAL": 4,
   "EXPERIMENTAL_MODE": 5,
@@ -950,10 +951,22 @@ class StarPilotVariables:
       condition=toggle.car_make == "gm" and toggle.has_pedal and "BOLT" in toggle.car_model,
     )
 
+    developer_feature_access = self.params.get_bool("DeveloperUI") or self.params.get_bool("GalaxyDeveloperMode")
+    toggle.pulse_and_glide_available = toggle.openpilot_longitudinal and developer_feature_access
+    toggle.pulse_glide_speed_delta = self.get_value(
+      "PulseGlideSpeedDelta",
+      cast=float,
+      condition=toggle.pulse_and_glide_available,
+      conversion=speed_conversion,
+      min=0.5 * speed_conversion,
+      max=30.0 * speed_conversion,
+    )
+
     distance_button_control = self.get_button_function("DistanceButtonControl")
     toggle.experimental_mode_via_distance = toggle.openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press = toggle.experimental_mode_via_distance
     toggle.force_coast_via_distance = toggle.openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_distance = toggle.pulse_and_glide_available and distance_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_distance = distance_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_distance = toggle.openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_distance = toggle.openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -966,6 +979,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_distance_long = toggle.openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_distance_long
     toggle.force_coast_via_distance_long = toggle.openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_distance_long = toggle.pulse_and_glide_available and distance_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_distance_long = distance_button_control_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_distance_long = toggle.openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_distance_long = toggle.openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -978,6 +992,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_distance_very_long = toggle.openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_distance_very_long
     toggle.force_coast_via_distance_very_long = toggle.openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_distance_very_long = toggle.pulse_and_glide_available and distance_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_distance_very_long = distance_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_distance_very_long = toggle.openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_distance_very_long = toggle.openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -990,6 +1005,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_cancel = toggle.openpilot_longitudinal and cancel_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_cancel
     toggle.force_coast_via_cancel = toggle.openpilot_longitudinal and cancel_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_cancel = toggle.pulse_and_glide_available and cancel_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_cancel = cancel_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_cancel = toggle.openpilot_longitudinal and cancel_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_cancel = toggle.openpilot_longitudinal and cancel_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1002,6 +1018,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_cancel_long = toggle.openpilot_longitudinal and cancel_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_cancel_long
     toggle.force_coast_via_cancel_long = toggle.openpilot_longitudinal and cancel_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_cancel_long = toggle.pulse_and_glide_available and cancel_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_cancel_long = cancel_button_control_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_cancel_long = toggle.openpilot_longitudinal and cancel_button_control_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_cancel_long = toggle.openpilot_longitudinal and cancel_button_control_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1014,6 +1031,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_cancel_very_long = toggle.openpilot_longitudinal and cancel_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_cancel_very_long
     toggle.force_coast_via_cancel_very_long = toggle.openpilot_longitudinal and cancel_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_cancel_very_long = toggle.pulse_and_glide_available and cancel_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_cancel_very_long = cancel_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_cancel_very_long = toggle.openpilot_longitudinal and cancel_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_cancel_very_long = toggle.openpilot_longitudinal and cancel_button_control_very_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1070,6 +1088,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_lkas = toggle.openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_lkas
     toggle.force_coast_via_lkas = toggle.openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_lkas = toggle.pulse_and_glide_available and lkas_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_lkas = lkas_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_lkas = toggle.openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_lkas = toggle.openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1083,6 +1102,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_mode = toggle.openpilot_longitudinal and mode_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_mode
     toggle.force_coast_via_mode = toggle.openpilot_longitudinal and mode_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_mode = toggle.pulse_and_glide_available and mode_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_mode = mode_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_mode = toggle.openpilot_longitudinal and mode_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_mode = toggle.openpilot_longitudinal and mode_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1095,6 +1115,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_mode_long = toggle.openpilot_longitudinal and mode_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_mode_long
     toggle.force_coast_via_mode_long = toggle.openpilot_longitudinal and mode_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_mode_long = toggle.pulse_and_glide_available and mode_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_mode_long = mode_button_control_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_mode_long = toggle.openpilot_longitudinal and mode_button_control_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_mode_long = toggle.openpilot_longitudinal and mode_button_control_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1107,6 +1128,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_mode_very_long = toggle.openpilot_longitudinal and mode_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_mode_very_long
     toggle.force_coast_via_mode_very_long = toggle.openpilot_longitudinal and mode_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_mode_very_long = toggle.pulse_and_glide_available and mode_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_mode_very_long = mode_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_mode_very_long = toggle.openpilot_longitudinal and mode_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_mode_very_long = toggle.openpilot_longitudinal and mode_button_control_very_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1119,6 +1141,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_star = toggle.openpilot_longitudinal and star_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_star
     toggle.force_coast_via_star = toggle.openpilot_longitudinal and star_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_star = toggle.pulse_and_glide_available and star_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_star = star_button_control == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_star = toggle.openpilot_longitudinal and star_button_control == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_star = toggle.openpilot_longitudinal and star_button_control == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1131,6 +1154,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_star_long = toggle.openpilot_longitudinal and star_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_star_long
     toggle.force_coast_via_star_long = toggle.openpilot_longitudinal and star_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_star_long = toggle.pulse_and_glide_available and star_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_star_long = star_button_control_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_star_long = toggle.openpilot_longitudinal and star_button_control_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_star_long = toggle.openpilot_longitudinal and star_button_control_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]
@@ -1143,6 +1167,7 @@ class StarPilotVariables:
     toggle.experimental_mode_via_star_very_long = toggle.openpilot_longitudinal and star_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_star_very_long
     toggle.force_coast_via_star_very_long = toggle.openpilot_longitudinal and star_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
+    toggle.pulse_and_glide_via_star_very_long = toggle.pulse_and_glide_available and star_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
     toggle.pause_lateral_via_star_very_long = star_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LATERAL"]
     toggle.pause_longitudinal_via_star_very_long = toggle.openpilot_longitudinal and star_button_control_very_long == BUTTON_FUNCTIONS["PAUSE_LONGITUDINAL"]
     toggle.personality_profile_via_star_very_long = toggle.openpilot_longitudinal and star_button_control_very_long == BUTTON_FUNCTIONS["PERSONALITY_PROFILE"]

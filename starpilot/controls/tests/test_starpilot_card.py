@@ -77,6 +77,8 @@ def make_toggles(**overrides):
     "conditional_experimental_mode": False,
     "experimental_mode_via_lkas": False,
     "force_coast_via_lkas": False,
+    "pulse_and_glide_available": False,
+    "pulse_and_glide_via_lkas": False,
     "lkas_allowed_for_aol": False,
     "main_cruise_aol_toggle": False,
     "main_cruise_slc_adopt": False,
@@ -90,13 +92,38 @@ def make_toggles(**overrides):
   return SimpleNamespace(**defaults)
 
 
-def make_car_state(available=False, enabled=False, button_events=None):
+def test_pulse_and_glide_requires_developer_access_and_active_longitudinal(monkeypatch, tmp_path):
+  monkeypatch.setattr(spc, "Params", FakeParams)
+  monkeypatch.setattr(spc, "is_FrogsGoMoo", lambda: False)
+  monkeypatch.setattr(spc, "ERROR_LOGS_PATH", tmp_path)
+
+  card = spc.StarPilotCard(SimpleNamespace(brand="gm"), SimpleNamespace(alternativeExperience=0))
+  sm = make_sm()
+  starpilot_car_state = SimpleNamespace(distancePressed=False)
+  toggles = make_toggles(
+    pulse_and_glide_available=True,
+    pulse_and_glide_via_lkas=True,
+  )
+
+  card.handle_button_event("lkas", sm, toggles)
+  assert card.pulse_and_glide is False
+
+  sm["carControl"].longActive = True
+  card.handle_button_event("lkas", sm, toggles)
+  assert card.pulse_and_glide is True
+
+  car_state = make_car_state(gas_pressed=True)
+  result = card.update(car_state, starpilot_car_state, sm, toggles)
+  assert result.pulseAndGlide is False
+
+
+def make_car_state(available=False, enabled=False, button_events=None, brake_pressed=False, gas_pressed=False):
   return SimpleNamespace(
     buttonEvents=button_events or [],
     cruiseState=SimpleNamespace(available=available, enabled=enabled),
     gearShifter=spc.GearShifter.drive,
-    brakePressed=False,
-    gasPressed=False,
+    brakePressed=brake_pressed,
+    gasPressed=gas_pressed,
     standstill=False,
     vEgo=15.0,
   )

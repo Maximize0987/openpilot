@@ -90,6 +90,31 @@ class TestToyotaInterfaces:
     assert params.lateralTuning.torque.latAccelFactor == pytest.approx(1.7)
     assert params.lateralTuning.torque.friction == pytest.approx(0.14)
 
+  def test_sienna_4th_gen_parses_distance_button(self):
+    params = CarInterface.get_params(
+      CAR.TOYOTA_SIENNA_4TH_GEN,
+      {bus: {} for bus in range(8)},
+      [],
+      alpha_long=False,
+      is_release=False,
+      docs=False,
+      starpilot_toggles=SimpleNamespace(force_torque_controller=False, nnff=False, nnff_lite=False),
+    )
+    parser = CarState.get_can_parsers(params)[Bus.pt]
+
+    assert "PCM_CRUISE_4" in parser.vl
+
+    other_params = CarInterface.get_params(
+      CAR.TOYOTA_RAV4_PRIME,
+      {bus: {} for bus in range(8)},
+      [],
+      alpha_long=False,
+      is_release=False,
+      docs=False,
+      starpilot_toggles=SimpleNamespace(force_torque_controller=False, nnff=False, nnff_lite=False),
+    )
+    assert "PCM_CRUISE_4" not in CarState.get_can_parsers(other_params)[Bus.pt].vl
+
   def test_tss2_dbc(self):
     # We make some assumptions about TSS2 platforms,
     # like looking up certain signals only in this DBC
