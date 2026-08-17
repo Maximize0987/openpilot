@@ -23,6 +23,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_follow_prebrake_min_headway,
   get_toyota_rav4_tss2_early_lead_cap,
   get_toyota_sienna_post_departure_restop_cap,
+  is_toyota_rav4_tss2_radar_follow_lead,
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
 )
@@ -1765,6 +1766,23 @@ def test_manual_resume_override_clears_no_lead_model_stop_at_standstill(model_ve
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
+def test_manual_resume_override_accepts_accelerator_pedal(model_version):
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  planner = LongitudinalPlanner(CP, init_v=0.0)
+  sm = make_sm(0.0, desired_accel=0.0, min_accel=-0.5)
+  sm["carState"].standstill = True
+  sm["carState"].gasPressed = True
+  sm["controlsState"].longControlState = LongCtrlState.stopping
+  sm["modelV2"].action.shouldStop = True
+  sm["starpilotPlan"].forcingStop = True
+
+  planner.update(sm, make_toggles(model_version))
+
+  assert not planner.output_should_stop
+  assert planner.output_a_target >= 0.2
+
+
+@pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
 def test_manual_resume_override_does_not_clear_stopped_lead_stop(model_version):
   CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
   planner = LongitudinalPlanner(CP, init_v=0.0)
@@ -2825,6 +2843,25 @@ def test_rav4_tss2_early_lead_cap_does_not_change_other_paths():
 
   assert get_toyota_rav4_tss2_early_lead_cap(other, lead, 21.0, -3.5) is None
   assert get_toyota_rav4_tss2_early_lead_cap(rav4, radar_lead, 21.0, -3.5) is None
+
+
+def test_rav4_tss2_radar_follow_admits_closing_lead_before_model_tracking():
+  rav4 = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2)
+  lead = make_lead(status=True, d_rel=74.0, v_lead=1.0, radar=True)
+
+  assert is_toyota_rav4_tss2_radar_follow_lead(rav4, lead, 9.7)
+
+
+def test_rav4_tss2_radar_follow_admission_is_vehicle_and_safety_scoped():
+  rav4 = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2)
+  other = ToyotaCarInterface.get_non_essential_params(TOYOTA_CAR.TOYOTA_RAV4_TSS2_2022)
+  lead = make_lead(status=True, d_rel=74.0, v_lead=1.0, radar=True)
+  far_lead = make_lead(status=True, d_rel=110.0, v_lead=1.0, radar=True)
+  vision_lead = make_lead(status=True, d_rel=74.0, v_lead=1.0, radar=False, model_prob=1.0)
+
+  assert not is_toyota_rav4_tss2_radar_follow_lead(other, lead, 9.7)
+  assert not is_toyota_rav4_tss2_radar_follow_lead(rav4, far_lead, 9.7)
+  assert not is_toyota_rav4_tss2_radar_follow_lead(rav4, vision_lead, 9.7)
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])

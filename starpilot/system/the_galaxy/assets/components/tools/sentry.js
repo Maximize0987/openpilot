@@ -50,6 +50,11 @@ function startPolling() {
   pollTimer = window.setInterval(fetchStatus, 5000)
 }
 
+function numericParam(key, fallback) {
+  const value = Number(state.params[key])
+  return Number.isFinite(value) ? value : fallback
+}
+
 async function saveParam(key, value) {
   state.savingKey = key
   try {
@@ -231,7 +236,7 @@ export function SentryMode() {
 
       <section class="sentry-card">
         <h3>Configuration</h3>
-        <p class="sentry-muted">Galaxy is the built-in notification and image viewer. Webhook and ntfy delivery are optional.</p>
+        <p class="sentry-muted">Galaxy is the built-in notification and image viewer. Sentry detects accelerometer movement. Webhook and ntfy delivery are optional.</p>
 
         ${() => state.loading ? html`<div class="sentry-loading">Loading Sentry settings…</div>` : html`
           <label class="sentry-setting-row">
@@ -267,6 +272,40 @@ export function SentryMode() {
               placeholder="https://ntfy.sh/…"
               disabled="${() => state.savingKey === "SentryModeNtfyUrl"}"
               @change="${(event) => saveParam("SentryModeNtfyUrl", event.currentTarget.value.trim())}" />
+          </label>
+
+          <label class="sentry-field sentry-range-field">
+            <span><strong>Motion sensitivity</strong><small>Lower values detect smaller acceleration changes. Default: 0.04.</small></span>
+            <div class="sentry-range-control">
+              <input
+                class="sentry-range"
+                type="range"
+                min="0.005"
+                max="1"
+                step="0.005"
+                value="${() => numericParam("SentryModeSensitivity", 0.04)}"
+                disabled="${() => state.savingKey === "SentryModeSensitivity"}"
+                aria-label="Motion sensitivity"
+                @change="${(event) => saveParam("SentryModeSensitivity", Number(event.currentTarget.value))}" />
+              <output class="sentry-range-value">${() => numericParam("SentryModeSensitivity", 0.04).toFixed(3)}</output>
+            </div>
+          </label>
+
+          <label class="sentry-field sentry-range-field">
+            <span><strong>Warning persistence</strong><small>How long movement must continue before the first alert. Default: 1 second.</small></span>
+            <div class="sentry-range-control">
+              <input
+                class="sentry-range"
+                type="range"
+                min="0.1"
+                max="10"
+                step="0.1"
+                value="${() => numericParam("SentryModeWarningTime", 1)}"
+                disabled="${() => state.savingKey === "SentryModeWarningTime"}"
+                aria-label="Warning persistence"
+                @change="${(event) => saveParam("SentryModeWarningTime", Number(event.currentTarget.value))}" />
+              <output class="sentry-range-value">${() => numericParam("SentryModeWarningTime", 1).toFixed(1)}s</output>
+            </div>
           </label>
 
           <div class="sentry-action-row">

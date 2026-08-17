@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import math
 import os
 import threading
 import time
@@ -23,7 +24,12 @@ from openpilot.system.sentryd.detector import MotionDetector
 ARM_DELAY_SECONDS = 90.0
 LOOP_INTERVAL_SECONDS = 0.1
 SENSITIVITY = 0.04
+MIN_SENSITIVITY = 0.005
+MAX_SENSITIVITY = 1.0
 WARNING_TRIGGER_COUNT = 10
+WARNING_TIME_SECONDS = 1.0
+MIN_WARNING_TIME_SECONDS = 0.1
+MAX_WARNING_TIME_SECONDS = 10.0
 ALARM_TRIGGER_COUNT = 25
 ALARM_TIME_SECONDS = 30.0
 RESET_TIME_SECONDS = 60.0
@@ -62,6 +68,30 @@ class SentryMode:
     self.started_at = clock()
     self.armed = False
     self._last_status = None
+    self._sync_detector_settings()
+
+  def _read_float_param(self, key: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+      value = self.params.get_float(key, return_default=True, default=default)
+    except (AttributeError, TypeError, ValueError):
+      value = default
+
+    try:
+      value = float(value)
+    except (TypeError, ValueError):
+      value = default
+    if not math.isfinite(value):
+      value = default
+    return min(maximum, max(minimum, value))
+
+  def _sync_detector_settings(self) -> None:
+    self.detector.sensitivity = self._read_float_param(
+      "SentryModeSensitivity", SENSITIVITY, MIN_SENSITIVITY, MAX_SENSITIVITY,
+    )
+    warning_time = self._read_float_param(
+      "SentryModeWarningTime", WARNING_TIME_SECONDS, MIN_WARNING_TIME_SECONDS, MAX_WARNING_TIME_SECONDS,
+    )
+    self.detector.warning_trigger_count = max(1, math.ceil(warning_time / LOOP_INTERVAL_SECONDS))
 
   def _write_status(self, state: str, **extra) -> None:
     status_values = {"state": state, **extra}
@@ -156,6 +186,7 @@ class SentryMode:
       self.armed = True
       self._write_status("armed")
 
+    self._sync_detector_settings()
     message = self.sm["accelerometer"]
     if message is None or message.acceleration is None:
       self._write_status("sensor_unavailable")

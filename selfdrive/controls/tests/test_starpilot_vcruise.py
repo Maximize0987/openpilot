@@ -126,7 +126,7 @@ def test_camry_tss2_uses_closer_force_stop_handoff():
 
 
 def test_camry_tss2_gets_forward_force_stop_bias_only():
-  assert get_force_stop_distance_bias("TOYOTA_CAMRY_TSS2") == pytest.approx(2.0)
+  assert get_force_stop_distance_bias("TOYOTA_CAMRY_TSS2") == pytest.approx(6.0)
   assert get_force_stop_distance_bias("TOYOTA_RAV4_TSS2") == pytest.approx(0.0)
 
 
@@ -501,6 +501,23 @@ def test_force_stop_releases_after_cem_light_clears_while_moving():
   assert vcruise.force_stop_from_light
 
   planner.starpilot_cem.stop_light_detected = False
+  update_vcruise(vcruise, sm, toggles, now=0.25, v_ego=3.0)
+  assert vcruise.forcing_stop
+
+  result = update_vcruise(vcruise, sm, toggles, now=0.75, v_ego=3.0)
+  assert result == pytest.approx(20.0)
+  assert not vcruise.forcing_stop
+  assert not vcruise.force_stop_from_light
+
+
+def test_force_stop_light_release_ignores_coarse_stopped_model_horizon():
+  planner, vcruise = make_vcruise(red_light=True, raw_model_stopped=True, forcing_stop=True)
+  sm = make_sm(standstill=False)
+  toggles = make_toggles()
+
+  update_vcruise(vcruise, sm, toggles, now=0.0, v_ego=3.0)
+  planner.starpilot_cem.stop_light_detected = False
+
   update_vcruise(vcruise, sm, toggles, now=0.25, v_ego=3.0)
   assert vcruise.forcing_stop
 

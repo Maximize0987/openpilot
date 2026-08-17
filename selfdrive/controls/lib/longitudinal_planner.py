@@ -27,6 +27,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
   get_toyota_rav4_tss2_early_lead_cap,
+  is_toyota_rav4_tss2_radar_follow_lead,
   get_toyota_sienna_post_departure_restop_cap,
   get_untracked_slow_lead_decel_scale,
 )
@@ -128,6 +129,7 @@ VISION_LEAD_APPROACH_DEFICIT_BUFFER_GAIN = 0.20
 VISION_LEAD_APPROACH_BRAKING_DEFICIT_MIN = 0.75
 VISION_LEAD_APPROACH_BRAKING_MIN_LEAD_BRAKE = 0.45
 VISION_LEAD_APPROACH_BRAKING_FULL_LEAD_BRAKE = 1.20
+PLANNER_SAFETY_WARNING_INTERVAL = 5.0
 VISION_LEAD_APPROACH_BRAKING_FLOOR_MIN_DECEL = 1.30
 VISION_LEAD_APPROACH_BRAKING_FLOOR_MAX_DECEL = 1.75
 VISION_LEAD_APPROACH_CONFIRM_TIME = 0.25
@@ -458,7 +460,9 @@ VISION_CLOSE_RELEASE_HOLD_MIN_LEAD_DELTA = -0.1
 VISION_CLOSE_RELEASE_HOLD_MAX_LEAD_DELTA = 1.5
 VISION_CLOSE_RELEASE_HOLD_MIN_BRAKE = 0.18
 VISION_CLOSE_RELEASE_HOLD_MAX_BRAKE = 0.40
-MANUAL_STOP_RESUME_OVERRIDE_TIME = 3.0
+# Give a driver-initiated launch enough time to clear a stale model stop/light
+# prediction before the stop request is allowed to reassert.
+MANUAL_STOP_RESUME_OVERRIDE_TIME = 6.0
 MANUAL_STOP_RESUME_OVERRIDE_MAX_SPEED = 2.0
 
 def get_planner_v_ego(CP, car_state):
@@ -573,6 +577,7 @@ class LongitudinalPlanner:
     self._uncert_last = 0.0
     self._uncert_last_t = None
     self._panic_bypass_log_t = 0.0
+    self._safety_warning_log_t = 0.0
     self.effective_t_follow = None
     self.vision_low_speed_stop_hold_until = 0.0
     self.vision_lead_approach_confirm_t = 0.0
@@ -1234,7 +1239,10 @@ class LongitudinalPlanner:
       starpilot_car_state = sm["starpilotCarState"]
     except KeyError:
       starpilot_car_state = None
-    accel_pressed = bool(getattr(starpilot_car_state, "accelPressed", False))
+    accel_pressed = bool(
+      getattr(starpilot_car_state, "accelPressed", False) or
+      getattr(sm["carState"], "gasPressed", False)
+    )
     model_should_stop = bool(getattr(sm["modelV2"].action, "shouldStop", False))
     standstill = bool(getattr(sm["carState"], "standstill", False))
     forcing_stop = bool(getattr(sm["starpilotPlan"], "forcingStop", False))
@@ -1980,9 +1988,14 @@ class LongitudinalPlanner:
       not experimental_mode and
       any(is_gm_silverado_early_follow_lead(self.CP, lead, scene_v_ego) for lead in (self.lead_one, self.lead_two))
     )
+    rav4_radar_follow = (
+      not experimental_mode and
+      any(is_toyota_rav4_tss2_radar_follow_lead(self.CP, lead, scene_v_ego)
+          for lead in (self.lead_one, self.lead_two))
+    )
     # StarPilot trackingLead is debounce/model-length based. Keep a raw close-lead
     # safety path so ACC/chill does not ignore a visible lead during that debounce.
-    lead_control_active = tracking_lead or raw_close_lead_control or early_truck_follow
+    lead_control_active = tracking_lead or raw_close_lead_control or early_truck_follow or rav4_radar_follow
     lead_one_active = bool(self.lead_one.status and lead_control_active)
     effective_t_follow = self.get_dynamic_t_follow(sm['starpilotPlan'].tFollow, self.lead_one if lead_one_active else None, v_ego)
 
@@ -2209,10 +2222,12 @@ class LongitudinalPlanner:
     # Safety checks for rubber-banding mitigation
     max_jerk = np.max(np.abs(self.mpc.j_solution))
     max_accel_change = np.max(np.abs(np.diff(self.mpc.a_solution)))
-    #if max_jerk > 5.0:  # m/s^3
-    #  cloudlog.warning(f"High jerk detected: {max_jerk:.2f} m/s^3")
-    #if max_accel_change > 2.0:  # m/s^2
-    #  cloudlog.warning(f"High acceleration change: {max_accel_change:.2f} m/s^2")
+    if (max_jerk > 5.0 or max_accel_change > 2.0) and now_t - self._safety_warning_log_t >= PLANNER_SAFETY_WARNING_INTERVAL:
+      cloudlog.warning(
+        f"Longitudinal planner output discontinuity: jerk={max_jerk:.2f} m/s^3, "
+        f"accel_change={max_accel_change:.2f} m/s^2"
+      )
+      self._safety_warning_log_t = now_t
 
     # Interpolate 0.05 seconds and save as starting point for next iteration
     a_prev = self.a_desired

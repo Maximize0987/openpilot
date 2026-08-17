@@ -487,7 +487,6 @@ class StarPilotVCruise:
       self.force_stop_from_light and
       not sm["carState"].standstill and
       not stop_light_detected and
-      not raw_model_stopped and
       not dash_active
     )
     if light_stop_cleared:
