@@ -220,6 +220,36 @@ def test_missing_bounded_value_uses_explicit_default():
   assert value == 1.0
 
 
+def test_disabled_conditional_experimental_toggles_are_off(monkeypatch, tmp_path):
+  params_cls = spv.Params
+
+  def isolated_params(_path=None, memory=False, return_defaults=False):
+    return params_cls(str(tmp_path / ("memory" if memory else "params")), return_defaults=return_defaults)
+
+  monkeypatch.setattr(spv, "Params", isolated_params)
+  params = isolated_params()
+  params.put_bool("ConditionalExperimental", True)
+  params.put_bool("CEStopLights", False)
+  params.put_float("CEModelStopTime", 0.0)
+
+  variables = spv.StarPilotVariables()
+  toggles = variables.starpilot_toggles
+
+  assert variables.params_raw.get_float("CEModelStopTime") == 0.0
+  assert toggles.conditional_experimental_mode is False
+  assert toggles.conditional_curves is False
+  assert toggles.conditional_curves_lead is False
+  assert toggles.conditional_lead is False
+  assert toggles.conditional_open_road is False
+  assert toggles.conditional_slower_lead is False
+  assert toggles.conditional_stopped_lead is False
+  assert toggles.conditional_limit == 0.0
+  assert toggles.conditional_limit_lead == 0.0
+  assert toggles.conditional_model_stop_time == 0.0
+  assert toggles.conditional_signal == 0.0
+  assert toggles.conditional_signal_lane_detection is False
+
+
 def test_device_shutdown_hours_convert_directly_to_seconds():
   assert spv.device_shutdown_seconds(6) == 6 * 60 * 60
   assert spv.device_shutdown_seconds(0) == 60 * 60
