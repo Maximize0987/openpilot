@@ -667,7 +667,7 @@ class CarState(CarStateBase):
         ("CGW2", 5),
         ("WHL_SPD11", 50),
         ("SAS11", 100),
-        ("SCC12", 50),
+        ("SCC12", 0 if CP.openpilotLongitudinalControl and CP.flags & HyundaiFlags.CANFD_LKA_STEERING else 50),
         ("EMS12", 100),
         ("EMS16", 100),
         ("LVR12", 100),

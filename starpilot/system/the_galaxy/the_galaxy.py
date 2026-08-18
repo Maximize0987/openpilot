@@ -4464,6 +4464,7 @@ def setup(app):
       "/assets/components/router.js",
       "/assets/components/sentry_notifications.js",
       "/assets/js/utils.js",
+      "/assets/components/settings.js",
       "/assets/components/home/home.js",
       "/assets/components/home/home.css",
       "/assets/components/tools/device_settings.js",

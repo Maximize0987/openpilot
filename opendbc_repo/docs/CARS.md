@@ -238,8 +238,8 @@
 |Hyundai|Kona Non-SCC 2019|No Smart Cruise Control (Non-SCC)|[Community](community)|
 |Hyundai|Nexo 2021|All|[Upstream](#upstream)|
 |Hyundai|Palisade 2020-22|All|[Upstream](#upstream)|
-|Hyundai|Palisade 2023-24|HDA2|[Community](#community)|
-|Hyundai|Palisade (with HDA II) 2023-24|Highway Driving Assist II|[Upstream](#upstream)|
+|Hyundai|Palisade 2023-25|HDA2|[Community](#community)|
+|Hyundai|Palisade (with HDA II) 2023-25|Highway Driving Assist II|[Upstream](#upstream)|
 |Hyundai|Palisade (without HDA II) 2023-25|Highway Driving Assist|[Upstream](#upstream)|
 |Hyundai|Santa Cruz 2022-24|Smart Cruise Control (SCC)|[Upstream](#upstream)|
 |Hyundai|Santa Cruz (without HDA II) 2025|Smart Cruise Control (SCC)|[Upstream](#upstream)|
