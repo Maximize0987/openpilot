@@ -776,6 +776,16 @@ def _sentry_external_image_urls(event: dict) -> list[str]:
   return [f"{base_url}{image_url}" for image_url in public_event["imageUrls"]]
 
 
+def _sentry_first_image(event: dict) -> tuple[str, bytes] | None:
+  for raw_path in event.get("imagePaths", []):
+    path = Path(str(raw_path))
+    try:
+      return path.name, path.read_bytes()
+    except OSError:
+      continue
+  return None
+
+
 def _sentry_notification_channels() -> dict[str, bool]:
   return {
     "webPush": _sentry_push_subscription_count() > 0,
@@ -872,16 +882,18 @@ def _dispatch_sentry_event(event: dict) -> None:
   ntfy_url = (params.get("SentryModeNtfyUrl", encoding="utf-8") or "").strip()
   if ntfy_url:
     try:
-      image_urls = _sentry_external_image_urls(event)
       headers = {"Title": "StarPilot Sentry Mode", "Priority": "urgent", "Tags": "warning,car"}
-      if image_urls:
-        headers["Attach"] = image_urls[0]
-      response = requests.post(
-        ntfy_url,
-        data=message.encode("utf-8"),
-        headers=headers,
-        timeout=10,
-      )
+      image = _sentry_first_image(event)
+      if image is None:
+        response = requests.post(ntfy_url, data=message.encode("utf-8"), headers=headers, timeout=10)
+      else:
+        filename, image_data = image
+        headers.update({
+          "Content-Type": "image/jpeg",
+          "Filename": filename,
+          "Message": f"StarPilot Sentry Mode: {event['message']}",
+        })
+        response = requests.put(ntfy_url, data=image_data, headers=headers, timeout=10)
       response.raise_for_status()
     except Exception:
       cloudlog.exception("Galaxy: ntfy notification failed")
