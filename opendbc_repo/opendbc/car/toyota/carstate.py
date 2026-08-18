@@ -299,7 +299,7 @@ class CarState(CarStateBase):
       pt_messages.append(("GAS_SENSOR", 50))
 
     if CP.carFingerprint in DISTANCE_BUTTON_CAR:
-      pt_messages.append(("PCM_CRUISE_4", 50))
+      pt_messages.append(("PCM_CRUISE_4", 1))
 
     return {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], pt_messages, 0),

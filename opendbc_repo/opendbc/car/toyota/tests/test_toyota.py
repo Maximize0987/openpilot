@@ -115,6 +115,28 @@ class TestToyotaInterfaces:
     )
     assert "PCM_CRUISE_4" not in CarState.get_can_parsers(other_params)[Bus.pt].vl
 
+  def test_sienna_distance_button_rate_does_not_invalidate_can(self):
+    params = CarInterface.get_params(
+      CAR.TOYOTA_SIENNA_4TH_GEN,
+      {bus: {} for bus in range(8)},
+      [],
+      alpha_long=False,
+      is_release=False,
+      docs=False,
+      starpilot_toggles=SimpleNamespace(force_torque_controller=False, nnff=False, nnff_lite=False),
+    )
+    parser = CarState.get_can_parsers(params)[Bus.pt]
+    packer = CANPacker(DBC[CAR.TOYOTA_SIENNA_4TH_GEN][Bus.pt])
+
+    for frame in range(1, 4):
+      msg = packer.make_can_msg("PCM_CRUISE_4", 0, {"COUNTER": frame, "DISTANCE": frame % 2})
+      parser.update([(frame * 1_000_000_000, [msg])])
+      assert parser.can_valid
+
+      # The 1 Hz message must not make the whole car state invalid between frames.
+      parser.update([(frame * 1_000_000_000 + 500_000_000, [])])
+      assert parser.can_valid
+
   def test_tss2_dbc(self):
     # We make some assumptions about TSS2 platforms,
     # like looking up certain signals only in this DBC
