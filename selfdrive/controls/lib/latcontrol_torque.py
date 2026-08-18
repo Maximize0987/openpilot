@@ -483,14 +483,24 @@ class LatControlTorque(LatControl):
         ff *= get_genesis_g70_unwind_ff_scale(
           setpoint, measurement, desired_lateral_jerk, CS.vEgo,
         )
+      if kia_carnival_active:
+        ff *= get_kia_carnival_unwind_ff_scale(
+          setpoint, measurement, desired_lateral_jerk, CS.vEgo,
+        )
       if ioniq_6_active:
         vehicle_friction_jerk_deadzone = (
           IONIQ_6_2025_FRICTION_JERK_DEADZONE if self.is_ioniq_6_2025 else IONIQ_6_FRICTION_JERK_DEADZONE
         )
+      elif ioniq_5_active:
+        vehicle_friction_jerk_deadzone = get_ioniq_5_friction_jerk_deadzone(CS.vEgo, setpoint)
       elif prius_active:
         vehicle_friction_jerk_deadzone = get_prius_friction_jerk_deadzone(CS.vEgo, setpoint)
       elif genesis_g70_active:
         vehicle_friction_jerk_deadzone = get_genesis_g70_friction_jerk_deadzone(CS.vEgo, setpoint)
+      elif kia_carnival_active:
+        vehicle_friction_jerk_deadzone = get_kia_carnival_friction_jerk_deadzone(
+          CS.vEgo, setpoint, desired_lateral_jerk,
+        )
       else:
         vehicle_friction_jerk_deadzone = 0.0
       friction_jerk_deadzone = get_center_chatter_friction_jerk_deadzone(

@@ -197,6 +197,27 @@ def test_vasm_is_default_off_and_configured_only_in_galaxy():
   assert all("VASM" not in path.read_text(encoding="utf-8") for path in physical_settings)
 
 
+def test_low_vision_limit_filter_is_default_off_and_configured_only_in_galaxy():
+  sections = _params_by_section(_layout())
+  longitudinal = sections["Longitudinal (Speed & Following)"]
+  toggle = longitudinal["VisionSpeedLimitLowLimitFilter"]
+  threshold = longitudinal["VisionSpeedLimitLowLimitThreshold"]
+
+  assert toggle["parent_key"] == "VisionSpeedLimitDetection"
+  assert threshold["parent_key"] == "VisionSpeedLimitLowLimitFilter"
+  assert threshold["min"] == 5
+  assert threshold["max"] == 80
+  assert threshold["step"] == 5
+  assert _declared_default("VisionSpeedLimitLowLimitFilter") == "0"
+  assert _declared_default("VisionSpeedLimitLowLimitThreshold") == "25"
+
+  physical_settings = (
+    REPO_ROOT / "selfdrive/ui/layouts/settings/starpilot/longitudinal.py",
+    REPO_ROOT / "selfdrive/ui/layouts/settings/starpilot/aethergrid.py",
+  )
+  assert all("VisionSpeedLimitLowLimit" not in path.read_text(encoding="utf-8") for path in physical_settings)
+
+
 def test_pip_preview_is_under_driving_screen_widgets_and_configured_only_in_galaxy():
   sections = _params_by_section(_layout())
   visual = sections["Visual (Display & UI)"]

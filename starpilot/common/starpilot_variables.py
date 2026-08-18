@@ -1341,6 +1341,16 @@ class StarPilotVariables:
 
     toggle.speed_limit_filler = self.get_value("SpeedLimitFiller")
     toggle.vision_speed_limit_detection = self.get_value("VisionSpeedLimitDetection")
+    toggle.vision_speed_limit_low_limit_filter = self.get_value(
+      "VisionSpeedLimitLowLimitFilter",
+      condition=toggle.speed_limit_controller and toggle.vision_speed_limit_detection,
+    )
+    toggle.vision_speed_limit_low_limit_threshold = self.get_value(
+      "VisionSpeedLimitLowLimitThreshold",
+      cast=float,
+      condition=toggle.vision_speed_limit_low_limit_filter,
+      conversion=speed_conversion,
+    )
     toggle.v_asm_enabled = self.get_value("VASMEnabled")
 
     toggle.startup_alert_top = self.get_value("StartupMessageTop", cast=str, default="")

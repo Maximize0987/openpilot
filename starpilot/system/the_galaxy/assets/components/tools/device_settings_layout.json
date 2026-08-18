@@ -1608,6 +1608,27 @@
         "settings_tier": "advanced"
       },
       {
+        "key": "VisionSpeedLimitLowLimitFilter",
+        "label": "Ignore Low Vision Speed Limits",
+        "description": "Prevent SLC from acting on vision-detected speed limits at or below the configured threshold. Detection, display, debugging, and training collection remain active.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "VisionSpeedLimitDetection",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "VisionSpeedLimitLowLimitThreshold",
+        "label": "Ignore At or Below",
+        "description": "Vision-detected limits at or below this value will not control speed. The value uses your selected mph or km/h unit.",
+        "data_type": "int",
+        "ui_type": "numeric",
+        "min": 5,
+        "max": 80,
+        "step": 5,
+        "parent_key": "VisionSpeedLimitLowLimitFilter",
+        "settings_tier": "advanced"
+      },
+      {
         "key": "VisionSpeedLimitAutoBookmark",
         "label": "Auto-Bookmark Vision Signs",
         "description": "Automatically save confirmed vision-detected speed limit signs into the speed-limit debug session so they can be imported into the training set later.",
