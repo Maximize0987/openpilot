@@ -144,8 +144,8 @@ def _get_slc_state():
   )
 
   slc_overridden_speed = plan.slcOverriddenSpeed
-  # Driver override takes precedence over the planner's limit when active.
-  speed_limit = slc_overridden_speed if slc_overridden_speed != 0 else plan.slcSpeedLimit
+  # Keep the source limit visible; override state only dims the sign.
+  speed_limit = plan.slcSpeedLimit
 
   # Resolved limit in m/s (pre-conversion, pre-offset) — feeds the vision pulse
   # change detector so the comparison is unit-stable across km/h ↔ mph flips.
