@@ -16,7 +16,12 @@ import openpilot.selfdrive.controls.lib.longitudinal_planner as longitudinal_pla
 from openpilot.selfdrive.controls.lib.longcontrol import LongCtrlState
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
 from openpilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlanner, get_coast_accel, get_vehicle_min_accel, should_publish_planner_fcw
-from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import LongitudinalMpc, soften_far_radar_lead_accel, should_trigger_planner_fcw
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import (
+  LongitudinalMpc,
+  build_model_lead_trajectory,
+  soften_far_radar_lead_accel,
+  should_trigger_planner_fcw,
+)
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   allow_radar_standstill_gap_settle,
@@ -312,6 +317,63 @@ def set_model_lead(model, idx: int, *, prob: float, x0: float, y0: float, v0: fl
   lead.y = [float(y0)]
   lead.v = [float(v0)]
   lead.a = [float(a0)]
+
+
+def make_model_lead(*, prob: float = 0.99, x=None, v=None):
+  model = log.ModelDataV2.new_message()
+  model.init('leadsV3', 3)
+  lead = model.leadsV3[0]
+  lead.prob = float(prob)
+  lead.x = list(x if x is not None else [0.0, 20.0, 38.0, 54.0, 68.0, 80.0])
+  lead.v = list(v if v is not None else [18.0, 18.0, 17.0, 16.0, 15.0, 14.0])
+  return model, lead
+
+
+def test_model_lead_trajectory_is_opt_in_and_disabled_path_is_unchanged():
+  lead = make_lead(status=True, d_rel=42.0, v_lead=18.0, model_prob=0.99)
+  _, model_lead = make_model_lead()
+
+  legacy_mpc = LongitudinalMpc()
+  disabled_mpc = LongitudinalMpc()
+  legacy_mpc.set_cur_state(20.0, 0.0)
+  disabled_mpc.set_cur_state(20.0, 0.0)
+
+  legacy = legacy_mpc.process_lead(lead)
+  disabled = disabled_mpc.process_lead(
+    lead, model_lead=model_lead, use_model_lead_trajectory=False,
+  )
+  np.testing.assert_allclose(disabled, legacy)
+
+
+def test_model_lead_trajectory_uses_raw_current_anchor_and_future_deltas():
+  lead = make_lead(status=True, d_rel=42.0, v_lead=18.0, model_prob=0.99)
+  _, model_lead = make_model_lead()
+
+  trajectory = build_model_lead_trajectory(model_lead, lead, 20.0)
+
+  assert trajectory is not None
+  assert trajectory[0, 0] == pytest.approx(42.0)
+  assert trajectory[0, 1] == pytest.approx(18.0)
+  assert np.all(np.diff(trajectory[:, 0]) >= -1e-9)
+  assert trajectory[-1, 0] > trajectory[0, 0]
+  assert trajectory[-1, 1] < trajectory[0, 1]
+
+
+@pytest.mark.parametrize("prob", [0.0, 0.5])
+def test_model_lead_trajectory_falls_back_for_low_confidence(prob):
+  lead = make_lead(status=True, d_rel=42.0, v_lead=18.0, model_prob=prob)
+  _, model_lead = make_model_lead(prob=prob)
+  assert build_model_lead_trajectory(model_lead, lead, 20.0) is None
+
+
+def test_model_lead_trajectory_falls_back_without_raw_lead_or_valid_shape():
+  _, model_lead = make_model_lead()
+  no_raw_lead = make_lead(status=False, d_rel=42.0, v_lead=18.0)
+  assert build_model_lead_trajectory(model_lead, no_raw_lead, 20.0) is None
+
+  raw_lead = make_lead(status=True, d_rel=42.0, v_lead=18.0)
+  _, short_model_lead = make_model_lead(x=[0.0], v=[18.0])
+  assert build_model_lead_trajectory(short_model_lead, raw_lead, 20.0) is None
 
 
 def set_model_launch_trajectory(model, *, wait_time: float = 0.6, accel: float = 1.0):

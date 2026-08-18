@@ -58,7 +58,7 @@ def test_galaxy_layout_contains_basic_mode_controls():
   } <= sections["Longitudinal (Speed & Following)"].keys()
   assert "RedneckCruise" not in sections["Longitudinal (Speed & Following)"].keys()
   assert sections["Developer"]["RedneckCruise"]["parent_key"] == "GalaxyDeveloperMode"
-  assert {"AlphaLongitudinalEnabled", "ForceOffroad", "GalaxyDeveloperMode"} <= sections["Developer"].keys()
+  assert {"AlphaLongitudinalEnabled", "ForceOffroad", "GalaxyDeveloperMode", "TestModelLeadTrajectory"} <= sections["Developer"].keys()
 
 
 def test_device_shutdown_uses_literal_hours():
@@ -140,6 +140,9 @@ def test_requested_simple_and_advanced_settings_tiers():
     assert longitudinal[key]["settings_tier"] == "advanced"
 
   assert developer["GalaxyDeveloperMode"]["settings_tier"] == "simple"
+  assert developer["TestModelLeadTrajectory"]["parent_key"] == "GalaxyDeveloperMode"
+  assert developer["TestModelLeadTrajectory"]["requires_offroad"] is True
+  assert developer["TestModelLeadTrajectory"]["settings_tier"] == "advanced"
   assert developer["AlphaLongitudinalEnabled"]["parent_key"] == "GalaxyDeveloperMode"
   assert developer["AlphaLongitudinalEnabled"]["requires_offroad"] is True
   assert developer["AlphaLongitudinalEnabled"]["settings_tier"] == "advanced"
@@ -153,6 +156,7 @@ def test_requested_simple_and_advanced_settings_tiers():
 
 def test_hidden_feature_defaults_remain_enabled():
   assert _declared_default("GalaxyDeveloperMode") == "0"
+  assert _declared_default("TestModelLeadTrajectory") == "0"
   assert _declared_default("NavDesiresAllowed") == "1"
   assert _declared_default("NavLanePositioningAllowed") == "0"
   assert _declared_default("NavLongitudinalAllowed") == "1"

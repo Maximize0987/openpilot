@@ -953,6 +953,7 @@ class StarPilotVariables:
     )
 
     developer_feature_access = self.params.get_bool("DeveloperUI") or self.params.get_bool("GalaxyDeveloperMode")
+    toggle.test_model_lead_trajectory = self.get_value("TestModelLeadTrajectory", condition=developer_feature_access)
     toggle.pulse_and_glide_available = toggle.openpilot_longitudinal and developer_feature_access
     toggle.pulse_glide_speed_delta = self.get_value(
       "PulseGlideSpeedDelta",

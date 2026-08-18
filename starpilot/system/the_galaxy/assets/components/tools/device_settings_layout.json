@@ -4166,6 +4166,16 @@
         "settings_tier": "simple"
       },
       {
+        "key": "TestModelLeadTrajectory",
+        "label": "Test Model-Predicted Lead Trajectory",
+        "description": "Experimental: use the model's predicted lead path as the MPC lead trajectory. Raw lead safety and stop logic remain active.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "parent_key": "GalaxyDeveloperMode",
+        "requires_offroad": true,
+        "settings_tier": "advanced"
+      },
+      {
         "key": "AlphaLongitudinalEnabled",
         "label": "openpilot Longitudinal Control (Alpha)",
         "description": "Enable openpilot longitudinal control for vehicles that support it. This replaces the vehicle's stock ACC and may disable automatic emergency braking. Changing this setting restarts the driving stack.",

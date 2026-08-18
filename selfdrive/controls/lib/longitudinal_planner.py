@@ -2207,7 +2207,9 @@ class LongitudinalPlanner:
                     optional_far_lead_comfort=True,
                     smooth_duplicate_vision=nonurgent_duplicate_vision_follow and not panic_bypass,
                     stop_x=force_stop_x,
-                    silverado_early_follow=early_truck_follow)
+                    silverado_early_follow=early_truck_follow,
+                    modelV2=sm['modelV2'],
+                    use_model_lead_trajectory=bool(getattr(starpilot_toggles, "test_model_lead_trajectory", False)))
 
     self.a_desired_trajectory_full = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
@@ -2910,6 +2912,11 @@ class LongitudinalPlanner:
     longitudinalPlan.hasLead = bool(selected_lead.status)
     longitudinalPlan.longitudinalPlanSource = self.mpc.source
     longitudinalPlan.fcw = self.fcw
+
+    longitudinalPlan.leadTrajectoryX0 = self.mpc.lead_xv_0[:, 0].tolist()
+    longitudinalPlan.leadTrajectoryV0 = self.mpc.lead_xv_0[:, 1].tolist()
+    longitudinalPlan.leadTrajectoryX1 = self.mpc.lead_xv_1[:, 0].tolist()
+    longitudinalPlan.leadTrajectoryV1 = self.mpc.lead_xv_1[:, 1].tolist()
 
     longitudinalPlan.aTarget = float(self.output_a_target)
     force_stop_handoff = bool(
