@@ -29,12 +29,11 @@ from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import TiciFanController
 from openpilot.system.hardware.usb import (
   CHESTNUT_FW_VERSION,
-  CHESTNUT_PRODUCT_ID,
   CHESTNUT_ROM_USB_IDS,
-  CHESTNUT_VENDOR_IDS,
-  read_int,
-  read_text,
-  usb_devices,
+  CHESTNUT_USB_IDS,
+  get_usb_state,
+  get_usb_topology,
+  set_usb_state,
 )
 from openpilot.system.version import terms_version, training_version
 from openpilot.system.athena.registration import UNREGISTERED_DONGLE_ID
@@ -94,14 +93,10 @@ class Chestnut:
     self.last_attempt = 0.0
     self.flashed = False
 
-  def _firmware_mismatch(self) -> bool:
+  def _firmware_mismatch(self, usb_state: list[dict]) -> bool:
     expected = f"custom {CHESTNUT_FW_VERSION}-CLEAN"
-    ids = tuple((vendor, CHESTNUT_PRODUCT_ID) for vendor in CHESTNUT_VENDOR_IDS) + CHESTNUT_ROM_USB_IDS
-    for device in usb_devices():
-      usb_id = (read_int(device / "idVendor", 16), read_int(device / "idProduct", 16))
-      if usb_id in ids and read_text(device / "product") != expected:
-        return True
-    return False
+    ids = CHESTNUT_USB_IDS + CHESTNUT_ROM_USB_IDS
+    return any((device["vendorId"], device["productId"]) in ids and device["product"] != expected for device in usb_state)
 
   def _flash(self) -> None:
     script = os.path.join(os.path.dirname(__file__), "chestnut", "flash.py")
@@ -115,8 +110,8 @@ class Chestnut:
     cloudlog.event("chestnut flash done", returncode=result.returncode, output=result.stdout[-1000:], error=result.returncode != 0)
     self.flashed = result.returncode == 0
 
-  def update(self, offroad: bool) -> None:
-    if not self._firmware_mismatch():
+  def update(self, offroad: bool, usb_state: list[dict]) -> None:
+    if not self._firmware_mismatch(usb_state):
       self.flashed = False
       return
     if not offroad or self.flashed or self.attempts >= self.MAX_ATTEMPTS:
@@ -134,7 +129,7 @@ class Chestnut:
 
 ThermalBand = namedtuple("ThermalBand", ['min_temp', 'max_temp'])
 HardwareState = namedtuple("HardwareState", ['network_type', 'network_info', 'network_strength', 'network_stats',
-                                             'network_metered', 'modem_temps'])
+                                             'network_metered', 'modem_temps', 'usb_state'])
 
 # List of thermal bands. We will stay within this region as long as we are within the bounds.
 # When exiting the bounds, we'll jump to the lower or higher band. Bands are ordered in the dict.
@@ -197,6 +192,7 @@ def hw_state_thread(end_event, hw_queue):
   """Handles non critical hardware state, and sends over queue"""
   count = 0
   prev_hw_state = None
+  prev_usb_topology = set()
 
   modem_version = None
   modem_configured = False
@@ -204,8 +200,12 @@ def hw_state_thread(end_event, hw_queue):
   modem_restart_count = 0
 
   while not end_event.is_set():
-    # these are expensive calls. update every 10s
-    if (count % int(10. / DT_HW)) == 0:
+    usb_topology = get_usb_topology()
+    usb_changed = usb_topology != prev_usb_topology
+
+    # these are expensive calls. update every 10s or when USB devices change
+    if (count % int(10. / DT_HW)) == 0 or usb_changed:
+      prev_usb_topology = usb_topology
       try:
         network_type = HARDWARE.get_network_type()
         modem_temps = HARDWARE.get_modem_temperatures()
@@ -240,6 +240,7 @@ def hw_state_thread(end_event, hw_queue):
           network_stats={'wwanTx': tx, 'wwanRx': rx},
           network_metered=HARDWARE.get_network_metered(network_type),
           modem_temps=modem_temps,
+          usb_state=get_usb_state(),
         )
 
         try:
@@ -287,6 +288,7 @@ def hardware_thread(end_event, hw_queue) -> None:
     network_strength=NetworkStrength.unknown,
     network_stats={'wwanTx': -1, 'wwanRx': -1},
     modem_temps=[],
+    usb_state=[],
   )
 
   all_temp_filter = FirstOrderFilter(0., TEMP_TAU, DT_HW, initialized=False)
@@ -319,9 +321,6 @@ def hardware_thread(end_event, hw_queue) -> None:
 
   while not end_event.is_set():
     sm.update(PANDA_STATES_TIMEOUT)
-
-    if chestnut is not None:
-      chestnut.update(started_ts is None)
 
     pandaStates = sm['pandaStates']
     peripheralState = sm['peripheralState']
@@ -383,6 +382,10 @@ def hardware_thread(end_event, hw_queue) -> None:
     msg.deviceState.modemTempC = last_hw_state.modem_temps
 
     msg.deviceState.screenBrightnessPercent = HARDWARE.get_screen_brightness()
+
+    set_usb_state(msg.deviceState, last_hw_state.usb_state)
+    if chestnut is not None:
+      chestnut.update(started_ts is None, last_hw_state.usb_state)
 
     # this subset is only used for offroad
     temp_sources = [

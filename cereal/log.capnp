@@ -472,6 +472,10 @@ struct CanData {
 struct DeviceState @0xa4d8b5af2aa492eb {
   deviceType @45 :InitData.DeviceType;
 
+  # usb
+  chestnutPresent @51 :Bool;
+  usbState @52 :UsbState;
+
   networkType @22 :NetworkType;
   networkInfo @31 :NetworkInfo;
   networkStrength @24 :NetworkStrength;
@@ -504,6 +508,7 @@ struct DeviceState @0xa4d8b5af2aa492eb {
   intakeTempC @46 :Float32;
   exhaustTempC @47 :Float32;
   caseTempC @48 :Float32;
+  bottomSocTempC @50 :Float32;
   maxTempC @44 :Float32;  # max of other temps, used to control fan
   thermalZones @38 :List(ThermalZone);
   thermalStatus @14 :ThermalStatus;
@@ -733,6 +738,28 @@ struct PeripheralState {
     client @1;
     cdp @2;
     dcp @3;
+  }
+}
+
+struct UsbState {
+  devices @0 :List(Device);
+
+  struct Device {
+    busnum @0 :UInt8;
+    devnum @1 :UInt8;
+    vendorId @2 :UInt16;
+    productId @3 :UInt16;
+    speedMbps @4 :UInt16;
+    manufacturer @6 :Text;
+    product @5 :Text;
+    linkErrorCount @7 :UInt16;
+    usb3Lane @8 :Usb3Lane;
+
+    enum Usb3Lane {
+      unknown @0;
+      a @1;
+      b @2;
+    }
   }
 }
 
