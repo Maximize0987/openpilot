@@ -104,11 +104,24 @@
   cursor: not-allowed;
 }
 
-.sentry-range-value {
+.sentry-number-input {
+  background: var(--sidebar-bg);
+  border: var(--border-style-main);
+  border-radius: var(--border-radius-sm);
+  box-sizing: border-box;
   color: var(--text-color);
-  font-variant-numeric: tabular-nums;
-  min-width: 3.5rem;
-  text-align: right;
+  padding: 0.55rem 0.45rem;
+  width: 5.5rem;
+}
+
+.sentry-number-input:focus {
+  border-color: var(--main-fg);
+  outline: none;
+}
+
+.sentry-range-unit {
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .sentry-toggle {

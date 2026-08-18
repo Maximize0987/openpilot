@@ -117,8 +117,8 @@ PULSE_GLIDE_BUTTON_KEYS = {
   "StarButtonControl", "LongStarButtonControl", "VeryLongStarButtonControl",
 }
 SENTRY_NUMERIC_PARAM_BOUNDS = {
-  "SentryModeSensitivity": (0.005, 1.0, 0.005),
-  "SentryModeWarningTime": (0.1, 10.0, 0.1),
+  "SentryModeSensitivity": (0.005, 1.0),
+  "SentryModeWarningTime": (0.1, 10.0),
 }
 
 GALAXY_DEPS_PATH = "/data/galaxy_deps"
@@ -4913,14 +4913,13 @@ def setup(app):
           return jsonify({"error": "Pulse and Glide is available only with Galaxy Developer Mode enabled."}), 403
 
       if key in SENTRY_NUMERIC_PARAM_BOUNDS:
-        minimum, maximum, step = SENTRY_NUMERIC_PARAM_BOUNDS[key]
+        minimum, maximum = SENTRY_NUMERIC_PARAM_BOUNDS[key]
         try:
           numeric = float(data["value"])
         except (TypeError, ValueError):
           return jsonify({"error": f"{key} must be numeric."}), 400
         if not math.isfinite(numeric) or numeric < minimum or numeric > maximum:
           return jsonify({"error": f"{key} must be between {minimum} and {maximum}."}), 400
-        numeric = round(round(numeric / step) * step, 3)
         str_val = str(numeric)
 
       if key == "AlphaLongitudinalEnabled":

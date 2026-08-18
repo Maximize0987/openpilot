@@ -282,12 +282,21 @@ export function SentryMode() {
                 type="range"
                 min="0.005"
                 max="1"
-                step="0.005"
+                step="0.001"
                 value="${() => numericParam("SentryModeSensitivity", 0.04)}"
                 disabled="${() => state.savingKey === "SentryModeSensitivity"}"
                 aria-label="Motion sensitivity"
                 @change="${(event) => saveParam("SentryModeSensitivity", Number(event.currentTarget.value))}" />
-              <output class="sentry-range-value">${() => numericParam("SentryModeSensitivity", 0.04).toFixed(3)}</output>
+              <input
+                class="sentry-number-input"
+                type="number"
+                min="0.005"
+                max="1"
+                step="0.001"
+                value="${() => numericParam("SentryModeSensitivity", 0.04)}"
+                disabled="${() => state.savingKey === "SentryModeSensitivity"}"
+                aria-label="Exact motion sensitivity"
+                @change="${(event) => saveParam("SentryModeSensitivity", Number(event.currentTarget.value))}" />
             </div>
           </label>
 
@@ -304,7 +313,17 @@ export function SentryMode() {
                 disabled="${() => state.savingKey === "SentryModeWarningTime"}"
                 aria-label="Warning persistence"
                 @change="${(event) => saveParam("SentryModeWarningTime", Number(event.currentTarget.value))}" />
-              <output class="sentry-range-value">${() => numericParam("SentryModeWarningTime", 1).toFixed(1)}s</output>
+              <input
+                class="sentry-number-input"
+                type="number"
+                min="0.1"
+                max="10"
+                step="0.1"
+                value="${() => numericParam("SentryModeWarningTime", 1)}"
+                disabled="${() => state.savingKey === "SentryModeWarningTime"}"
+                aria-label="Exact warning persistence"
+                @change="${(event) => saveParam("SentryModeWarningTime", Number(event.currentTarget.value))}" />
+              <span class="sentry-range-unit">seconds</span>
             </div>
           </label>
 
