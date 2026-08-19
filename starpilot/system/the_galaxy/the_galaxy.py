@@ -75,9 +75,13 @@ from openpilot.starpilot.common.maps_catalog import (
 from openpilot.starpilot.common.maps_download_progress import load_size_cache, nonnegative_int, selection_key
 from openpilot.starpilot.common.experimental_state import sync_persist_chill_state, sync_persist_experimental_state
 from openpilot.starpilot.common.favorite_slots import (
-  FAVORITE_ACTION_OPTIONS,
   FAVORITE_SLOTS_PARAM,
+  SETTINGS_CATALOG_PATH,
+  build_favorite_slot_options,
+  filter_favorite_slot_options,
+  get_favorite_values,
   is_favorite_action_key,
+  load_settings_catalog,
   normalize_favorite_slots,
   trigger_favorite_action,
 )
@@ -2784,18 +2788,16 @@ _favorite_slot_options = None
 def _get_layout_param_metadata():
   global _layout_param_metadata
   if _layout_param_metadata is None:
-    try:
-      layout_path = os.path.join(os.path.dirname(__file__), "assets", "components", "tools", "device_settings_layout.json")
-      with open(layout_path) as f:
-        layout_data = json.load(f)
+    layout_data = load_settings_catalog()
+    if layout_data is None:
+      _layout_param_metadata = {}
+    else:
       _layout_param_metadata = {
         p["key"]: p
         for section in layout_data
         for p in section.get("params", [])
-        if "key" in p
+        if isinstance(p, dict) and "key" in p
       }
-    except Exception:
-      _layout_param_metadata = {}
   return _layout_param_metadata
 
 def _get_layout_type_overrides():
@@ -2814,65 +2816,24 @@ def _get_favorite_slot_options():
   if _favorite_slot_options is not None:
     return _favorite_slot_options
 
-  allowed_keys, value_types = _get_param_type_info()
-  options = []
-  options.extend(dict(option) for option in FAVORITE_ACTION_OPTIONS)
-  try:
-    layout_path = os.path.join(os.path.dirname(__file__), "assets", "components", "tools", "device_settings_layout.json")
-    with open(layout_path) as f:
-      layout_data = json.load(f)
-
-    seen = set()
-    for section in layout_data:
-      section_name = section.get("name", "")
-      for param_data in section.get("params", []):
-        key = str(param_data.get("key") or "").strip()
-        if not key or key in seen:
-          continue
-        if key not in allowed_keys or value_types.get(key) is not bool:
-          continue
-        if param_data.get("ui_type") != "toggle" or param_data.get("data_type") != "bool":
-          continue
-        if key == "AlphaLongitudinalEnabled" and not _get_alpha_longitudinal_available():
-          continue
-
-        seen.add(key)
-        options.append({
-          "key": key,
-          "label": str(param_data.get("label") or key),
-          "description": str(param_data.get("description") or ""),
-          "section": section_name,
-          "requiresCapability": str(param_data.get("requires_capability") or ""),
-        })
-  except Exception:
-    options = []
-
-  options.sort(key=lambda option: (str(option.get("label") or option.get("key") or "").casefold(), str(option.get("key") or "").casefold()))
-  _favorite_slot_options = options
+  allowed_keys, _value_types = _get_param_type_info()
+  _favorite_slot_options = build_favorite_slot_options(
+    lambda key: key in allowed_keys,
+    alpha_longitudinal_available=_get_alpha_longitudinal_available(),
+  )
   return _favorite_slot_options
 
 def _get_available_favorite_slot_options():
-  capabilities = {
-    "HasRivianAngleHarness": _get_has_rivian_angle_harness(),
-  }
-  return [
-    option for option in _get_favorite_slot_options()
-    if not option.get("requiresCapability") or capabilities.get(option["requiresCapability"], False)
-  ]
+  return filter_favorite_slot_options(
+    _get_favorite_slot_options(),
+    {"HasRivianAngleHarness": _get_has_rivian_angle_harness()},
+  )
 
 def _favorite_slot_values(options):
-  return {
-    option["key"]: _safe_params_get_bool(option["key"])
-    for option in options
-    if option.get("key") and not is_favorite_action_key(option.get("key"))
-  }
+  return get_favorite_values(options, params)
 
 def _configured_favorite_slot_values(slots):
-  return {
-    slot["key"]: _safe_params_get_bool(slot["key"])
-    for slot in slots
-    if slot.get("key") and not is_favorite_action_key(slot.get("key"))
-  }
+  return get_favorite_values(slots, params)
 
 _cached_allowed_keys = None
 _cached_param_types = None
@@ -4515,6 +4476,12 @@ def setup(app):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+  @app.route("/assets/components/tools/device_settings_layout.json", methods=["GET"])
+  def device_settings_layout_asset():
+    if not SETTINGS_CATALOG_PATH.is_file():
+      return "Settings catalog not found", 404
+    return send_file(str(SETTINGS_CATALOG_PATH), mimetype="application/json")
 
   @app.route("/manifest.json", methods=["GET"])
   @app.route("/assets/manifest.json", methods=["GET"])
