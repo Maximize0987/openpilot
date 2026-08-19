@@ -62,7 +62,7 @@ A_CHANGE_COSTS = [250, 250, 275, 300] # A_CHANGE_COSTS = [200, 195, 180, 170]  #
 # SMOOTHING FILTERS - Speed-adaptive for optimal responsiveness
 # Lower = More responsive, Higher = Smoother
 LEAD_FILTER_TIME_LOW = 0.8   # Under 40 mph: Fast response for city emergency braking
-LEAD_FILTER_TIME_HIGH = 1.6 # 1.2  # Over 40 mph: Faster response to prevent highway gaps
+LEAD_FILTER_TIME_HIGH = 0.8 # 1.2  # Over 40 mph: Faster response to prevent highway gaps
 SPEED_FILTER_THRESHOLD = 40 * CV.MPH_TO_MS  # 40 mph threshold
 DUPLICATE_VISION_LEAD_FILTER_TIME = 0.15
 
