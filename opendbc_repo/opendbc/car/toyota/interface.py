@@ -70,8 +70,9 @@ class CarInterface(CarInterfaceBase):
     late_prius_camera = candidate == CAR.TOYOTA_PRIUS and any(
       fw.ecu == Ecu.fwdCamera and bytes(fw.fwVersion).startswith(b'8646F4705') for fw in car_fw
     )
-    if candidate == CAR.LEXUS_IS or late_prius_camera:
-      has_dsu_bypass = ((0x343 in camera_fingerprint and 0x343 not in fingerprint.get(1, {})) or
+    if candidate in (CAR.LEXUS_IS, CAR.TOYOTA_CAMRY) or late_prius_camera:
+      native_acc_fingerprints = (fingerprint.get(0, {}), fingerprint.get(1, {}))
+      has_dsu_bypass = ((0x343 in camera_fingerprint and not any(0x343 in native_bus for native_bus in native_acc_fingerprints)) or
                         (0x4CB in camera_fingerprint and 0x4CB not in fingerprint.get(0, {})))
     if not use_sdsu and candidate not in TSS2_CAR and has_dsu_bypass:
       ret.flags |= ToyotaFlags.DSU_BYPASS.value

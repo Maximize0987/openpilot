@@ -261,6 +261,21 @@ def test_curve_speed_controller_persists_data_after_leaving_curve():
   assert any(key == "CurvatureData" for key, _ in planner.params.writes)
 
 
+def test_curve_speed_controller_publishes_live_values_to_memory_params():
+  planner, vcruise = make_vcruise(road_curvature=0.02)
+  sm = make_sm(standstill=False)
+  sm["carControl"].longActive = False
+  planner.driving_in_curve = True
+  planner.lateral_acceleration = 2.4
+  vcruise.csc.training_timer = PLANNER_TIME
+
+  vcruise.csc.log_data(20.0, sm)
+
+  assert any(key == "CalibratedLateralAcceleration" for key, _ in planner.params_memory.writes)
+  assert any(key == "CalibrationProgress" for key, _ in planner.params_memory.writes)
+  assert planner.params_memory.values["CalibrationProgress"] > 0.0
+
+
 def test_curve_speed_controller_ramps_toward_curve_speed_at_bounded_rate():
   planner = SimpleNamespace(
     params=FakeParams(),
