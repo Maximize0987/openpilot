@@ -4,6 +4,7 @@ from typing import Optional
 import pyray as rl
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
+from openpilot.selfdrive.ui.onroad.hud_renderer import COLORS
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
@@ -144,7 +145,7 @@ def _get_slc_state():
   )
 
   slc_overridden_speed = plan.slcOverriddenSpeed
-  # Keep the source limit visible; override state only dims the sign.
+  # Keep the source limit visible when overridden.
   speed_limit = plan.slcSpeedLimit
 
   # Resolved limit in m/s (pre-conversion, pre-offset) — feeds the vision pulse
@@ -224,14 +225,14 @@ def _active_source_label(state: dict) -> str:
   return _ACTIVE_SOURCE_LABELS.get(source, source.upper())
 
 
-def _source_label_color(alpha: int) -> rl.Color:
+def _source_label_color(alpha: int, is_overridden: bool = False) -> rl.Color:
   """Match Set Speed's MAX label color."""
-  if ui_state.status == UIStatus.ENGAGED:
-    base = rl.Color(128, 216, 166, 255)
-  elif ui_state.status in (UIStatus.DISENGAGED, UIStatus.OVERRIDE):
-    base = rl.Color(145, 155, 149, 255)
+  if is_overridden or ui_state.status in (UIStatus.DISENGAGED, UIStatus.OVERRIDE):
+    base = COLORS.DISENGAGED
+  elif ui_state.status == UIStatus.ENGAGED:
+    base = COLORS.ENGAGED
   else:
-    base = rl.Color(166, 166, 166, 255)
+    base = COLORS.GREY
   return _speed_limit_pulse_color(base, alpha)
 
 
@@ -265,7 +266,8 @@ def _draw_offset_chip(rect: rl.Rectangle, offset_str: str, color: rl.Color) -> N
 
 def _draw_us_sign(x: float, y: float, sign_width: float, sign_height: float,
                   speed_text: str, offset_str: str,
-                  source_label: str, alpha: int, show_offset: bool, *, pending: bool = False):
+                  source_label: str, alpha: int, show_offset: bool, *,
+                  pending: bool = False, is_overridden: bool = False):
   """Draw the NA control card at (x, y).
 
   The card keeps the SLC's label/value hierarchy while sharing the exact
@@ -305,7 +307,7 @@ def _draw_us_sign(x: float, y: float, sign_width: float, sign_height: float,
   elif show_offset:
     # Offset ON: source at the top, speed below it, and the offset in a chip.
     source_size = measure_text_cached(font_semi, source_label, FONT_SOURCE)
-    source_color = _source_label_color(alpha)
+    source_color = _source_label_color(alpha, is_overridden=is_overridden)
     rl.draw_text_ex(font_semi, source_label, rl.Vector2(cx - source_size.x / 2, y + 8), FONT_SOURCE, 0, source_color)
 
     speed_size = measure_text_cached(font_bold, speed_text, FONT_SPEED)
@@ -314,7 +316,7 @@ def _draw_us_sign(x: float, y: float, sign_width: float, sign_height: float,
   else:
     # Offset OFF: match Set Speed typography.
     source_size = measure_text_cached(font_semi, source_label, FONT_SOURCE)
-    source_color = _source_label_color(alpha)
+    source_color = _source_label_color(alpha, is_overridden=is_overridden)
     rl.draw_text_ex(font_semi, source_label, rl.Vector2(cx - source_size.x / 2, y + 27), FONT_SOURCE, 0, source_color)
 
     speed_size = measure_text_cached(font_bold, speed_text, FONT_SPEED)
@@ -327,23 +329,19 @@ def _draw_eu_sign(x: float, y: float, speed_text: str, offset_str: str,
                    source_label: str, text_alpha: int, show_offset: bool, *, pending: bool = False):
   """Draw EU-style (Vienna) speed limit sign at (x, y).
 
-  White disk with a pulsable red ring and pulsable black text. The disk
-  fill, ring, and text all carry the sign-wide ``text_alpha`` (e.g. 72 when
-  driver-overridden, 255 otherwise), so the road shows through when dimmed
-  without losing legibility. The pre-existing pending-text blink
-  (black <-> red) composes with the vision pulse: outside the pulse window
-  the blink is unchanged, inside it both colors are eased toward
+  White disk with a pulsable red ring and pulsable black text. The pre-existing
+  pending-text blink (black <-> red) composes with the vision pulse: outside the
+  pulse window the blink is unchanged, inside it both colors are eased toward
   VISION_SPEED_LIMIT_PULSE_COLOR.
   """
   center_x = x + EU_SIGN_SIZE / 2
   center_y = y + EU_SIGN_SIZE / 2
   radius = EU_SIGN_SIZE / 2
 
-  # White disk fill; alpha-dims with the sign so an overridden limit fades
-  # against the road.
+  # White disk fill.
   rl.draw_circle(int(center_x), int(center_y), radius, rl.Color(255, 255, 255, text_alpha))
   # Red ring; eased toward VISION_SPEED_LIMIT_PULSE_COLOR when a Vision-sourced
-  # limit just changed, and alpha-dims with the sign.
+  # limit just changed.
   ring_color = _speed_limit_pulse_color(rl.Color(201, 34, 49, 255), text_alpha)
   rl.draw_ring(rl.Vector2(center_x, center_y), radius - RED_RING_WIDTH, radius,
                0, 360, 64, ring_color)
@@ -398,14 +396,11 @@ def _draw_sign(state: dict, rect: rl.Rectangle, *, pending: bool = False):
     # Pending shows the unconfirmed value, full opacity
     speed_text = ("\u2013" if state['unconfirmed_speed_limit'] <= 1
                   else str(int(round(state['unconfirmed_speed_limit']))))
-    text_alpha = 255
   else:
     speed_text = state['speed_limit_str']
-    # Override dim: when the driver has manually overridden the speed limit,
-    # fade the sign to alpha=72 to indicate it's no longer the auto-detected
-    # value.
-    text_alpha = 72 if state['slc_overridden_speed'] != 0 else 255
 
+  text_alpha = 255
+  is_overridden = not pending and state['slc_overridden_speed'] != 0
   source_label = _active_source_label(state)
 
   if state['use_vienna']:
@@ -413,7 +408,8 @@ def _draw_sign(state: dict, rect: rl.Rectangle, *, pending: bool = False):
                    state['show_offset'], pending=pending)
   else:
     _draw_us_sign(rect.x, rect.y, rect.width, rect.height, speed_text, state['offset_str'],
-                   source_label, text_alpha, state['show_offset'], pending=pending)
+                   source_label, text_alpha, state['show_offset'], pending=pending,
+                   is_overridden=is_overridden)
 
 
 # ── Sources Bubble (expandable overlay) ────────────────────────────────
