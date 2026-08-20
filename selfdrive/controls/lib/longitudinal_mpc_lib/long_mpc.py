@@ -627,11 +627,10 @@ class LongitudinalMpc:
     return lead_xv
 
   def process_lead(self, lead, tracking_lead=True, t_follow=None, *, lead_index=0,
-                   smooth_duplicate_vision=False, model_lead=None,
-                   use_model_lead_trajectory=False):
+                   smooth_duplicate_vision=False, model_lead=None):
     v_ego = self.x0[1]
     lead_active = lead is not None and lead.status and tracking_lead
-    if lead_active and use_model_lead_trajectory:
+    if lead_active:
       model_lead_xv = build_model_lead_trajectory(model_lead, lead, v_ego)
       if model_lead_xv is not None:
         return model_lead_xv
@@ -924,23 +923,18 @@ class LongitudinalMpc:
   def update(self, radarstate, v_cruise, x, v, a, j, danger_factor, t_follow,
              personality=log.LongitudinalPersonality.standard, tracking_lead=True,
              optional_far_lead_comfort=True, smooth_duplicate_vision=False,
-             stop_x=None, silverado_early_follow=False, modelV2=None,
-             use_model_lead_trajectory=False):
+             stop_x=None, silverado_early_follow=False, modelV2=None):
     v_ego = self.x0[1]
     lead_one = radarstate.leadOne
     lead_two = radarstate.leadTwo
     self.status = tracking_lead and (lead_one.status or lead_two.status)
-    model_leads = ()
-    if use_model_lead_trajectory and modelV2 is not None:
-      model_leads = getattr(modelV2, "leadsV3", ())
+    model_leads = getattr(modelV2, "leadsV3", ()) if modelV2 is not None else ()
     lead_xv_0 = self.process_lead(lead_one, tracking_lead, t_follow=t_follow, lead_index=0,
                                   smooth_duplicate_vision=smooth_duplicate_vision,
-                                  model_lead=model_leads[0] if len(model_leads) > 0 else None,
-                                  use_model_lead_trajectory=use_model_lead_trajectory)
+                                  model_lead=model_leads[0] if len(model_leads) > 0 else None)
     lead_xv_1 = self.process_lead(lead_two, tracking_lead, t_follow=t_follow, lead_index=1,
                                   smooth_duplicate_vision=smooth_duplicate_vision,
-                                  model_lead=model_leads[1] if len(model_leads) > 1 else None,
-                                  use_model_lead_trajectory=use_model_lead_trajectory)
+                                  model_lead=model_leads[1] if len(model_leads) > 1 else None)
     self.lead_xv_0 = lead_xv_0
     self.lead_xv_1 = lead_xv_1
 

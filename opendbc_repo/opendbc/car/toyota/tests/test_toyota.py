@@ -75,6 +75,22 @@ class TestToyotaInterfaces:
     assert default_params.lateralTuning.torque.steeringAngleDeadzoneDeg == pytest.approx(0.3)
     assert forced_params.lateralTuning.torque.steeringAngleDeadzoneDeg == pytest.approx(0.3)
 
+  def test_prius_tss2_eps_retrofit_uses_legacy_body_and_eps_scale(self):
+    params = CarInterface.get_params(
+      CAR.TOYOTA_PRIUS_RETROFIT,
+      {bus: {} for bus in range(8)},
+      [],
+      False,
+      False,
+      False,
+      SimpleNamespace(force_torque_controller=False, nnff=False, nnff_lite=False),
+    )
+
+    assert params.lateralTuning.which() == "torque"
+    assert params.safetyConfigs[0].safetyParam & 0xFF == 73
+    assert params.flags & ToyotaFlags.TSS2.value == 0
+    assert params.steerRatio == pytest.approx(15.74)
+
   def test_sienna_4th_gen_uses_torque_controller(self):
     params = CarInterface.get_params(
       CAR.TOYOTA_SIENNA_4TH_GEN,
@@ -468,6 +484,15 @@ class TestToyotaInterfaces:
     )
 
     assert not should_bypass_toyota_long_pid(car_params)
+
+  def test_highlander_sdsu_bypasses_toyota_longitudinal_pid(self):
+    car_params = SimpleNamespace(
+      carFingerprint=CAR.TOYOTA_HIGHLANDER,
+      enableGasInterceptorDEPRECATED=False,
+    )
+
+    assert should_bypass_toyota_long_pid(car_params, SimpleNamespace(has_sdsu=True))
+    assert not should_bypass_toyota_long_pid(car_params, SimpleNamespace(has_sdsu=False))
 
   def test_camry_continental_radar_converts_absolute_target_speed(self):
     radar_interface = RadarInterface.__new__(RadarInterface)
