@@ -90,7 +90,7 @@ function drawC4Preview(ctx, img, center, zoom, color) {
   ctx.clip();
   ctx.translate(x + w, 0);
   ctx.scale(-1, 1);
-  ctx.drawImage(img, sx, sy, nativeZoom, sh, 0, 0, w, h);
+  ctx.drawImage(img, sx, sy, nativeZoom, sh, 0, y, w, h);
   ctx.restore();
 
   ctx.save();
@@ -115,7 +115,7 @@ function drawC3Preview(ctx, img, center, zoom, color) {
   ctx.clip();
   ctx.translate(cx + half, 0);
   ctx.scale(-1, 1);
-  ctx.drawImage(img, sx, sy, nativeZoom, nativeZoom, 0, 0, zoom, zoom);
+  ctx.drawImage(img, sx, sy, nativeZoom, nativeZoom, 0, cy - half, zoom, zoom);
   ctx.restore();
 
   ctx.save();
