@@ -35,13 +35,13 @@ class FavoriteRadialMenu:
   STATE_RADIAL = "radial"
   STATE_PICKER = "picker"
 
-  LONG_PRESS_SECONDS = 0.60
   AUTO_COLLAPSE_SECONDS = 6.0
   PICKER_AUTO_COLLAPSE_SECONDS = 30.0
-  MAX_TAP_TRAVEL = 28.0
-  SWIPE_MIN_TRAVEL = 80.0
+  LONG_PRESS_SECONDS = 0.60
+  MAX_TAP_TRAVEL = 36.0
+  SWIPE_MIN_TRAVEL = 55.0
   PICKER_COLUMNS = 4
-  PICKER_ROWS = 3
+  PICKER_ROWS = 2
   PICKER_PAGE_SIZE = PICKER_COLUMNS * PICKER_ROWS
 
   _PURPLE = (161, 112, 255)
@@ -78,12 +78,16 @@ class FavoriteRadialMenu:
 
     self._rect = rl.Rectangle(0, 0, 0, 0)
     self._corner_zone = rl.Rectangle(0, 0, 0, 0)
+    self._corner_touch_zone = rl.Rectangle(0, 0, 0, 0)
     self._slot_rects: list[tuple[int, rl.Rectangle, rl.Vector2, float]] = []
     self._slot_unassign_rects: list[tuple[int, rl.Rectangle]] = []
     self._drawer_rect = rl.Rectangle(0, 0, 0, 0)
     self._drawer_close_rect = rl.Rectangle(0, 0, 0, 0)
+    self._drawer_close_hit_rect = rl.Rectangle(0, 0, 0, 0)
     self._drawer_prev_rect = rl.Rectangle(0, 0, 0, 0)
+    self._drawer_prev_hit_rect = rl.Rectangle(0, 0, 0, 0)
     self._drawer_next_rect = rl.Rectangle(0, 0, 0, 0)
+    self._drawer_next_hit_rect = rl.Rectangle(0, 0, 0, 0)
     self._option_rects: list[tuple[int, rl.Rectangle]] = []
     self._slots: list[dict[str, Any]] = []
 
@@ -181,7 +185,7 @@ class FavoriteRadialMenu:
 
   def blocks_pointer(self, mouse_pos: Any) -> bool:
     """Whether a parent click at ``mouse_pos`` belongs to this menu."""
-    return self.is_open or self._corner_press is not None or self._contains(self._corner_zone, mouse_pos)
+    return self.is_open or self._corner_press is not None or self._contains(self._corner_touch_zone, mouse_pos)
 
   def _touch(self) -> None:
     self._last_interaction_at = self._clock()
@@ -208,12 +212,17 @@ class FavoriteRadialMenu:
     return max(0.35, min(rect.width / 2160.0, rect.height / 1080.0))
 
   def _corner_zone_for(self, rect: rl.Rectangle) -> rl.Rectangle:
-    size = 138.0 * self._scale_for(rect)
+    size = 160.0 * self._scale_for(rect)
+    return rl.Rectangle(rect.x, rect.y + rect.height - size, size, size)
+
+  def _corner_touch_zone_for(self, rect: rl.Rectangle) -> rl.Rectangle:
+    size = 180.0 * self._scale_for(rect)
     return rl.Rectangle(rect.x, rect.y + rect.height - size, size, size)
 
   def _layout(self, rect: rl.Rectangle) -> None:
     self._rect = rect
     self._corner_zone = self._corner_zone_for(rect)
+    self._corner_touch_zone = self._corner_touch_zone_for(rect)
     self._slots = load_favorite_slots(self._params, eligible_keys=self._available_option_keys)
     for slot in self._slots:
       key = slot.get("key")
@@ -225,11 +234,11 @@ class FavoriteRadialMenu:
   def _layout_slot_rects(self) -> None:
     scale = self._scale_for(self._rect)
     origin = self.corner_center(self._rect)
-    orbit_radius = 365.0 * scale
-    node_radius = 40.0 * scale
-    slot_angles_deg = (70.0, 42.0, 16.0)
-    blade_w = 345.0 * scale
-    blade_h = 74.0 * scale
+    orbit_radius = 425.0 * scale
+    node_radius = 52.0 * scale
+    slot_angles_deg = (78.0, 41.0, 18.0)
+    blade_w = 450.0 * scale
+    blade_h = 104.0 * scale
 
     self._slot_rects = []
     for index, angle_deg in enumerate(slot_angles_deg[:FAVORITE_SLOT_COUNT]):
@@ -242,10 +251,10 @@ class FavoriteRadialMenu:
       blade_y = center.y - blade_h / 2.0
       blade_rect = rl.Rectangle(blade_x, blade_y, blade_w, blade_h)
       hit_box = rl.Rectangle(
-        blade_x - 6.0 * scale,
-        blade_y - 6.0 * scale,
-        blade_w + 12.0 * scale,
-        blade_h + 12.0 * scale,
+        blade_x - 12.0 * scale,
+        blade_y - 8.0 * scale,
+        blade_w + 24.0 * scale,
+        blade_h + 16.0 * scale,
       )
       self._slot_rects.append((index, hit_box, center, node_radius, angle_deg, blade_rect))
 
@@ -253,7 +262,7 @@ class FavoriteRadialMenu:
     if self._editing_slot is not None and self._editing_slot < len(self._slot_rects):
       item = self._slot_rects[self._editing_slot]
       blade_rect = item[5]
-      badge_touch_r = 24.0 * scale
+      badge_touch_r = 32.0 * scale
       badge_center = rl.Vector2(
         blade_rect.x + blade_rect.width - 2.0 * scale,
         blade_rect.y + 2.0 * scale,
@@ -271,14 +280,17 @@ class FavoriteRadialMenu:
     self._option_rects = []
     self._drawer_rect = rl.Rectangle(0, 0, 0, 0)
     self._drawer_close_rect = rl.Rectangle(0, 0, 0, 0)
+    self._drawer_close_hit_rect = rl.Rectangle(0, 0, 0, 0)
     self._drawer_prev_rect = rl.Rectangle(0, 0, 0, 0)
+    self._drawer_prev_hit_rect = rl.Rectangle(0, 0, 0, 0)
     self._drawer_next_rect = rl.Rectangle(0, 0, 0, 0)
+    self._drawer_next_hit_rect = rl.Rectangle(0, 0, 0, 0)
     if self._state != self.STATE_PICKER:
       return
 
     scale = self._scale_for(self._rect)
-    margin_x = 84.0 * scale
-    margin_y = 76.0 * scale
+    margin_x = 76.0 * scale
+    margin_y = 66.0 * scale
     self._drawer_rect = rl.Rectangle(
       self._rect.x + margin_x,
       self._rect.y + margin_y,
@@ -286,67 +298,83 @@ class FavoriteRadialMenu:
       self._rect.height - margin_y * 2,
     )
 
-    padding = 34.0 * scale
-    header_height = 118.0 * scale
-    footer_height = 96.0 * scale
-    gap = 16.0 * scale
-    close_size = 66.0 * scale
+    padding_x = 36.0 * scale
+    header_height = 126.0 * scale
+    footer_height = 106.0 * scale
+    gap_x = 20.0 * scale
+    gap_y = 20.0 * scale
+    gap_header_footer = 18.0 * scale
+
+    # Close button visual & hit bounds
+    close_size = 70.0 * scale
     self._drawer_close_rect = rl.Rectangle(
-      self._drawer_rect.x + self._drawer_rect.width - padding - close_size,
+      self._drawer_rect.x + self._drawer_rect.width - padding_x - close_size,
       self._drawer_rect.y + (header_height - close_size) / 2,
       close_size,
       close_size,
     )
+    self._drawer_close_hit_rect = rl.Rectangle(
+      self._drawer_rect.x + self._drawer_rect.width - padding_x - close_size - 18.0 * scale,
+      self._drawer_rect.y,
+      close_size + padding_x + 18.0 * scale,
+      header_height,
+    )
 
-    grid_top = self._drawer_rect.y + header_height + gap
-    grid_height = self._drawer_rect.height - header_height - footer_height - gap * 2
-    card_width = (self._drawer_rect.width - padding * 2 - gap * (self.PICKER_COLUMNS - 1)) / self.PICKER_COLUMNS
-    card_height = (grid_height - gap * (self.PICKER_ROWS - 1)) / self.PICKER_ROWS
+    # 4x2 Card Grid
+    grid_top = self._drawer_rect.y + header_height + gap_header_footer
+    grid_width = self._drawer_rect.width - padding_x * 2
+    grid_height = self._drawer_rect.height - header_height - footer_height - gap_header_footer * 2
+    card_width = (grid_width - gap_x * (self.PICKER_COLUMNS - 1)) / self.PICKER_COLUMNS
+    card_height = (grid_height - gap_y * (self.PICKER_ROWS - 1)) / self.PICKER_ROWS
+
     page_start = self._picker_page * self.PICKER_PAGE_SIZE
     for offset, _option in enumerate(self._picker_options[page_start:page_start + self.PICKER_PAGE_SIZE]):
       row, column = divmod(offset, self.PICKER_COLUMNS)
       option_rect = rl.Rectangle(
-        self._drawer_rect.x + padding + column * (card_width + gap),
-        grid_top + row * (card_height + gap),
+        self._drawer_rect.x + padding_x + column * (card_width + gap_x),
+        grid_top + row * (card_height + gap_y),
         card_width,
         card_height,
       )
       self._option_rects.append((page_start + offset, option_rect))
 
-    control_width = 150.0 * scale
-    control_height = 62.0 * scale
+    # Pager buttons in footer
+    control_width = 200.0 * scale
+    control_height = 74.0 * scale
     controls_y = self._drawer_rect.y + self._drawer_rect.height - footer_height + (footer_height - control_height) / 2
     self._drawer_next_rect = rl.Rectangle(
-      self._drawer_rect.x + self._drawer_rect.width - padding - control_width,
+      self._drawer_rect.x + self._drawer_rect.width - padding_x - control_width,
       controls_y,
       control_width,
       control_height,
     )
+    self._drawer_next_hit_rect = rl.Rectangle(
+      self._drawer_next_rect.x - 10.0 * scale,
+      self._drawer_next_rect.y - 12.0 * scale,
+      self._drawer_next_rect.width + 20.0 * scale,
+      self._drawer_next_rect.height + 24.0 * scale,
+    )
     self._drawer_prev_rect = rl.Rectangle(
-      self._drawer_next_rect.x - gap - control_width,
+      self._drawer_next_rect.x - gap_x - control_width,
       controls_y,
       control_width,
       control_height,
+    )
+    self._drawer_prev_hit_rect = rl.Rectangle(
+      self._drawer_prev_rect.x - 10.0 * scale,
+      self._drawer_prev_rect.y - 12.0 * scale,
+      self._drawer_prev_rect.width + 20.0 * scale,
+      self._drawer_prev_rect.height + 24.0 * scale,
     )
 
   def _handle_press(self, mouse_pos: Any) -> bool:
     if self._state == self.STATE_COLLAPSED:
-      if self._contains(self._corner_zone, mouse_pos):
+      if self._contains(self._corner_touch_zone, mouse_pos):
         self._corner_press = mouse_pos
         return True
       return False
 
     target = self._target_at(mouse_pos)
-    if target is None:
-      # The drawer is modal: tapping its unused space or a disabled pager
-      # control must not unexpectedly dismiss it. A tap outside it does.
-      if self._state == self.STATE_PICKER and self._contains(self._drawer_rect, mouse_pos):
-        self._pressed_target = None
-        self._touch()
-        return True
-      self.collapse()
-      return True
-
     self._pressed_target = target
     self._press_start_time = self._clock()
     self._press_start_pos = mouse_pos
@@ -400,7 +428,6 @@ class FavoriteRadialMenu:
       self._reset_press_tracking()
       return True
 
-    target = self._target_at(mouse_pos)
     is_long_press = self._long_press_fired or (
       self._press_start_time is not None and self._clock() - self._press_start_time >= self.LONG_PRESS_SECONDS
     )
@@ -415,8 +442,13 @@ class FavoriteRadialMenu:
       self._reset_press_tracking()
       return True
 
-    if self._pressed_target is not None and self._pressed_target == target:
-      self._activate_target(target)
+    if self._pressed_target is not None:
+      self._activate_target(self._pressed_target)
+    elif self._state == self.STATE_PICKER and not self._contains(self._drawer_rect, mouse_pos):
+      self.collapse()
+    elif self._state == self.STATE_RADIAL and not any(self._contains(box, mouse_pos) for _, box, *_ in self._slot_rects):
+      self.collapse()
+
     self._reset_press_tracking()
     return True
 
@@ -436,11 +468,11 @@ class FavoriteRadialMenu:
       return None
 
     if self._state == self.STATE_PICKER:
-      if self._contains(self._drawer_close_rect, mouse_pos):
+      if self._contains(self._drawer_close_hit_rect, mouse_pos):
         return "close", None
-      if self._contains(self._drawer_prev_rect, mouse_pos) and self._picker_page > 0:
+      if self._contains(self._drawer_prev_hit_rect, mouse_pos) and self._picker_page > 0:
         return "previous", None
-      if self._contains(self._drawer_next_rect, mouse_pos) and self._has_next_picker_page:
+      if self._contains(self._drawer_next_hit_rect, mouse_pos) and self._has_next_picker_page:
         return "next", None
       for index, option_rect in self._option_rects:
         if self._contains(option_rect, mouse_pos):
@@ -621,35 +653,35 @@ class FavoriteRadialMenu:
     center = self.corner_center(self._rect)
     scale = self._scale_for(self._rect)
     purple = self._PURPLE
-    for radius, alpha in ((54, 16), (42, 28), (32, 48)):
+    for radius, alpha in ((62, 16), (48, 28), (36, 48)):
       rl.draw_circle_v(center, radius * scale, rl.Color(*purple, alpha))
-    rl.draw_ring(center, 34 * scale, 37 * scale, 0, 360, 32, rl.Color(*purple, 150))
+    rl.draw_ring(center, 38 * scale, 42 * scale, 0, 360, 32, rl.Color(*purple, 150))
 
-    tail = rl.Vector2(center.x - 16 * scale, center.y + 16 * scale)
-    tip = rl.Vector2(center.x + 22 * scale, center.y - 22 * scale)
+    tail = rl.Vector2(center.x - 18 * scale, center.y + 18 * scale)
+    tip = rl.Vector2(center.x + 26 * scale, center.y - 26 * scale)
     arrow_color = rl.Color(240, 231, 255, 214)
-    rl.draw_line_ex(tail, tip, 4 * scale, arrow_color)
-    rl.draw_line_ex(tip, rl.Vector2(tip.x - 16 * scale, tip.y + 1 * scale), 4 * scale, arrow_color)
-    rl.draw_line_ex(tip, rl.Vector2(tip.x - 1 * scale, tip.y + 16 * scale), 4 * scale, arrow_color)
+    rl.draw_line_ex(tail, tip, 4.5 * scale, arrow_color)
+    rl.draw_line_ex(tip, rl.Vector2(tip.x - 18 * scale, tip.y + 1 * scale), 4.5 * scale, arrow_color)
+    rl.draw_line_ex(tip, rl.Vector2(tip.x - 1 * scale, tip.y + 18 * scale), 4.5 * scale, arrow_color)
 
   def _draw_radial_menu(self) -> None:
     scale = self._scale_for(self._rect)
     origin = self.corner_center(self._rect)
     purple = self._PURPLE
 
-    rail_r = 328.0 * scale
-    rail_start_rl = 286.0
+    rail_r = 380.0 * scale
+    rail_start_rl = 278.0
     rail_end_rl = 348.0
     segments = 44
 
     # Outer atmospheric rail glow
-    rl.draw_ring(origin, rail_r - 7.0 * scale, rail_r + 7.0 * scale,
+    rl.draw_ring(origin, rail_r - 8.0 * scale, rail_r + 8.0 * scale,
                  rail_start_rl, rail_end_rl, segments, rl.Color(*purple, 24))
     # Mid-layer rail glow
-    rl.draw_ring(origin, rail_r - 3.5 * scale, rail_r + 3.5 * scale,
+    rl.draw_ring(origin, rail_r - 4.0 * scale, rail_r + 4.0 * scale,
                  rail_start_rl, rail_end_rl, segments, rl.Color(*purple, 58))
     # Crisp core rail
-    rl.draw_ring(origin, rail_r - 1.5 * scale, rail_r + 1.5 * scale,
+    rl.draw_ring(origin, rail_r - 1.8 * scale, rail_r + 1.8 * scale,
                  rail_start_rl, rail_end_rl, segments, rl.Color(214, 192, 255, 140))
 
     # 2. Orbital switch blade and node complication rendering
@@ -669,17 +701,17 @@ class FavoriteRadialMenu:
       if configured:
         rl.draw_rectangle_rounded(chassis_rect, 0.45, 14, rl.Color(14, 10, 26, 248))
         border_col = rl.Color(214, 192, 255, 230) if is_pressed else rl.Color(161, 112, 255, 140)
-        rl.draw_rectangle_rounded_lines_ex(chassis_rect, 0.45, 14, 1.5 * scale, border_col)
+        rl.draw_rectangle_rounded_lines_ex(chassis_rect, 0.45, 14, 1.8 * scale, border_col)
       else:
         rl.draw_rectangle_rounded(chassis_rect, 0.45, 14, rl.Color(12, 10, 22, 195))
-        rl.draw_rectangle_rounded_lines_ex(chassis_rect, 0.45, 14, 1.2 * scale, rl.Color(161, 112, 255, 80))
+        rl.draw_rectangle_rounded_lines_ex(chassis_rect, 0.45, 14, 1.4 * scale, rl.Color(161, 112, 255, 80))
 
       # 2. Left Complication Hub Disc
-      rl.draw_circle_v(center, node_r + 10.0 * scale, rl.Color(*purple, 22 if configured else 12))
-      rl.draw_circle_v(center, node_r + 4.0 * scale, rl.Color(*purple, 48 if configured else 24))
+      rl.draw_circle_v(center, node_r + 12.0 * scale, rl.Color(*purple, 22 if configured else 12))
+      rl.draw_circle_v(center, node_r + 5.0 * scale, rl.Color(*purple, 48 if configured else 24))
 
       rl.draw_circle_v(center, node_r, self._PANEL)
-      rl.draw_circle_v(center, node_r - 2.0 * scale, rl.Color(32, 23, 54, 250) if configured else rl.Color(20, 16, 32, 250))
+      rl.draw_circle_v(center, node_r - 2.5 * scale, rl.Color(32, 23, 54, 250) if configured else rl.Color(20, 16, 32, 250))
 
       slot_key = str(slot.get("key") or "")
       is_action = is_favorite_action_key(slot_key)
@@ -703,82 +735,82 @@ class FavoriteRadialMenu:
           start_deg = k * (seg_span + seg_gap) - 90.0
           end_deg = start_deg + seg_span
           if k == active_idx:
-            rl.draw_ring(center, node_r - 3.5 * scale, node_r, start_deg, end_deg, 20, rl.Color(214, 192, 255, 255))
-            rl.draw_ring(center, node_r - 4.5 * scale, node_r - 0.5 * scale, start_deg, end_deg, 20, rl.Color(161, 112, 255, 180))
+            rl.draw_ring(center, node_r - 4.5 * scale, node_r, start_deg, end_deg, 20, rl.Color(214, 192, 255, 255))
+            rl.draw_ring(center, node_r - 5.5 * scale, node_r - 0.5 * scale, start_deg, end_deg, 20, rl.Color(161, 112, 255, 180))
           else:
-            rl.draw_ring(center, node_r - 2.0 * scale, node_r - 0.5 * scale, start_deg, end_deg, 20, rl.Color(68, 44, 112, 140))
+            rl.draw_ring(center, node_r - 2.5 * scale, node_r - 0.5 * scale, start_deg, end_deg, 20, rl.Color(68, 44, 112, 140))
       elif is_toggle and is_on:
         # Glowing illuminated rim when toggle is active
-        rl.draw_ring(center, node_r - 3.5 * scale, node_r, 0.0, 360.0, 40, rl.Color(214, 192, 255, 255))
-        rl.draw_ring(center, node_r - 4.5 * scale, node_r - 0.5 * scale, 0.0, 360.0, 40, rl.Color(161, 112, 255, 180))
-        rl.draw_ring(center, node_r - 3.0 * scale, node_r - 0.5 * scale, 220.0, 320.0, 20, rl.Color(255, 255, 255, 120))
+        rl.draw_ring(center, node_r - 4.5 * scale, node_r, 0.0, 360.0, 40, rl.Color(214, 192, 255, 255))
+        rl.draw_ring(center, node_r - 5.5 * scale, node_r - 0.5 * scale, 0.0, 360.0, 40, rl.Color(161, 112, 255, 180))
+        rl.draw_ring(center, node_r - 3.5 * scale, node_r - 0.5 * scale, 220.0, 320.0, 20, rl.Color(255, 255, 255, 120))
       elif is_toggle and not is_on:
         # Resting muted rim when toggle is inactive
-        rl.draw_ring(center, node_r - 2.0 * scale, node_r - 0.5 * scale, 0.0, 360.0, 40, rl.Color(68, 44, 112, 140))
-        rl.draw_ring(center, node_r - 2.5 * scale, node_r, 0.0, 360.0, 40, rl.Color(161, 112, 255, 55))
+        rl.draw_ring(center, node_r - 2.5 * scale, node_r - 0.5 * scale, 0.0, 360.0, 40, rl.Color(68, 44, 112, 140))
+        rl.draw_ring(center, node_r - 3.0 * scale, node_r, 0.0, 360.0, 40, rl.Color(161, 112, 255, 55))
       else:
-        rl.draw_ring(center, node_r - 2.5 * scale, node_r, 0.0, 360.0, 40, accent)
-        rl.draw_ring(center, node_r - 3.0 * scale, node_r - 0.5 * scale, 220.0, 320.0, 20, rl.Color(255, 255, 255, 75))
+        rl.draw_ring(center, node_r - 3.0 * scale, node_r, 0.0, 360.0, 40, accent)
+        rl.draw_ring(center, node_r - 3.5 * scale, node_r - 0.5 * scale, 220.0, 320.0, 20, rl.Color(255, 255, 255, 75))
 
       # Center glyph / number
       if configured:
         num_color = self._TEXT if (not is_toggle or is_on) else rl.Color(213, 202, 232, 190)
-        self._draw_centered_text(str(index + 1), center, int(38 * scale), self._font(bold=True), num_color)
+        self._draw_centered_text(str(index + 1), center, int(48 * scale), self._font(bold=True), num_color)
       else:
-        self._draw_centered_text("+", center, int(38 * scale), self._font(bold=True), self._TEXT)
+        self._draw_centered_text("+", center, int(48 * scale), self._font(bold=True), self._TEXT)
 
       # 3. Label & Information Architecture in Blade
-      text_x = center.x + node_r + 14.0 * scale
-      max_text_w = (blade_rect.x + blade_rect.width - 14.0 * scale) - text_x
+      text_x = center.x + node_r + 18.0 * scale
+      max_text_w = (blade_rect.x + blade_rect.width - 18.0 * scale) - text_x
 
       if configured:
         if is_dropdown:
           title_text = str(slot.get("label") or slot.get("key") or "Favorite").replace('\\"', '"')
-          fs_title = int(24 * scale)
-          fs_sub = int(19 * scale)
+          fs_title = int(32 * scale)
+          fs_sub = int(24 * scale)
           fitted_title = self._fit_text(self._font(bold=True), title_text, fs_title, max_text_w)
-          self._draw_text(self._font(bold=True), fitted_title, rl.Vector2(text_x, center.y - 20.0 * scale), fs_title, self._TEXT)
+          self._draw_text(self._font(bold=True), fitted_title, rl.Vector2(text_x, center.y - 24.0 * scale), fs_title, self._TEXT)
 
           dim_val = self._measure_text(self._font(bold=False), active_label, fs_sub)
-          self._draw_text(self._font(bold=False), active_label, rl.Vector2(text_x, center.y + 4.0 * scale), fs_sub, rl.Color(214, 192, 255, 240))
+          self._draw_text(self._font(bold=False), active_label, rl.Vector2(text_x, center.y + 8.0 * scale), fs_sub, rl.Color(214, 192, 255, 240))
 
           # Hardware Capsule Pips
-          pip_w = 9.0 * scale
-          pip_h = 5.0 * scale
-          pip_gap = 4.0 * scale
-          pip_start_x = text_x + dim_val.x + 10.0 * scale
+          pip_w = 14.0 * scale
+          pip_h = 7.0 * scale
+          pip_gap = 5.0 * scale
+          pip_start_x = text_x + dim_val.x + 12.0 * scale
           for p in range(total_opts):
-            pip_rect = rl.Rectangle(pip_start_x + p * (pip_w + pip_gap), center.y + 4.0 * scale + (dim_val.y - pip_h) / 2.0, pip_w, pip_h)
+            pip_rect = rl.Rectangle(pip_start_x + p * (pip_w + pip_gap), center.y + 8.0 * scale + (dim_val.y - pip_h) / 2.0, pip_w, pip_h)
             if p == active_idx:
               rl.draw_rectangle_rounded(pip_rect, 0.4, 6, rl.Color(214, 192, 255, 255))
             else:
               rl.draw_rectangle_rounded(pip_rect, 0.4, 6, rl.Color(161, 112, 255, 75))
         elif is_toggle:
           raw_label = str(slot.get("label") or slot.get("key") or "Favorite").replace('\\"', '"')
-          fs_title = int(24 * scale)
-          fs_sub = int(19 * scale)
+          fs_title = int(32 * scale)
+          fs_sub = int(24 * scale)
           fitted_title = self._fit_text(self._font(bold=True), raw_label, fs_title, max_text_w)
-          self._draw_text(self._font(bold=True), fitted_title, rl.Vector2(text_x, center.y - 20.0 * scale), fs_title, self._TEXT)
+          self._draw_text(self._font(bold=True), fitted_title, rl.Vector2(text_x, center.y - 24.0 * scale), fs_title, self._TEXT)
 
           status_text = "ON" if is_on else "OFF"
           status_color = rl.Color(214, 192, 255, 255) if is_on else rl.Color(213, 202, 232, 160)
-          self._draw_text(self._font(bold=True), status_text, rl.Vector2(text_x, center.y + 4.0 * scale), fs_sub, status_color)
+          self._draw_text(self._font(bold=True), status_text, rl.Vector2(text_x, center.y + 8.0 * scale), fs_sub, status_color)
         else:
           raw_label = str(slot.get("label") or slot.get("key") or "Favorite").replace('\\"', '"')
-          label_font_size = int(30 * scale)
+          label_font_size = int(34 * scale)
           text_dim = self._measure_text(self._font(bold=True), raw_label, label_font_size)
 
           if text_dim.x <= max_text_w:
             self._draw_text(self._font(bold=True), raw_label, rl.Vector2(text_x, center.y - text_dim.y / 2.0), label_font_size, self._TEXT)
           else:
-            line1, line2 = self._semantic_split_label(raw_label)
+            line1, line2 = self._semantic_split_label(raw_label, max_chars=18)
             if line2 is None:
               fitted_label = self._fit_text(self._font(bold=True), line1, label_font_size, max_text_w)
               dim = self._measure_text(self._font(bold=True), fitted_label, label_font_size)
               self._draw_text(self._font(bold=True), fitted_label, rl.Vector2(text_x, center.y - dim.y / 2.0), label_font_size, self._TEXT)
             else:
-              fs_l1 = int(26 * scale)
-              fs_l2 = int(20 * scale)
+              fs_l1 = int(32 * scale)
+              fs_l2 = int(24 * scale)
               fitted_l1 = self._fit_text(self._font(bold=True), line1, fs_l1, max_text_w)
               fitted_l2 = self._fit_text(self._font(bold=False), line2, fs_l2, max_text_w)
               dim1 = self._measure_text(self._font(bold=True), fitted_l1, fs_l1)
@@ -788,8 +820,8 @@ class FavoriteRadialMenu:
               self._draw_text(self._font(bold=True), fitted_l1, rl.Vector2(text_x, start_y), fs_l1, self._TEXT)
               self._draw_text(self._font(bold=False), fitted_l2, rl.Vector2(text_x, start_y + dim1.y + 2.0 * scale), fs_l2, rl.Color(214, 192, 255, 230))
       else:
-        fs_title = int(28 * scale)
-        fs_sub = int(20 * scale)
+        fs_title = int(32 * scale)
+        fs_sub = int(24 * scale)
         title_text = f"Add Favorite {index + 1}"
         sub_text = "Tap to configure"
         dim_t = self._measure_text(self._font(bold=True), title_text, fs_title)
@@ -809,22 +841,22 @@ class FavoriteRadialMenu:
           flash_a = int(180.0 * (1.0 - ease))
           flash_a = max(0, min(255, flash_a))
           if flash_a > 0 and ease > 0.01:
-            rl.draw_ring(center, node_r, node_r + 20.0 * scale * ease, 0.0, 360.0, 32, rl.Color(214, 192, 255, flash_a))
+            rl.draw_ring(center, node_r, node_r + 24.0 * scale * ease, 0.0, 360.0, 32, rl.Color(214, 192, 255, flash_a))
         else:
           self._flash_slot = None
 
       # 4. Edit mode unassign badge on top-right corner of blade
       if self._editing_slot == index:
         badge_center = rl.Vector2(blade_rect.x + blade_rect.width - 2.0 * scale, blade_rect.y + 2.0 * scale)
-        badge_r = 15.0 * scale
-        rl.draw_circle_v(badge_center, badge_r + 3.0 * scale, rl.Color(255, 80, 110, 85))
+        badge_r = 19.0 * scale
+        rl.draw_circle_v(badge_center, badge_r + 4.0 * scale, rl.Color(255, 80, 110, 85))
         rl.draw_circle_v(badge_center, badge_r, rl.Color(198, 36, 62, 245))
-        rl.draw_ring(badge_center, badge_r - 1.5 * scale, badge_r, 0, 360, 24, rl.Color(255, 145, 170, 235))
+        rl.draw_ring(badge_center, badge_r - 2.0 * scale, badge_r, 0, 360, 24, rl.Color(255, 145, 170, 235))
         hx = badge_r * 0.42
         rl.draw_line_ex(rl.Vector2(badge_center.x - hx, badge_center.y - hx),
-                        rl.Vector2(badge_center.x + hx, badge_center.y + hx), 2.5 * scale, self._TEXT)
+                        rl.Vector2(badge_center.x + hx, badge_center.y + hx), 3.0 * scale, self._TEXT)
         rl.draw_line_ex(rl.Vector2(badge_center.x - hx, badge_center.y + hx),
-                        rl.Vector2(badge_center.x + hx, badge_center.y - hx), 2.5 * scale, self._TEXT)
+                        rl.Vector2(badge_center.x + hx, badge_center.y - hx), 3.0 * scale, self._TEXT)
 
   def _draw_picker(self) -> None:
     scale = self._scale_for(self._rect)
@@ -838,16 +870,16 @@ class FavoriteRadialMenu:
     rl.draw_rectangle_rounded(glow_rect, self._roundness(glow_rect, 44 * scale), 16, rl.Color(*self._PURPLE, 28))
     rl.draw_rectangle_rounded(self._drawer_rect, self._roundness(self._drawer_rect, 34 * scale), 16, self._PANEL)
     rl.draw_rectangle_rounded_lines_ex(self._drawer_rect, self._roundness(self._drawer_rect, 34 * scale), 16,
-                                        2 * scale, self._PANEL_BORDER)
+                                       2 * scale, self._PANEL_BORDER)
 
     title = f"Choose Favorite {self._selected_slot + 1}" if self._selected_slot is not None else "Choose Favorite"
-    title_pos = rl.Vector2(self._drawer_rect.x + 34 * scale, self._drawer_rect.y + 31 * scale)
-    self._draw_text(self._font(bold=True), title, title_pos, int(42 * scale), self._TEXT)
+    title_pos = rl.Vector2(self._drawer_rect.x + 36 * scale, self._drawer_rect.y + 26 * scale)
+    self._draw_text(self._font(bold=True), title, title_pos, int(50 * scale), self._TEXT)
     page_count = max(1, math.ceil(len(self._picker_options) / self.PICKER_PAGE_SIZE))
     subtitle = f"Available Galaxy options - Page {self._picker_page + 1} of {page_count}"
     self._draw_text(
       self._font(bold=False), subtitle,
-      rl.Vector2(title_pos.x, title_pos.y + 51 * scale), int(22 * scale), self._MUTED_TEXT,
+      rl.Vector2(title_pos.x, title_pos.y + 56 * scale), int(26 * scale), self._MUTED_TEXT,
     )
 
     self._draw_close_icon(self._drawer_close_rect)
@@ -856,7 +888,7 @@ class FavoriteRadialMenu:
       self._draw_centered_text(
         empty_text,
         rl.Vector2(self._drawer_rect.x + self._drawer_rect.width / 2, self._drawer_rect.y + self._drawer_rect.height / 2),
-        int(30 * scale), self._font(bold=False), self._MUTED_TEXT,
+        int(32 * scale), self._font(bold=False), self._MUTED_TEXT,
       )
 
     page_start = self._picker_page * self.PICKER_PAGE_SIZE
@@ -873,14 +905,14 @@ class FavoriteRadialMenu:
       page_label,
       rl.Vector2(self._drawer_rect.x + self._drawer_rect.width / 2,
                  self._drawer_prev_rect.y + self._drawer_prev_rect.height / 2),
-      int(22 * scale), self._font(bold=False), self._MUTED_TEXT,
+      int(26 * scale), self._font(bold=False), self._MUTED_TEXT,
     )
 
   def _draw_option_card(self, rect: rl.Rectangle, option: dict[str, Any], scale: float) -> None:
     rl.draw_rectangle_rounded(rect, self._roundness(rect, 22 * scale), 12, rl.Color(27, 23, 40, 246))
     rl.draw_rectangle_rounded_lines_ex(rect, self._roundness(rect, 22 * scale), 12, 1.5 * scale,
-                                        rl.Color(*self._PURPLE, 116))
-    padding = 24 * scale
+                                       rl.Color(*self._PURPLE, 116))
+    padding = 24.0 * scale
 
     key = str(option.get("key") or "")
     ui_type = str(option.get("ui_type") or "")
@@ -895,14 +927,14 @@ class FavoriteRadialMenu:
     else:
       badge_label = "TOGGLE"
 
-    badge_fs = int(14 * scale)
+    badge_fs = int(17 * scale)
     badge_dim = self._measure_text(self._font(bold=True), badge_label, badge_fs)
-    badge_pad_h = 7.0 * scale
-    badge_pad_v = 3.0 * scale
+    badge_pad_h = 10.0 * scale
+    badge_pad_v = 5.0 * scale
     badge_w = badge_dim.x + badge_pad_h * 2.0
     badge_h = badge_dim.y + badge_pad_v * 2.0
     badge_x = rect.x + rect.width - padding - badge_w
-    badge_y = rect.y + 19.0 * scale
+    badge_y = rect.y + 20.0 * scale
     badge_rect = rl.Rectangle(badge_x, badge_y, badge_w, badge_h)
 
     badge_fill = rl.Color(68, 44, 112, 180) if (is_act or is_drop) else rl.Color(42, 28, 70, 180)
@@ -910,7 +942,7 @@ class FavoriteRadialMenu:
     badge_text_col = rl.Color(214, 192, 255, 230) if (is_act or is_drop) else rl.Color(200, 172, 255, 200)
 
     rl.draw_rectangle_rounded(badge_rect, 0.45, 6, badge_fill)
-    rl.draw_rectangle_rounded_lines_ex(badge_rect, 0.45, 6, 1.0 * scale, badge_border)
+    rl.draw_rectangle_rounded_lines_ex(badge_rect, 0.45, 6, 1.2 * scale, badge_border)
     self._draw_centered_text(
       badge_label,
       rl.Vector2(badge_x + badge_w / 2.0, badge_y + badge_h / 2.0),
@@ -919,35 +951,68 @@ class FavoriteRadialMenu:
       badge_text_col,
     )
 
-    section_max_w = (rect.width - 2 * padding) - badge_w - 8.0 * scale
-    section = self._fit_text(self._font(bold=False), str(option.get("section") or "Favorite"), int(20 * scale), section_max_w)
-    label = self._fit_text(self._font(bold=True), str(option.get("label") or option.get("key") or "Favorite"), int(31 * scale), rect.width - 2 * padding)
-    description = self._fit_text(self._font(bold=False), str(option.get("description") or ""), int(21 * scale), rect.width - 2 * padding)
-    self._draw_text(self._font(bold=False), section, rl.Vector2(rect.x + padding, rect.y + 22 * scale),
-                    int(20 * scale), rl.Color(200, 172, 255, 214))
-    self._draw_text(self._font(bold=True), label, rl.Vector2(rect.x + padding, rect.y + 57 * scale),
-                    int(31 * scale), self._TEXT)
-    self._draw_text(self._font(bold=False), description,
-                    rl.Vector2(rect.x + padding, rect.y + rect.height - 48 * scale),
-                    int(21 * scale), self._MUTED_TEXT)
+    content_w = rect.width - 2 * padding
+    section_max_w = content_w - badge_w - 12.0 * scale
+    section = self._fit_text(self._font(bold=False), str(option.get("section") or "Favorite"), int(24 * scale), section_max_w)
+    self._draw_text(self._font(bold=False), section, rl.Vector2(rect.x + padding, rect.y + 24 * scale),
+                    int(24 * scale), rl.Color(200, 172, 255, 214))
+
+    raw_label = str(option.get("label") or option.get("key") or "Favorite").replace('\\"', '"')
+    title_fs = int(36 * scale)
+    title_dim = self._measure_text(self._font(bold=True), raw_label, title_fs)
+    if title_dim.x <= content_w:
+      self._draw_text(self._font(bold=True), raw_label, rl.Vector2(rect.x + padding, rect.y + 84 * scale),
+                      title_fs, self._TEXT)
+    else:
+      l1, l2 = self._semantic_split_label(raw_label, max_chars=20)
+      if l2 is None:
+        fitted = self._fit_text(self._font(bold=True), l1, title_fs, content_w)
+        self._draw_text(self._font(bold=True), fitted, rl.Vector2(rect.x + padding, rect.y + 84 * scale),
+                        title_fs, self._TEXT)
+      else:
+        fs_l1 = int(34 * scale)
+        fs_l2 = int(30 * scale)
+        f_l1 = self._fit_text(self._font(bold=True), l1, fs_l1, content_w)
+        f_l2 = self._fit_text(self._font(bold=True), l2, fs_l2, content_w)
+        self._draw_text(self._font(bold=True), f_l1, rl.Vector2(rect.x + padding, rect.y + 76 * scale), fs_l1, self._TEXT)
+        self._draw_text(self._font(bold=True), f_l2, rl.Vector2(rect.x + padding, rect.y + 118 * scale), fs_l2, rl.Color(255, 255, 255, 235))
+
+    raw_desc = str(option.get("description") or "").replace('\\"', '"')
+    desc_fs = int(24 * scale)
+    if raw_desc:
+      d1, d2 = self._semantic_split_label(raw_desc, max_chars=28)
+      if d2 is None:
+        fitted_d = self._fit_text(self._font(bold=False), d1, desc_fs, content_w)
+        self._draw_text(self._font(bold=False), fitted_d,
+                        rl.Vector2(rect.x + padding, rect.y + rect.height - 48 * scale),
+                        desc_fs, self._MUTED_TEXT)
+      else:
+        fd1 = self._fit_text(self._font(bold=False), d1, desc_fs, content_w)
+        fd2 = self._fit_text(self._font(bold=False), d2, desc_fs, content_w)
+        self._draw_text(self._font(bold=False), fd1,
+                        rl.Vector2(rect.x + padding, rect.y + rect.height - 72 * scale),
+                        desc_fs, self._MUTED_TEXT)
+        self._draw_text(self._font(bold=False), fd2,
+                        rl.Vector2(rect.x + padding, rect.y + rect.height - 40 * scale),
+                        desc_fs, self._MUTED_TEXT)
 
   def _draw_close_icon(self, rect: rl.Rectangle) -> None:
     scale = self._scale_for(self._rect)
-    rl.draw_rectangle_rounded(rect, self._roundness(rect, 18 * scale), 10, rl.Color(255, 255, 255, 20))
+    rl.draw_rectangle_rounded(rect, self._roundness(rect, 18 * scale), 10, rl.Color(255, 255, 255, 22))
     center = rl.Vector2(rect.x + rect.width / 2, rect.y + rect.height / 2)
-    half = rect.width * 0.21
-    color = rl.Color(255, 255, 255, 218)
-    rl.draw_line_ex(rl.Vector2(center.x - half, center.y - half), rl.Vector2(center.x + half, center.y + half), 4 * scale, color)
-    rl.draw_line_ex(rl.Vector2(center.x - half, center.y + half), rl.Vector2(center.x + half, center.y - half), 4 * scale, color)
+    half = rect.width * 0.22
+    color = rl.Color(255, 255, 255, 230)
+    rl.draw_line_ex(rl.Vector2(center.x - half, center.y - half), rl.Vector2(center.x + half, center.y + half), 4.5 * scale, color)
+    rl.draw_line_ex(rl.Vector2(center.x - half, center.y + half), rl.Vector2(center.x + half, center.y - half), 4.5 * scale, color)
 
   def _draw_pager_button(self, rect: rl.Rectangle, label: str, *, enabled: bool, scale: float) -> None:
-    fill = rl.Color(68, 44, 112, 216) if enabled else rl.Color(255, 255, 255, 14)
-    border = rl.Color(*self._PURPLE, 170 if enabled else 42)
+    fill = rl.Color(68, 44, 112, 225) if enabled else rl.Color(255, 255, 255, 14)
+    border = rl.Color(*self._PURPLE, 180 if enabled else 42)
     text_color = self._TEXT if enabled else rl.Color(255, 255, 255, 88)
-    rl.draw_rectangle_rounded(rect, self._roundness(rect, 18 * scale), 10, fill)
-    rl.draw_rectangle_rounded_lines_ex(rect, self._roundness(rect, 18 * scale), 10, 1.5 * scale, border)
+    rl.draw_rectangle_rounded(rect, self._roundness(rect, 20 * scale), 10, fill)
+    rl.draw_rectangle_rounded_lines_ex(rect, self._roundness(rect, 20 * scale), 10, 1.8 * scale, border)
     self._draw_centered_text(label, rl.Vector2(rect.x + rect.width / 2, rect.y + rect.height / 2),
-                             int(22 * scale), self._font(bold=True), text_color)
+                             int(28 * scale), self._font(bold=True), text_color)
 
   @staticmethod
   def _fit_text(font: Any, text: str, font_size: int, max_width: float) -> str:
@@ -956,6 +1021,8 @@ class FavoriteRadialMenu:
     if FavoriteRadialMenu._measure_text(font, text, font_size).x <= max_width:
       return text
     ellipsis = "..."
+    if FavoriteRadialMenu._measure_text(font, ellipsis, font_size).x > max_width:
+      return ""
     shortened = text
     while shortened and FavoriteRadialMenu._measure_text(font, f"{shortened}{ellipsis}", font_size).x > max_width:
       shortened = shortened[:-1]

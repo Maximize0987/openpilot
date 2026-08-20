@@ -192,7 +192,7 @@ def test_picker_pages_keep_all_available_options_selectable():
   memory = FakeParams()
   options = [
     {"key": f"Option{index:02}", "label": f"Option {index:02}", "description": "Test option", "section": "Testing"}
-    for index in range(13)
+    for index in range(9)
   ]
   params.types.update({option["key"]: ParamKeyType.BOOL for option in options})
   menu = FavoriteRadialMenu(params, memory, lambda: options, clock=lambda: clock[0])
@@ -210,7 +210,7 @@ def test_picker_pages_keep_all_available_options_selectable():
   assert len(second_page_centers) == 1
 
   _tap(menu, rect, second_page_centers[0])
-  assert params.get(FAVORITE_SLOTS_PARAM)[0]["key"] == "Option12"
+  assert params.get(FAVORITE_SLOTS_PARAM)[0]["key"] == "Option08"
 
 
 def test_short_tap_toggles_action_and_does_not_enter_edit_mode():
