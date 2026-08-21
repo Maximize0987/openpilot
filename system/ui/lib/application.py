@@ -155,6 +155,7 @@ class FontWeight(StrEnum):
   BOLD = "Inter-Bold.fnt"
   SEMI_BOLD = "Inter-SemiBold.fnt"
   UNIFONT = "unifont.fnt"
+  BRAND = "como-heavy.fnt"
 
   # Small UI fonts
   DISPLAY_REGULAR = "Inter-Regular.fnt"
@@ -165,6 +166,11 @@ class FontWeight(StrEnum):
 def font_fallback(font: rl.Font) -> rl.Font:
   """Fall back to unifont for languages that require it."""
   if multilang.requires_unifont():
+    try:
+      if font.texture.id == gui_app.font(FontWeight.BRAND).texture.id:
+        return font
+    except (AttributeError, KeyError):
+      pass
     return gui_app.font(FontWeight.UNIFONT)
   return font
 

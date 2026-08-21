@@ -14,6 +14,7 @@ from openpilot.selfdrive.ui.onroad.starpilot.widgets import (
 )
 from openpilot.selfdrive.ui.onroad.starpilot.stopping_point import render_stopping_point
 from openpilot.selfdrive.ui.onroad.starpilot.pause_indicators import render_lateral_paused, render_longitudinal_paused
+from openpilot.selfdrive.ui.onroad.starpilot.pulse_glide import render_pulse_glide
 from openpilot.selfdrive.ui.onroad.starpilot.pip_sidecam import PipSideCamera
 from openpilot.selfdrive.ui.onroad.starpilot.favorite_radial_menu import FavoriteRadialMenu
 from openpilot.selfdrive.ui.onroad.starpilot.weather_icon import render_weather_icon
@@ -342,6 +343,7 @@ class StarPilotOnroadView(AugmentedRoadView):
 
     # Check pause/CEM states
     starpilot_car_state = ui_state.sm["starpilotCarState"] if ui_state.sm.valid.get("starpilotCarState", False) else None
+    plan = ui_state.sm["starpilotPlan"] if ui_state.sm.valid.get("starpilotPlan", False) else None
     lateral_paused = starpilot_car_state.pauseLateral if starpilot_car_state else False
     longitudinal_paused = (starpilot_car_state.pauseLongitudinal or starpilot_car_state.forceCoast) if starpilot_car_state else False
 
@@ -352,6 +354,8 @@ class StarPilotOnroadView(AugmentedRoadView):
       active_badges.append("lateral_paused")
     if longitudinal_paused:
       active_badges.append("longitudinal_paused")
+    if starpilot_car_state and starpilot_car_state.pulseAndGlide:
+      active_badges.append("pulse_glide")
 
     # Dimensions
     badge_w = 120
@@ -377,9 +381,11 @@ class StarPilotOnroadView(AugmentedRoadView):
         render_lateral_paused(badge_rect)
       elif badge == "longitudinal_paused":
         render_longitudinal_paused(badge_rect)
+      elif badge == "pulse_glide":
+        pulse_glide_coasting = bool(getattr(plan, "pulseGlideCoasting", False)) if plan else False
+        render_pulse_glide(badge_rect, pulse_glide_coasting)
 
     # 2. Render Weather (on the opposite side of DM icon)
-    plan = ui_state.sm["starpilotPlan"] if ui_state.sm.valid.get("starpilotPlan", False) else None
     if plan and plan.weatherId != 0:
       weather_w = 120
       weather_h = 120
