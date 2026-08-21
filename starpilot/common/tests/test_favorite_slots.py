@@ -196,7 +196,14 @@ def test_shared_favorite_option_catalog_uses_layout_metadata_and_capability_gate
     {
       "name": "Testing",
       "params": [
-        {"key": "FeatureToggle", "label": "Feature Toggle", "description": "Visible", "ui_type": "toggle", "data_type": "bool"},
+        {
+          "key": "FeatureToggle",
+          "label": "Feature Toggle",
+          "description": "Visible",
+          "picker_description": "Compact",
+          "ui_type": "toggle",
+          "data_type": "bool",
+        },
         {"key": "UnsupportedToggle", "label": "Unsupported", "ui_type": "toggle", "data_type": "bool"},
         {"key": "AlphaLongitudinalEnabled", "label": "Alpha", "ui_type": "toggle", "data_type": "bool"},
         {"key": "RivianAngleControl", "label": "Rivian", "ui_type": "toggle", "data_type": "bool", "requires_capability": "HasRivianAngleHarness"},
@@ -212,6 +219,9 @@ def test_shared_favorite_option_catalog_uses_layout_metadata_and_capability_gate
 
   assert FAVORITE_ACTION_DISTANCE_DECREASE in {option["key"] for option in options}
   assert {option["key"] for option in options} >= {"FeatureToggle", "RivianAngleControl"}
+  feature_option = next(option for option in options if option["key"] == "FeatureToggle")
+  assert feature_option["description"] == "Visible"
+  assert feature_option["picker_description"] == "Compact"
   assert "UnsupportedToggle" not in {option["key"] for option in options}
   assert "AlphaLongitudinalEnabled" not in {option["key"] for option in options}
   assert "RivianAngleControl" not in {
@@ -372,4 +382,3 @@ def test_get_favorite_param_value_and_get_favorite_values():
   assert active_idx == 2
   assert active_label == "Sport"
   assert len(opts) == 3
-

@@ -159,6 +159,10 @@ def build_favorite_slot_options(is_eligible_param: Callable[[str], bool], *,
       "data_type": data_type,
       "requiresCapability": str(param_data.get("requires_capability") or ""),
     }
+    for picker_field in ("picker_label", "picker_description"):
+      picker_value = str(param_data.get(picker_field) or "").strip()
+      if picker_value:
+        opt_dict[picker_field] = picker_value
     if is_dropdown:
       opt_dict["options"] = [dict(o) for o in raw_options if isinstance(o, dict)]
     options.append(opt_dict)
@@ -522,4 +526,3 @@ def unassign_favorite_slot(slot_index: int, params: Params | None = None, params
   saved = save_favorite_slots(slots, params, eligible_keys=eligible_keys)
   request_starpilot_toggle_refresh(params_memory)
   return saved
-
