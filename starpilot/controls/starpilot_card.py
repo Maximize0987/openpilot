@@ -168,6 +168,8 @@ class StarPilotCard:
 
     button_event_types = [self._button_type_raw(be) for be in carState.buttonEvents]
     button_aol_supported = self.CP.brand == "hyundai" or starpilot_toggles.lkas_allowed_for_aol
+    if getattr(self.CP, "carFingerprint", None) == HYUNDAI_CAR.HYUNDAI_SONATA_HYBRID:
+      button_aol_supported = bool(starpilot_toggles.lkas_allowed_for_aol)
     button_managed_aol = starpilot_toggles.always_on_lateral_lkas or (button_aol_supported and starpilot_toggles.main_cruise_aol_toggle)
     g70_main_cruise_aol_managed = (
       getattr(self.CP, "carFingerprint", None) == HYUNDAI_CAR.GENESIS_G70_2020

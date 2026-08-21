@@ -280,7 +280,7 @@ def test_sonata_hybrid_lkas_button_can_start_aol_before_normal_engagement(monkey
   car_state = make_car_state(available=False, enabled=False, button_events=[SimpleNamespace(type=spc.ButtonType.lkas, pressed=True)])
   starpilot_car_state = SimpleNamespace(distancePressed=False)
   sm = make_sm()
-  toggles = make_toggles(always_on_lateral=True, always_on_lateral_lkas=True)
+  toggles = make_toggles(always_on_lateral=True, always_on_lateral_lkas=True, lkas_allowed_for_aol=True)
 
   ret = card.update(car_state, starpilot_car_state, sm, toggles)
 
@@ -300,7 +300,7 @@ def test_sonata_hybrid_preserves_aol_latch_across_reverse(monkeypatch, tmp_path)
 
   starpilot_car_state = SimpleNamespace(distancePressed=False)
   sm = make_sm()
-  toggles = make_toggles(always_on_lateral=True, always_on_lateral_lkas=True)
+  toggles = make_toggles(always_on_lateral=True, always_on_lateral_lkas=True, lkas_allowed_for_aol=True)
 
   enabled_state = make_car_state(available=False, enabled=False, button_events=[SimpleNamespace(type=spc.ButtonType.lkas, pressed=True)])
   ret = card.update(enabled_state, starpilot_car_state, sm, toggles)
