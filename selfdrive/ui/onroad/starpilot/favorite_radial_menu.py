@@ -54,6 +54,7 @@ class FavoriteRadialMenu:
   CORNER_HINT_OUTER_RADIUS = 62.0
   CORNER_HINT_RING_RADIUS = 42.0
   CORNER_HINT_EDGE_MARGIN = 6.0
+  _ELLIPSIS = "..."
 
   _PURPLE = (161, 112, 255)
   _PANEL = rl.Color(13, 11, 23, 236)
@@ -1083,7 +1084,7 @@ class FavoriteRadialMenu:
       return ""
     if FavoriteRadialMenu._measure_text(font, text, font_size).x <= max_width:
       return text
-    ellipsis = "..."
+    ellipsis = FavoriteRadialMenu._ELLIPSIS
     if FavoriteRadialMenu._measure_text(font, ellipsis, font_size).x > max_width:
       return ""
     shortened = text
@@ -1101,7 +1102,7 @@ class FavoriteRadialMenu:
 
   @staticmethod
   def _append_ellipsis(font: Any, text: str, font_size: int, max_width: float) -> str:
-    ellipsis = "…"
+    ellipsis = FavoriteRadialMenu._ELLIPSIS
     if max_width <= 0 or FavoriteRadialMenu._measure_text(font, ellipsis, font_size).x > max_width:
       return ""
 
