@@ -59,20 +59,13 @@ class SoundsManagerView(AdjustorTogglesPanelView):
 
     self._init_adjustors()
     self._init_toggles()
-    self._forward_touch_valid()
-
-  def _forward_touch_valid(self):
-    self._toggle_grid.set_touch_valid_callback(
-      lambda: self._scroll_panel.is_touch_valid()
-    )
 
   def _init_toggles(self):
     if self.PANEL_STYLE.toggle_row_mode:
       self._toggle_grid = TileGrid(columns=1, padding=SPACING.md, min_tile_height=TOGGLE_MIN_HEIGHT)
     else:
       self._toggle_grid = TileGrid(columns=2, padding=12, min_tile_height=130.0)
-    self._child(self._toggle_grid)
-    self._page_grid = self._toggle_grid
+    self.register_page_grid(self._toggle_grid)
 
     toggle_defs = []
     for key in self._controller.CUSTOM_ALERTS_KEYS:

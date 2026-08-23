@@ -603,6 +603,7 @@ class PanelManagerView(AetherInteractiveMixin, Widget):
     self._page_anim_committed = False
     self._page_anim_prev_tiles: list = []
     self._page_drag_active = False
+    self._page_drag_eligible = False
     self._page_drag_offset = 0.0
     self._page_drag_start_x = 0.0
     self._page_drag_start_y = 0.0
@@ -918,6 +919,7 @@ class PanelManagerView(AetherInteractiveMixin, Widget):
     super()._handle_mouse_press(mouse_pos)
     if self._has_pagination:
       if self._page_clip_rect and not rl.check_collision_point_rec(mouse_pos, self._page_clip_rect):
+        self._page_drag_eligible = False
         return
       
       if self._page_animating:
@@ -926,15 +928,17 @@ class PanelManagerView(AetherInteractiveMixin, Widget):
       self._page_drag_start_x = mouse_pos.x
       self._page_drag_start_y = mouse_pos.y
       self._page_drag_active = False
+      self._page_drag_eligible = True
       self._page_drag_offset = 0.0
 
   def _handle_mouse_event(self, mouse_event: MouseEvent) -> None:
     super()._handle_mouse_event(mouse_event)
-    if self._has_pagination:
+    if self._has_pagination and getattr(self, "_page_drag_eligible", False):
       dx = mouse_event.pos.x - self._page_drag_start_x
       dy = abs(mouse_event.pos.y - self._page_drag_start_y)
       if dy > abs(dx) * 1.2 and dy > 32:
         self._page_drag_active = False
+        self._page_drag_eligible = False
         self._page_drag_offset = 0.0
         return
       if (self._current_page == 0 and dx > 0) or \
@@ -947,6 +951,7 @@ class PanelManagerView(AetherInteractiveMixin, Widget):
         self._can_click = False
 
   def _handle_mouse_release(self, mouse_pos: MousePos) -> None:
+    self._page_drag_eligible = False
     if self._page_drag_active and self._has_pagination:
       self._page_drag_active = False
       offset = self._page_drag_offset
@@ -1026,6 +1031,7 @@ class PanelManagerView(AetherInteractiveMixin, Widget):
 
   def show_event(self) -> None:
     super().show_event()
+    self._page_drag_eligible = False
     self._page_drag_active = False
     self._page_drag_offset = 0.0
     self._page_animating = False
@@ -1033,6 +1039,14 @@ class PanelManagerView(AetherInteractiveMixin, Widget):
     if self._has_pagination and self._current_page != 0:
       self._current_page = 0
       self._on_page_changed()
+
+  def hide_event(self) -> None:
+    super().hide_event()
+    self._page_drag_eligible = False
+    self._page_drag_active = False
+    self._page_drag_offset = 0.0
+    self._page_animating = False
+    self._page_anim_prev_tiles.clear()
 
 
 # ═══════════════════════════════════════════════════════════════
