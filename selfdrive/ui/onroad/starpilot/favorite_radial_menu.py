@@ -706,8 +706,7 @@ class FavoriteRadialMenu:
     size = 120.0 * scale
     purple = self._PURPLE
 
-    # 1. Smooth gradient triangle (32-step tessellated fade to 0 alpha at hypotenuse)
-    steps = 32
+    steps = 6
     max_alpha = 135 if is_pressed else 95
     for i in range(steps):
       t_a = i / float(steps)
