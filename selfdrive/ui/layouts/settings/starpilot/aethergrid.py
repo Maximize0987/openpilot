@@ -1968,10 +1968,12 @@ def draw_metric_strip(
       )
 
 
+GROUP_TOP_INSET = 16.0
 GROUP_HEADER_HEIGHT = 30.0
-GROUP_HEADER_GAP = 1.0
-GROUP_HEADER_LINE_GAP = 1.0
-GROUP_OVERHEAD = 8.0 + GROUP_HEADER_HEIGHT + GROUP_HEADER_LINE_GAP + GROUP_HEADER_GAP
+GROUP_HEADER_GAP = 10.0
+GROUP_HEADER_LINE_GAP = 4.0
+GROUP_HEADER_TOTAL_HEIGHT = GROUP_HEADER_HEIGHT + GROUP_HEADER_LINE_GAP + GROUP_HEADER_GAP
+GROUP_OVERHEAD = GROUP_TOP_INSET + GROUP_HEADER_TOTAL_HEIGHT
 GROUP_HAIRLINE_COLOR = rl.Color(255, 255, 255, 30)
 GROUP_HEADER_COLOR = AetherListColors.HEADER
 
@@ -1979,7 +1981,7 @@ GROUP_HEADER_COLOR = AetherListColors.HEADER
 def draw_group_header(x: float, y: float, width: float, label: str) -> float:
   gui_label(rl.Rectangle(x, y, max(1.0, width), GROUP_HEADER_HEIGHT), label, 30, GROUP_HEADER_COLOR, FontWeight.MEDIUM)
   y += GROUP_HEADER_HEIGHT + GROUP_HEADER_LINE_GAP
-  rl.draw_line(int(x), int(y), int(x + width), int(y), GROUP_HAIRLINE_COLOR)
+  rl.draw_line(int(round(x)), int(round(y)), int(round(x + width)), int(round(y)), GROUP_HAIRLINE_COLOR)
   return y + GROUP_HEADER_GAP
 
 
@@ -2086,7 +2088,7 @@ def draw_settings_list_row(
   title_size: int = 49,
   subtitle_size: int = 38,
   value_size: int = 44,
-  separator_inset: int = 22,
+  separator_inset: int = 24,
   title_color: rl.Color | None = None,
   subtitle_color: rl.Color | None = None,
   value_color: rl.Color | None = None,
@@ -2096,7 +2098,12 @@ def draw_settings_list_row(
   resolved_title_color = title_color or (style.title_color if enabled else style.muted_color)
   resolved_subtitle_color = subtitle_color or (style.subtitle_color if enabled else style.muted_color)
   resolved_value_color = value_color or (style.title_color if enabled else style.muted_color)
-  chevron_rect = rl.Rectangle(draw_rect.x + draw_rect.width - AETHER_LIST_METRICS.utility_chevron_right, draw_rect.y + 18, 26, 26)
+
+  is_narrow = draw_rect.width < 1000
+  chevron_right_inset = 28 if is_narrow else AETHER_LIST_METRICS.utility_chevron_right
+  chevron_y = draw_rect.y + (draw_rect.height - 26) / 2
+  chevron_rect = rl.Rectangle(draw_rect.x + draw_rect.width - chevron_right_inset, chevron_y, 26, 26)
+
   draw_list_row_shell(
     draw_rect,
     hovered=hovered and enabled,
@@ -2110,32 +2117,40 @@ def draw_settings_list_row(
     separator_inset=separator_inset,
   )
 
-  # Compute text width based on right-side elements — no truncation, font-size reduces gracefully
   text_left = draw_rect.x + 24
-  if toggle_value is not None:
-    text_right = draw_rect.x + draw_rect.width - AETHER_LIST_METRICS.toggle_width - AETHER_LIST_METRICS.toggle_right_inset - 12
-  elif value:
-    text_right = draw_rect.x + draw_rect.width - AETHER_LIST_METRICS.utility_value_right - 12
-  elif show_chevron:
-    text_right = draw_rect.x + draw_rect.width - AETHER_LIST_METRICS.utility_chevron_right - 26 - 12
-  else:
-    text_right = draw_rect.x + draw_rect.width - 24
-  text_width = max(100.0, text_right - text_left)
-  draw_text_fit_common(
-    gui_app.font(FontWeight.MEDIUM), title,
-    rl.Vector2(text_left, draw_rect.y + 16),
-    text_width, title_size,
-    color=resolved_title_color,
-  )
-  if subtitle:
-    draw_text_fit_common(
-      gui_app.font(FontWeight.NORMAL), subtitle,
-      rl.Vector2(text_left, draw_rect.y + 64),
-      text_width, subtitle_size,
-      color=resolved_subtitle_color,
-    )
 
   if toggle_value is not None:
+    toggle_right_inset = 28 if is_narrow else AETHER_LIST_METRICS.toggle_right_inset
+    text_right = draw_rect.x + draw_rect.width - AETHER_LIST_METRICS.toggle_width - toggle_right_inset - 12
+    text_width = max(100.0, text_right - text_left)
+
+    if subtitle:
+      eff_title_size = min(36, title_size)
+      eff_sub_size = min(26, subtitle_size)
+      total_h = eff_title_size + eff_sub_size + 4
+      start_y = draw_rect.y + (draw_rect.height - total_h) / 2
+
+      draw_text_fit_common(
+        gui_app.font(FontWeight.MEDIUM), title,
+        rl.Vector2(text_left, start_y),
+        text_width, eff_title_size,
+        color=resolved_title_color,
+      )
+      draw_text_fit_common(
+        gui_app.font(FontWeight.NORMAL), subtitle,
+        rl.Vector2(text_left, start_y + eff_title_size + 4),
+        text_width, eff_sub_size,
+        color=resolved_subtitle_color,
+      )
+    else:
+      title_y = draw_rect.y + (draw_rect.height - title_size) / 2
+      draw_text_fit_common(
+        gui_app.font(FontWeight.MEDIUM), title,
+        rl.Vector2(text_left, title_y),
+        text_width, title_size,
+        color=resolved_title_color,
+      )
+
     target = 1.0 if toggle_value else 0.0
     current_progress = _KNOB_ANIMATION_STATES.get(title, target)
     dt = rl.get_frame_time()
@@ -2151,26 +2166,99 @@ def draw_settings_list_row(
       is_enabled=enabled, 
       track_color=style.accent,
       seed_id=title,
+      right_inset=toggle_right_inset,
     )
     return
 
   if value:
-    value_left = draw_rect.x + draw_rect.width - AETHER_LIST_METRICS.utility_value_right
-    value_right = chevron_rect.x - 16 if show_chevron else draw_rect.x + draw_rect.width - 24
-    value_rect = rl.Rectangle(value_left, draw_rect.y + 20, max(48.0, value_right - value_left), 34)
-    gui_label(
-      value_rect,
-      value,
-      value_size,
-      resolved_value_color,
-      FontWeight.MEDIUM,
-      alignment=rl.GuiTextAlignment.TEXT_ALIGN_RIGHT,
+    if is_narrow and draw_rect.height >= 86 and not subtitle:
+      # Adaptive Two-Line Stacked Layout: Title on top, Value spanning full width below
+      eff_title_size = min(34, title_size)
+      eff_value_size = min(28, value_size)
+      available_w = max(100.0, draw_rect.width - 48 - (32 if show_chevron else 0))
+
+      total_h = eff_title_size + eff_value_size + 6
+      start_y = draw_rect.y + (draw_rect.height - total_h) / 2
+
+      draw_text_fit_common(
+        gui_app.font(FontWeight.MEDIUM), title,
+        rl.Vector2(text_left, start_y),
+        available_w, eff_title_size,
+        color=resolved_title_color,
+      )
+      draw_text_fit_common(
+        gui_app.font(FontWeight.MEDIUM), value,
+        rl.Vector2(text_left, start_y + eff_title_size + 6),
+        available_w, eff_value_size,
+        color=resolved_subtitle_color if resolved_value_color == resolved_title_color else resolved_value_color,
+      )
+    else:
+      # Proportional Side-by-Side: 42% Title on left, 56% Value right-aligned before chevron
+      if is_narrow:
+        content_w = max(100.0, draw_rect.width - 48 - (32 if show_chevron else 0))
+        t_width = content_w * 0.42
+        v_width = content_w * 0.56
+        v_right = draw_rect.x + 24 + content_w
+      else:
+        v_width = max(100.0, float(AETHER_LIST_METRICS.utility_value_right - (AETHER_LIST_METRICS.utility_chevron_right if show_chevron else 24) - 16))
+        t_width = max(100.0, draw_rect.width - 48 - v_width - (32 if show_chevron else 0))
+        v_right = chevron_rect.x - 16 if show_chevron else draw_rect.x + draw_rect.width - 24
+
+      eff_title_size = min(36, title_size) if is_narrow else title_size
+      eff_value_size = min(30, value_size) if is_narrow else value_size
+
+      title_y = draw_rect.y + (draw_rect.height - eff_title_size) / 2
+      value_y = draw_rect.y + (draw_rect.height - eff_value_size) / 2
+
+      draw_text_fit_common(
+        gui_app.font(FontWeight.MEDIUM), title,
+        rl.Vector2(text_left, title_y),
+        t_width, eff_title_size,
+        color=resolved_title_color,
+      )
+      draw_text_fit_common(
+        gui_app.font(FontWeight.MEDIUM), value,
+        rl.Vector2(v_right - v_width, value_y),
+        v_width, eff_value_size,
+        align_right=True,
+        color=resolved_value_color,
+      )
+
+    if show_chevron:
+      draw_chevron_icon(chevron_rect, style.muted_color)
+    return
+
+  # Generic row without value or toggle
+  text_right = chevron_rect.x - 12 if show_chevron else draw_rect.x + draw_rect.width - 24
+  text_width = max(100.0, text_right - text_left)
+  if subtitle:
+    eff_title_size = min(36, title_size)
+    eff_sub_size = min(26, subtitle_size)
+    total_h = eff_title_size + eff_sub_size + 4
+    start_y = draw_rect.y + (draw_rect.height - total_h) / 2
+    draw_text_fit_common(
+      gui_app.font(FontWeight.MEDIUM), title,
+      rl.Vector2(text_left, start_y),
+      text_width, eff_title_size,
+      color=resolved_title_color,
     )
+    draw_text_fit_common(
+      gui_app.font(FontWeight.NORMAL), subtitle,
+      rl.Vector2(text_left, start_y + eff_title_size + 4),
+      text_width, eff_sub_size,
+      color=resolved_subtitle_color,
+    )
+  else:
+    title_y = draw_rect.y + (draw_rect.height - title_size) / 2
+    draw_text_fit_common(
+      gui_app.font(FontWeight.MEDIUM), title,
+      rl.Vector2(text_left, title_y),
+      text_width, title_size,
+      color=resolved_title_color,
+    )
+
   if show_chevron:
-    draw_chevron_icon(
-      chevron_rect,
-      style.muted_color,
-    )
+    draw_chevron_icon(chevron_rect, style.muted_color)
 
 
 def draw_selectable_chip(rect: rl.Rectangle, text: str, *,
