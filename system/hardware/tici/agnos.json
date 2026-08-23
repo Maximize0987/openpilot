@@ -67,13 +67,13 @@
   },
   {
     "name": "system",
-    "url": "https://www.dropbox.com/scl/fi/pewhzpqzi3aewuiaffc6m/system10.img.xz?rlkey=olzrzulhs93zzghnjrskmdwxt&st=exnfk2oz&dl=1",
-    "hash": "ab395d4c963a908ab86709f1a6580a62dd24cb34ee71cf5fd5ec29d7d48d0e10",
-    "hash_raw": "ab395d4c963a908ab86709f1a6580a62dd24cb34ee71cf5fd5ec29d7d48d0e10",
+    "url": "https://cloud.floonetwork.io/s/w4tQdX5kS9Rgeiw/download",
+    "hash": "8478e080cf5fbfdcc84d6910f7cd1cb6b2a5a2939eb9e56f2425f87ee33d146d",
+    "hash_raw": "8478e080cf5fbfdcc84d6910f7cd1cb6b2a5a2939eb9e56f2425f87ee33d146d",
     "size": 4718592000,
     "sparse": false,
     "full_check": false,
     "has_ab": true,
-    "ondevice_hash": "ab395d4c963a908ab86709f1a6580a62dd24cb34ee71cf5fd5ec29d7d48d0e10"
+    "ondevice_hash": "8478e080cf5fbfdcc84d6910f7cd1cb6b2a5a2939eb9e56f2425f87ee33d146d"
   }
 ]

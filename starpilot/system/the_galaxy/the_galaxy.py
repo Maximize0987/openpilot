@@ -98,7 +98,10 @@ from openpilot.starpilot.common.testing_grounds import (
   TESTING_GROUNDS_STATE_PATH as SHARED_TESTING_GROUNDS_STATE_PATH,
 )
 from openpilot.starpilot.navigation.destination_store import normalize_destination_payload, update_recent_destinations
-from openpilot.starpilot.system.the_galaxy.factory_reset import remove_path as _run_factory_reset_delete
+from openpilot.starpilot.system.the_galaxy.factory_reset import (
+  remove_path as _run_factory_reset_delete,
+  request_system_factory_reset as _request_system_factory_reset,
+)
 from openpilot.starpilot.system.the_galaxy import flm_workspace, utilities
 from openpilot.starpilot.system.the_galaxy.update_recovery import inspect_interrupted_update, public_recovery_status, recover_interrupted_update
 
@@ -1437,22 +1440,6 @@ _fast_update_state = {
 }
 _ROUTE_DELETE_LOCK = threading.Lock()
 
-_FACTORY_RESET_WIPE_PATHS = [
-  "/data/params",
-  "/cache/starpilot/params",
-  "/cache/params",
-  "/data/media/0/realdata",
-  "/data/media/0/realdata_HD",
-  "/data/media/0/realdata_konik",
-  "/data/models",
-  "/data/toggle_backups",
-  "/data/backups",
-  "/data/themes",
-  "/data/media/0/osm/offline",
-  "/cache/use_HD",
-  "/cache/use_konik",
-]
-
 _PLOTS_POLL_INTERVAL_S = 0.75
 _PLOTS_BOOT_STABILIZATION_WINDOW_S = 45.0
 _PLOTS_BOOT_POLL_INTERVAL_S = 1.0
@@ -2543,34 +2530,18 @@ def _factory_reset_worker():
   started_at = time.time()
 
   try:
-    _set_fast_update_progress(1, "Preparing factory reset", 10.0, "Cleaning up legacy device state...")
+    _set_fast_update_progress(1, "Preparing factory reset", 10.0, "Requesting AGNOS system reset...")
     _set_fast_update_state(
       running=True,
       stage="factory-resetting",
-      message="Factory reset started. Wiping device state...",
+      message="Factory reset requested. AGNOS will erase userdata after reboot...",
       lastError="",
       lastMode="factory-reset",
       startedAt=started_at,
       finishedAt=0.0,
     )
-    _set_fast_update_progress(1, "Preparing factory reset", 100.0, "Factory reset initialized.")
-
-    total_paths = max(1, len(_FACTORY_RESET_WIPE_PATHS))
-    for index, path in enumerate(_FACTORY_RESET_WIPE_PATHS, start=1):
-      step_percent = ((index - 1) / total_paths) * 100.0
-      _set_fast_update_progress(2, "Wiping device data", step_percent, f"Removing {path}...")
-      _run_factory_reset_delete(path)
-      _set_fast_update_progress(2, "Wiping device data", (index / total_paths) * 100.0, f"Removed {path}.")
-
-    _set_fast_update_progress(3, "Resetting factory state", 100.0, "Legacy device state removed.")
-
-    _set_fast_update_progress(4, "Finalizing reset", 50.0, "Syncing filesystem before reboot...")
-    subprocess.run(["sync"], capture_output=True, text=True, timeout=60, check=False)
-    _set_fast_update_progress(4, "Finalizing reset", 100.0, "Filesystem sync complete.")
-
-    _finish_update_and_reboot(
-      "Factory reset complete. Device is rebooting now. Please wait for reconnection."
-    )
+    _set_fast_update_progress(1, "Preparing factory reset", 100.0, "AGNOS reset trigger initialized.")
+    _request_system_factory_reset()
   except Exception as exception:
     _set_fast_update_error_state("Factory reset failed.", exception)
 

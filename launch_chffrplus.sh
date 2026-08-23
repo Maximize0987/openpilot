@@ -29,20 +29,6 @@ function agnos_init {
   # set success flag for current boot slot
   sudo abctl --set_success
 
-  # Restore SSH access after a user-triggered reset if keys were backed up to /cache.
-  SSH_BACKUP_DIR="/cache/reset_backup"
-  if [ -d "$SSH_BACKUP_DIR" ]; then
-    sudo mkdir -p /data/params/d
-    for key in GithubSshKeys SshEnabled; do
-      if [ -f "$SSH_BACKUP_DIR/$key" ]; then
-        sudo cp "$SSH_BACKUP_DIR/$key" "/data/params/d/$key"
-      fi
-    done
-    sudo chown comma:comma /data/params/d/GithubSshKeys /data/params/d/SshEnabled 2>/dev/null || true
-    sudo chmod 600 /data/params/d/GithubSshKeys /data/params/d/SshEnabled 2>/dev/null || true
-    sudo rm -rf "$SSH_BACKUP_DIR"
-  fi
-
   # TODO: do this without udev in AGNOS
   # udev does this, but sometimes we startup faster
   sudo chgrp gpu /dev/adsprpc-smd /dev/ion /dev/kgsl-3d0
