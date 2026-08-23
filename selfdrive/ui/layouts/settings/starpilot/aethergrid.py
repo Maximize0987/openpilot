@@ -3758,16 +3758,16 @@ class AetherTile(Widget):
     rx, ry, rw, rh = face.x, face.y, face.width, face.height
     content_pad = max(24, int(rh * 0.15))
     
-    title_size = max(26, min(32, int(rh * 0.26)))
-    status_size = max(20, min(25, int(rh * 0.20)))
+    title_size = max(32, min(44, int(rh * 0.35)))
+    status_size = max(22, min(28, int(rh * 0.22)))
     
-    title_color = rl.WHITE if (enabled and is_active) else rl.Color(220, 220, 230, 255)
+    title_color = rl.WHITE if (enabled and is_active) else rl.Color(236, 242, 250, 255)
     
-    title_y = ry + (rh / 2) - title_size - 4
-    status_y = ry + (rh / 2) + 8
+    title_y = ry + (rh / 2) - title_size - 2
+    status_y = ry + (rh / 2) + 6
     
     max_text_width = rw - (content_pad * 2) - int(rh * 0.40) - 10
-    font = getattr(self, "_font", gui_app.font(FontWeight.BOLD))
+    font = getattr(self, "_font", gui_app.font(FontWeight.SEMI_BOLD))
     font_desc = getattr(self, "_font_desc", gui_app.font(FontWeight.MEDIUM))
 
     draw_text_fit_common(font, title_text, rl.Vector2(rx + content_pad, title_y), max_text_width, title_size, color=title_color)
@@ -3777,7 +3777,7 @@ class AetherTile(Widget):
       status_color = rl.Color(160, 160, 175, 255)
     else:
       display_status = status_text
-      status_color = status_color_override if status_color_override is not None else accent
+      status_color = status_color_override if status_color_override is not None else (accent if is_active else rl.Color(200, 210, 225, 255))
       
     if display_status:
       draw_text_fit_common(font_desc, display_status, rl.Vector2(rx + content_pad, status_y), max_text_width, status_size, color=status_color)
@@ -3935,7 +3935,7 @@ class ToggleTile(AetherTile):
     self.get_state = get_state
     self.set_state = set_state
     self.set_enabled(is_enabled or True)
-    self._font = gui_app.font(FontWeight.BOLD)
+    self._font = gui_app.font(FontWeight.SEMI_BOLD)
     self._font_desc = gui_app.font(FontWeight.MEDIUM)
     self._active_color = self.surface_color
     self._inactive_color = rl.Color(120, 120, 120, 255)
@@ -4064,7 +4064,7 @@ class RowToggleTile(ToggleTile):
     active = self.get_state()
     
     status_text = tr("Enabled") if active else tr("Disabled")
-    status_color_override = None if active else rl.Color(160, 160, 175, 255)
+    status_color_override = None if active else rl.Color(200, 210, 225, 255)
 
     def draw_led(rx, ry, rw, rh, content_pad, accent):
       led_radius_outer = int(rh * 0.10)
