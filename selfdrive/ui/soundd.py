@@ -5,7 +5,7 @@ import wave
 
 from pathlib import Path
 
-from cereal import car, custom, log, messaging
+from cereal import custom, log, messaging
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -41,6 +41,8 @@ StarPilotAudibleAlert = custom.StarPilotCarControl.HUDControl.AudibleAlert
 STARPILOT_CUSTOM_ALERT_OFFSET = 1000
 STARPILOT_CUSTOM_ALERT_START = int(StarPilotAudibleAlert.angry)
 TURN_STEERING_LIMIT_ALERT_SUFFIX = "steersaturated"
+# Keep carState out of this list; C4's onroad stack is near msgq's 15-reader limit.
+SOUNDD_SERVICES = ('selfdriveState', 'soundPressure', 'starpilotSelfdriveState', 'starpilotPlan')
 
 
 def starpilot_alert_key(alert):
@@ -301,9 +303,7 @@ class Soundd:
     # sounddevice must be imported after forking processes
     import sounddevice as sd
 
-    sm = messaging.SubMaster(['selfdriveState', 'soundPressure', 'carState'])
-
-    sm = sm.extend(['starpilotSelfdriveState', 'starpilotPlan'])
+    sm = messaging.SubMaster(list(SOUNDD_SERVICES))
 
     while True:
       stream = None
@@ -330,7 +330,7 @@ class Soundd:
           self.get_audible_alert(sm)
 
           if self.current_alert != AudibleAlert.none:
-            v_ego = max(float(getattr(sm["carState"], "vEgo", 0.0)), 0.0)
+            v_ego = max(float(getattr(sm["starpilotSelfdriveState"], "vEgo", 0.0)), 0.0)
             if should_mute_turn_steering_limit_alert(
               self.current_alert_type,
               v_ego,

@@ -3,6 +3,7 @@ from cereal import messaging
 from cereal.messaging import SubMaster, PubMaster
 from openpilot.selfdrive.ui.soundd import (
   SELFDRIVE_STATE_TIMEOUT,
+  SOUNDD_SERVICES,
   check_selfdrive_timeout_alert,
   is_turn_steering_limit_alert,
   should_mute_turn_steering_limit_alert,
@@ -14,6 +15,10 @@ AudibleAlert = log.SelfdriveState.AudibleAlert
 
 
 class TestSoundd:
+  def test_does_not_consume_car_state_reader(self):
+    assert "carState" not in SOUNDD_SERVICES
+    assert "starpilotSelfdriveState" in SOUNDD_SERVICES
+
   def test_turn_steering_limit_alert_detection(self):
     assert is_turn_steering_limit_alert("steerSaturated/warning")
     assert is_turn_steering_limit_alert("goatSteerSaturated/warning")
