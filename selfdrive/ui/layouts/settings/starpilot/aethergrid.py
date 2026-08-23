@@ -1977,7 +1977,7 @@ GROUP_HEADER_COLOR = AetherListColors.HEADER
 
 
 def draw_group_header(x: float, y: float, width: float, label: str) -> float:
-  gui_label(rl.Rectangle(x, y, max(1.0, width), GROUP_HEADER_HEIGHT), label, 26, GROUP_HEADER_COLOR, FontWeight.MEDIUM)
+  gui_label(rl.Rectangle(x, y, max(1.0, width), GROUP_HEADER_HEIGHT), label, 30, GROUP_HEADER_COLOR, FontWeight.MEDIUM)
   y += GROUP_HEADER_HEIGHT + GROUP_HEADER_LINE_GAP
   rl.draw_line(int(x), int(y), int(x + width), int(y), GROUP_HAIRLINE_COLOR)
   return y + GROUP_HEADER_GAP
@@ -2540,7 +2540,7 @@ class AetherAdjustorRow(Widget):
     self._preset_applied = False
     self._font_title = gui_app.font(FontWeight.MEDIUM)
     self._font_subtitle = gui_app.font(FontWeight.NORMAL)
-    self._font_value = gui_app.font(FontWeight.SEMI_BOLD)
+    self._font_value = gui_app.font(FontWeight.MEDIUM)
     self._focus_progress = 0.0
     self._pressed_zone: str | None = None
     self._is_last = False
@@ -2703,7 +2703,7 @@ class AetherAdjustorRow(Widget):
 
     bar_h = max(74, min(94, int(rect.height * 0.87)))
     title_fs = max(38, int(bar_h * 0.53))
-    value_fs = max(24, int(bar_h * 0.34))
+    value_fs = max(28, int(bar_h * 0.38))
 
     content_left = rect.x + 24
     bar_width = max(120.0, rect.width - 48)
@@ -3767,7 +3767,7 @@ class AetherTile(Widget):
     status_y = ry + (rh / 2) + 6
     
     max_text_width = rw - (content_pad * 2) - int(rh * 0.40) - 10
-    font = getattr(self, "_font", gui_app.font(FontWeight.SEMI_BOLD))
+    font = getattr(self, "_font", gui_app.font(FontWeight.MEDIUM))
     font_desc = getattr(self, "_font_desc", gui_app.font(FontWeight.MEDIUM))
 
     draw_text_fit_common(font, title_text, rl.Vector2(rx + content_pad, title_y), max_text_width, title_size, color=title_color)
@@ -3935,7 +3935,7 @@ class ToggleTile(AetherTile):
     self.get_state = get_state
     self.set_state = set_state
     self.set_enabled(is_enabled or True)
-    self._font = gui_app.font(FontWeight.SEMI_BOLD)
+    self._font = gui_app.font(FontWeight.MEDIUM)
     self._font_desc = gui_app.font(FontWeight.MEDIUM)
     self._active_color = self.surface_color
     self._inactive_color = rl.Color(120, 120, 120, 255)
@@ -5138,7 +5138,7 @@ class AetherSegmentedControl(Widget):
     self._compact = compact
     self._style = style
     self._suppress_background = suppress_background
-    self._font = gui_app.font(FontWeight.BOLD)
+    self._font = gui_app.font(FontWeight.MEDIUM)
     self._font_status = gui_app.font(FontWeight.NORMAL)
     self._pressed_index = -1
     self._option_rects: list[rl.Rectangle] = []
