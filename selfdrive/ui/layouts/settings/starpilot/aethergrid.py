@@ -284,10 +284,10 @@ class AetherListMetrics:
   panel_padding_top: int = 0
   panel_padding_bottom: int = 0
   header_height: int = 0
-  section_gap: int = 28
-  section_header_height: int = 87
-  section_header_gap: int = 12
-  row_height: int = 177
+  section_gap: int = 24
+  section_header_height: int = 44
+  section_header_gap: int = 10
+  row_height: int = 128
   utility_row_height: int = 128
   row_radius: float = 0.12
   action_width: int = 235
@@ -1434,11 +1434,11 @@ class BreadcrumbController:
     aether_end_scissor_mode()
 PANEL_HEADER_TITLE_Y: int = 34
 PANEL_HEADER_SUBTITLE_Y: int = 78
-PANEL_HEADER_TITLE_FONT_SIZE: int = 58
-PANEL_HEADER_SUBTITLE_FONT_SIZE: int = 29
+PANEL_HEADER_TITLE_FONT_SIZE: int = 30
+PANEL_HEADER_SUBTITLE_FONT_SIZE: int = 26
 PANEL_HEADER_TITLE_FONT: FontWeight = FontWeight.SEMI_BOLD
 PANEL_HEADER_SUBTITLE_FONT: FontWeight = FontWeight.NORMAL
-PANEL_HEADER_SUBTITLE_LINE_HEIGHT: float = 33.0  # subtitle_size(29) + interline_gap(4)
+PANEL_HEADER_SUBTITLE_LINE_HEIGHT: float = 30.0  # subtitle_size(26) + interline_gap(4)
 
 
 def draw_settings_panel_header(header_rect: rl.Rectangle, title: str, subtitle: str | None = None,
@@ -1590,7 +1590,7 @@ def draw_standard_toggle_row(
     pressed=pressed,
     is_last=is_last,
     show_chevron=False,
-    title_size=49, subtitle_size=32,
+    title_size=36, subtitle_size=26,
     style=style,
   )
 
@@ -1990,8 +1990,8 @@ def draw_section_header(
   title: str = "",
   *,
   trailing_text: str = "",
-  title_size: int = 58,
-  trailing_size: int = 52,
+  title_size: int = 30,
+  trailing_size: int = 26,
   title_color: rl.Color | None = None,
   trailing_color: rl.Color | None = None,
   style: PanelStyle = DEFAULT_PANEL_STYLE,
@@ -2001,7 +2001,7 @@ def draw_section_header(
     trailing_reserved = min(320.0, rect.width * 0.38) if trailing_text else 0.0
     title_rect = rl.Rectangle(rect.x, rect.y + (rect.height - title_size) / 2, max(1.0, rect.width - trailing_reserved), title_size + 4)
     alignment = rl.GuiTextAlignment.TEXT_ALIGN_CENTER if align_center else rl.GuiTextAlignment.TEXT_ALIGN_LEFT
-    gui_label(title_rect, title, title_size, title_color or style.subtitle_color, FontWeight.MEDIUM, alignment=alignment)
+    gui_label(title_rect, title, title_size, title_color or style.subtitle_color, FontWeight.SEMI_BOLD, alignment=alignment)
 
   if trailing_text:
     trailing_rect = rl.Rectangle(rect.x, rect.y + (rect.height - trailing_size) / 2, rect.width, trailing_size + 4)
@@ -2020,10 +2020,10 @@ def draw_empty_state_card(
   title: str,
   body: str,
   *,
-  title_size: int = 44,
-  body_size: int = 32,
+  title_size: int = 34,
+  body_size: int = 26,
   body_inset_x: int = 70,
-  title_gap: int = 20,
+  title_gap: int = 16,
   title_top_padding: float | None = None,
   body_height: float | None = None,
   fill: rl.Color | None = None,
@@ -2037,7 +2037,7 @@ def draw_empty_state_card(
   resolved_border = border if border is not None else style.surface_border
   draw_soft_card(card_rect, resolved_fill, resolved_border, radius=radius, segments=segments)
 
-  title_h = max(49.0, title_size + 12)
+  title_h = max(38.0, title_size + 8)
   title_y = card_rect.y + (title_top_padding if title_top_padding is not None else max(35.0, min(61.0, card_rect.height * 0.22)))
   inset_x = min(float(body_inset_x), max(18.0, card_rect.width * 0.22))
   body_y = title_y + title_h + title_gap
@@ -2085,9 +2085,9 @@ def draw_settings_list_row(
   pressed: bool = False,
   is_last: bool = False,
   show_chevron: bool = True,
-  title_size: int = 49,
-  subtitle_size: int = 38,
-  value_size: int = 44,
+  title_size: int = 36,
+  subtitle_size: int = 26,
+  value_size: int = 28,
   separator_inset: int = 24,
   title_color: rl.Color | None = None,
   subtitle_color: rl.Color | None = None,
@@ -2131,7 +2131,7 @@ def draw_settings_list_row(
       start_y = draw_rect.y + (draw_rect.height - total_h) / 2
 
       draw_text_fit_common(
-        gui_app.font(FontWeight.MEDIUM), title,
+        gui_app.font(FontWeight.SEMI_BOLD), title,
         rl.Vector2(text_left, start_y),
         text_width, eff_title_size,
         color=resolved_title_color,
@@ -2143,11 +2143,12 @@ def draw_settings_list_row(
         color=resolved_subtitle_color,
       )
     else:
-      title_y = draw_rect.y + (draw_rect.height - title_size) / 2
+      eff_title_size = min(36, title_size)
+      title_y = draw_rect.y + (draw_rect.height - eff_title_size) / 2
       draw_text_fit_common(
-        gui_app.font(FontWeight.MEDIUM), title,
+        gui_app.font(FontWeight.SEMI_BOLD), title,
         rl.Vector2(text_left, title_y),
-        text_width, title_size,
+        text_width, eff_title_size,
         color=resolved_title_color,
       )
 
@@ -2181,7 +2182,7 @@ def draw_settings_list_row(
       start_y = draw_rect.y + (draw_rect.height - total_h) / 2
 
       draw_text_fit_common(
-        gui_app.font(FontWeight.MEDIUM), title,
+        gui_app.font(FontWeight.SEMI_BOLD), title,
         rl.Vector2(text_left, start_y),
         available_w, eff_title_size,
         color=resolved_title_color,
@@ -2193,29 +2194,49 @@ def draw_settings_list_row(
         color=resolved_subtitle_color if resolved_value_color == resolved_title_color else resolved_value_color,
       )
     else:
-      # Proportional Side-by-Side: 42% Title on left, 56% Value right-aligned before chevron
+      # Proportional Side-by-Side
       if is_narrow:
         content_w = max(100.0, draw_rect.width - 48 - (32 if show_chevron else 0))
-        t_width = content_w * 0.42
-        v_width = content_w * 0.56
+        t_width = content_w * 0.46
+        v_width = content_w * 0.52
         v_right = draw_rect.x + 24 + content_w
       else:
         v_width = max(100.0, float(AETHER_LIST_METRICS.utility_value_right - (AETHER_LIST_METRICS.utility_chevron_right if show_chevron else 24) - 16))
         t_width = max(100.0, draw_rect.width - 48 - v_width - (32 if show_chevron else 0))
         v_right = chevron_rect.x - 16 if show_chevron else draw_rect.x + draw_rect.width - 24
 
-      eff_title_size = min(36, title_size) if is_narrow else title_size
-      eff_value_size = min(30, value_size) if is_narrow else value_size
-
-      title_y = draw_rect.y + (draw_rect.height - eff_title_size) / 2
+      eff_value_size = min(28, value_size) if is_narrow else min(32, value_size)
       value_y = draw_rect.y + (draw_rect.height - eff_value_size) / 2
 
-      draw_text_fit_common(
-        gui_app.font(FontWeight.MEDIUM), title,
-        rl.Vector2(text_left, title_y),
-        t_width, eff_title_size,
-        color=resolved_title_color,
-      )
+      if subtitle:
+        eff_title_size = min(34, title_size)
+        eff_sub_size = min(26, subtitle_size)
+        total_h = eff_title_size + eff_sub_size + 4
+        start_y = draw_rect.y + (draw_rect.height - total_h) / 2
+
+        draw_text_fit_common(
+          gui_app.font(FontWeight.SEMI_BOLD), title,
+          rl.Vector2(text_left, start_y),
+          t_width, eff_title_size,
+          color=resolved_title_color,
+        )
+        draw_text_fit_common(
+          gui_app.font(FontWeight.NORMAL), subtitle,
+          rl.Vector2(text_left, start_y + eff_title_size + 4),
+          t_width, eff_sub_size,
+          color=resolved_subtitle_color,
+        )
+      else:
+        eff_title_size = min(36, title_size) if is_narrow else title_size
+        title_y = draw_rect.y + (draw_rect.height - eff_title_size) / 2
+
+        draw_text_fit_common(
+          gui_app.font(FontWeight.SEMI_BOLD), title,
+          rl.Vector2(text_left, title_y),
+          t_width, eff_title_size,
+          color=resolved_title_color,
+        )
+
       draw_text_fit_common(
         gui_app.font(FontWeight.MEDIUM), value,
         rl.Vector2(v_right - v_width, value_y),
@@ -2237,7 +2258,7 @@ def draw_settings_list_row(
     total_h = eff_title_size + eff_sub_size + 4
     start_y = draw_rect.y + (draw_rect.height - total_h) / 2
     draw_text_fit_common(
-      gui_app.font(FontWeight.MEDIUM), title,
+      gui_app.font(FontWeight.SEMI_BOLD), title,
       rl.Vector2(text_left, start_y),
       text_width, eff_title_size,
       color=resolved_title_color,
@@ -2249,11 +2270,12 @@ def draw_settings_list_row(
       color=resolved_subtitle_color,
     )
   else:
-    title_y = draw_rect.y + (draw_rect.height - title_size) / 2
+    eff_title_size = min(36, title_size)
+    title_y = draw_rect.y + (draw_rect.height - eff_title_size) / 2
     draw_text_fit_common(
-      gui_app.font(FontWeight.MEDIUM), title,
+      gui_app.font(FontWeight.SEMI_BOLD), title,
       rl.Vector2(text_left, title_y),
-      text_width, title_size,
+      text_width, eff_title_size,
       color=resolved_title_color,
     )
 
@@ -2872,8 +2894,8 @@ def draw_selection_list_row(
   action_width: int = AETHER_LIST_METRICS.action_width,
   action_chip: bool = False,
   action_pill: bool = False,
-  title_size: int = 44,
-  subtitle_size: int = 29,
+  title_size: int = 36,
+  subtitle_size: int = 26,
   action_text_size: int = 26,
   action_pill_height: int = 64,
   action_pill_width: float | None = None,
@@ -2910,7 +2932,7 @@ def draw_selection_list_row(
 
   info_gap = 36 if action_pill else 42
   info_rect = rl.Rectangle(draw_rect.x + 24, draw_rect.y + 16, max(0.0, draw_rect.width - action_width - info_gap), draw_rect.height - 32)
-  title_font = gui_app.font(FontWeight.MEDIUM)
+  title_font = gui_app.font(FontWeight.SEMI_BOLD)
   subtitle_font = gui_app.font(FontWeight.NORMAL)
 
   if subtitle:
@@ -3332,7 +3354,7 @@ class AetherSettingsView(PanelManagerView):
 
       toggle_take = AETHER_LIST_METRICS.toggle_width + AETHER_LIST_METRICS.toggle_right_inset + 16
       text_rect = rl.Rectangle(rect.x, rect.y, max(100.0, rect.width - toggle_take), rect.height)
-      draw_settings_panel_header(text_rect, display_title, subtitle_text, title_size=46, subtitle_size=29)
+      draw_settings_panel_header(text_rect, display_title, subtitle_text, title_size=30, subtitle_size=26, max_subtitle_width=1.0)
 
       toggle_id = f"parent_toggle:{toggle.label}"
       tw = AETHER_LIST_METRICS.toggle_width
@@ -3353,7 +3375,7 @@ class AetherSettingsView(PanelManagerView):
         bg_color=rl.Color(12, 10, 18, 255),
       )
     else:
-      draw_settings_panel_header(rect, title, subtitle, title_size=46, subtitle_size=29)
+      draw_settings_panel_header(rect, title, subtitle, title_size=30, subtitle_size=26)
 
   def _active_sections(self) -> list[SettingSection]:
     if self._tab_defs and self._active_tab_key:
@@ -3519,13 +3541,13 @@ class AetherSettingsView(PanelManagerView):
         pressed=pressed,
         is_last=is_last,
         show_chevron=row.on_click is not None,
-        title_size=41, subtitle_size=28, value_size=34,
+        title_size=36, subtitle_size=26, value_size=30,
         style=self._panel_style,
       )
     elif row.type == "action":
       action_fill = self._panel_style.danger_fill if row.action_danger else self._panel_style.current_fill
       action_border = self._panel_style.danger_border if row.action_danger else self._panel_style.current_border
-      action_text_color = self._panel_style.danger_text if row.action_danger else AetherListColors.HEADER
+      action_text_color = self._panel_style.danger_text if row.action_danger else self._panel_style.title_color
       draw_selection_list_row(
         rect,
         title=tr(row.title),
@@ -3535,12 +3557,12 @@ class AetherSettingsView(PanelManagerView):
         pressed=pressed,
         is_last=is_last,
         action_pill=True,
-        title_size=41, subtitle_size=28,
-        action_pill_height=AETHER_LIST_METRICS.toggle_height, action_text_size=28,
+        title_size=36, subtitle_size=26,
+        action_pill_height=AETHER_LIST_METRICS.toggle_height, action_text_size=26,
         action_text_color=action_text_color,
         action_fill=action_fill,
         action_border=action_border,
-          row_separator=self._panel_style.divider_color,
+        row_separator=self._panel_style.divider_color,
       )
 
 
@@ -3606,7 +3628,7 @@ def draw_back_button(pill_rect: rl.Rectangle, center_y: float, pressed: bool, ho
   chev_r = rl.Rectangle(back_x + (back_size - chev_size) / 2, center_y - chev_size / 2, chev_size, chev_size)
   chev_c = rl.Color(200, 200, 210, 200) if pressed else rl.Color(160, 170, 185, 180)
   draw_chevron_icon(chev_r, chev_c, thickness=2.0, direction="left")
-  return btn
+  return rl.Rectangle(pill_rect.x, center_y - 40, max(120.0, back_size + 24), 80)
 
 
 BACK_BTN = "__back__"
