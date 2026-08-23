@@ -1,7 +1,12 @@
 from cereal import log
 from cereal import messaging
 from cereal.messaging import SubMaster, PubMaster
-from openpilot.selfdrive.ui.soundd import SELFDRIVE_STATE_TIMEOUT, check_selfdrive_timeout_alert
+from openpilot.selfdrive.ui.soundd import (
+  SELFDRIVE_STATE_TIMEOUT,
+  check_selfdrive_timeout_alert,
+  is_turn_steering_limit_alert,
+  should_mute_turn_steering_limit_alert,
+)
 
 import time
 
@@ -9,6 +14,19 @@ AudibleAlert = log.SelfdriveState.AudibleAlert
 
 
 class TestSoundd:
+  def test_turn_steering_limit_alert_detection(self):
+    assert is_turn_steering_limit_alert("steerSaturated/warning")
+    assert is_turn_steering_limit_alert("goatSteerSaturated/warning")
+    assert is_turn_steering_limit_alert("thisIsFineSteerSaturated/warning")
+    assert not is_turn_steering_limit_alert("laneChangeBlocked/warning")
+
+  def test_turn_steering_limit_alert_is_muted_only_below_threshold(self):
+    assert should_mute_turn_steering_limit_alert("steerSaturated/warning", 10.0, 25.0)
+    assert not should_mute_turn_steering_limit_alert("steerSaturated/warning", 25.0, 25.0)
+    assert not should_mute_turn_steering_limit_alert("steerSaturated/warning", 30.0, 25.0)
+    assert not should_mute_turn_steering_limit_alert("steerSaturated/warning", 10.0, 0.0)
+    assert not should_mute_turn_steering_limit_alert("laneChangeBlocked/warning", 10.0, 25.0)
+
   def test_check_selfdrive_timeout_alert(self):
     sm = SubMaster(['selfdriveState'])
     pm = PubMaster(['selfdriveState'])
