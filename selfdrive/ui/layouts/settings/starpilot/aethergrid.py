@@ -1109,6 +1109,7 @@ class BreadcrumbController:
     self._expanded: bool = False
     self._expand_alpha: float = 0.0
     self._last_interact: float = 0.0
+    self._bounds: rl.Rectangle | None = None
 
   @property
   def rects(self) -> dict[str, rl.Rectangle]:
@@ -1126,17 +1127,17 @@ class BreadcrumbController:
   def expand_alpha(self) -> float:
     return self._expand_alpha
 
-  def init_interaction(self, mouse_pos: MousePos, *, pad_x: float = 12, pad_y: float = 12) -> None:
-    target = resolve_interactive_target(mouse_pos, self._rects, None, pad_x=pad_x, pad_y=pad_y)
+  def init_interaction(self, mouse_pos: MousePos, *, pad_x: float = 12, pad_y: float = 16) -> None:
+    target = resolve_interactive_target(mouse_pos, self._rects, self._bounds, pad_x=pad_x, pad_y=pad_y)
     if target:
       self._pressed = target
 
-  def update_interaction(self, mouse_pos: MousePos, *, pad_x: float = 12, pad_y: float = 12) -> None:
-    if self._pressed and resolve_interactive_target(mouse_pos, self._rects, None, pad_x=pad_x, pad_y=pad_y) != self._pressed:
+  def update_interaction(self, mouse_pos: MousePos, *, pad_x: float = 12, pad_y: float = 16) -> None:
+    if self._pressed and resolve_interactive_target(mouse_pos, self._rects, self._bounds, pad_x=pad_x, pad_y=pad_y) != self._pressed:
       self._pressed = None
 
-  def finish_interaction(self, mouse_pos: MousePos, *, pad_x: float = 12, pad_y: float = 12) -> str | None:
-    target = resolve_interactive_target(mouse_pos, self._rects, None, pad_x=pad_x, pad_y=pad_y)
+  def finish_interaction(self, mouse_pos: MousePos, *, pad_x: float = 12, pad_y: float = 16) -> str | None:
+    target = resolve_interactive_target(mouse_pos, self._rects, self._bounds, pad_x=pad_x, pad_y=pad_y)
     if target and target == self._pressed:
       self._pressed = None
       return target
@@ -1159,7 +1160,7 @@ class BreadcrumbController:
     from openpilot.selfdrive.ui.layouts.settings.starpilot.panel import StarPilotPanelType
     layout = getattr(main_panel.StarPilotLayout, "active_instance", None)
     if not layout:
-        return
+      return
 
     nav_stack = getattr(gui_app, "_nav_stack", [])
 
@@ -1173,7 +1174,6 @@ class BreadcrumbController:
         gui_app.pop_widget()
       layout.navigate_to_hub_depth(target_depth)
     elif target == "action:category":
-      # Compatibility with the former single-category breadcrumb action.
       while len(nav_stack) > 1:
         gui_app.pop_widget()
       if getattr(layout, "_hub_path", None):
@@ -1193,6 +1193,8 @@ class BreadcrumbController:
       while len(nav_stack) > target_idx + 1:
         gui_app.pop_widget()
     elif target.startswith("action:panel_stack:"):
+      while len(nav_stack) > 1:
+        gui_app.pop_widget()
       target_idx = int(target.split(":")[-1])
       while len(layout._panel_stack) > target_idx + 1:
         layout._panel_stack.pop()
@@ -1206,7 +1208,7 @@ class BreadcrumbController:
 
     path = [(tr("StarPilot"), "action:home")]
     if not layout:
-        return path
+      return path
 
     hub_path = getattr(layout, "_hub_path", [])
     for i, folder in enumerate(hub_path, start=1):
@@ -1225,20 +1227,21 @@ class BreadcrumbController:
 
     for i, widget in enumerate(pushed_widgets):
       if hasattr(widget, '_header_title') and widget._header_title:
-        path.append((widget._header_title, f"action:nav_stack:{i+1}"))
+        path.append((tr(widget._header_title), f"action:nav_stack:{i+1}"))
 
     for i, (panel_type, sub_panel_name) in enumerate(layout._panel_stack):
       panel = layout._panels[panel_type].instance
       if not panel or not hasattr(panel, '_sub_panels') or sub_panel_name not in panel._sub_panels:
         continue
       sub = panel._sub_panels[sub_panel_name]
-      label = sub._header_title if hasattr(sub, '_header_title') and sub._header_title else sub_panel_name
+      label = tr(sub._header_title) if hasattr(sub, '_header_title') and sub._header_title else tr(sub_panel_name)
       path.append((label, f"action:panel_stack:{i}"))
 
     return path
 
-  def draw(self, rect: rl.Rectangle) -> None:
+  def draw(self, rect: rl.Rectangle, *, bg_color: rl.Color = rl.Color(12, 10, 18, 255)) -> None:
     self._rects.clear()
+    self._bounds = rect
     path = self.build_path()
     if not path:
       return
@@ -1248,106 +1251,109 @@ class BreadcrumbController:
     if self._expanded and now - self._last_interact > self.EXPAND_DURATION:
       self._expanded = False
 
-    ANIM_LERP      = 0.2
-    FADE_THRESH    = 0.01
-
+    ANIM_LERP = 0.2
     target = 1.0 if self._expanded else 0.0
     self._expand_alpha += (target - self._expand_alpha) * ANIM_LERP
 
-    ACTIVE_SIZE   = 48
-    PAST_SIZE     = 40
-    CHEVRON_SIZE  = 30
-    CHEVRON_W     = 26
-    GAP           = 20
+    ACTIVE_SIZE = 34
+    PAST_SIZE = 28
+    MIN_ACTIVE_SIZE = 26
+    CHEVRON_SIZE = 20
+    CHEVRON_W = 12
+    GAP = 12
+    LEFT_INSET = 34
+    CAPSULE_W = 64
+    CAPSULE_H = 34
 
     center_y = rect.y + rect.height / 2
-
-    color_sep     = rl.Color(110, 112, 138, 200)
-    active_normal = rl.Color(252, 252, 255, 255)
-    active_hover  = rl.Color(252, 252, 255, 255)
-    active_pressed = rl.Color(200, 200, 200, 255)
-    past_normal   = rl.Color(148, 142, 168, 255)
-    past_hover    = rl.Color(168, 163, 188, 255)
-    past_pressed  = rl.Color(190, 185, 215, 255)
-    home_normal   = rl.Color(168, 163, 188, 255)
-    home_hover    = rl.Color(188, 183, 208, 255)
-    home_pressed  = rl.Color(210, 205, 230, 255)
+    color_sep = rl.Color(140, 150, 175, 220)
+    active_normal = AetherListColors.HEADER
+    past_normal = AetherListColors.SUBTEXT
+    past_hover = AetherListColors.HEADER
+    past_pressed = rl.Color(190, 185, 215, 255)
 
     mouse_pos = gui_app.last_mouse_event.pos
 
-    MIN_ACTIVE_SIZE = 30
-    CAPSULE_W = 92
-    capsule_need = CAPSULE_W + GAP + CHEVRON_W + GAP
+    sep = GAP + CHEVRON_W + GAP
+    capsule_need = CAPSULE_W + sep
+    available_w = rect.width - LEFT_INSET - 24
 
-    active_size = ACTIVE_SIZE
+    med_font = gui_app.font(FontWeight.MEDIUM)
+    semi_font = gui_app.font(FontWeight.SEMI_BOLD)
 
+    k = len(path)
     if self._expanded:
-      display_path = list(path)
+      display_path = [(item[0], item[1], ACTIVE_SIZE if i == k - 1 else PAST_SIZE, False) for i, item in enumerate(path)]
+      overflow_alpha = max(0.0, 1.0 - self._expand_alpha)
+    elif k == 1:
+      display_path = [(path[0][0], path[0][1], ACTIVE_SIZE, False)]
       overflow_alpha = 0.0
     else:
-      active = path[-1]
-      med_font = gui_app.font(FontWeight.MEDIUM)
-      active_ts = measure_text_cached(gui_app.font(FontWeight.BOLD), active[0], ACTIVE_SIZE)
-      remaining = rect.width - 20 - active_ts.x - GAP
+      past_w_sum = sum(measure_text_cached(med_font, item[0], PAST_SIZE).x for item in path[:-1]) + (k - 1) * sep
+      active_text, active_action = path[-1]
+      direct_fit = False
+      active_size = ACTIVE_SIZE
 
-      while remaining < capsule_need and active_size > MIN_ACTIVE_SIZE:
-        active_size -= 6
-        active_ts = measure_text_cached(gui_app.font(FontWeight.BOLD), active[0], active_size)
-        remaining = rect.width - 20 - active_ts.x - GAP
+      for f in (34, 32, 30, 28, 26):
+        w_active = measure_text_cached(semi_font, active_text, f).x
+        if past_w_sum + w_active <= available_w:
+          active_size = f
+          direct_fit = True
+          break
 
-      if remaining < capsule_need:
-        display_path = [active]
+      if direct_fit:
+        display_path = [(item[0], item[1], PAST_SIZE, False) for item in path[:-1]] + [(active_text, active_action, active_size, False)]
         overflow_alpha = 0.0
       else:
-        budget = remaining - capsule_need
-        sep = GAP + CHEVRON_W + GAP
-        before = []
-        for i in range(len(path) - 2, -1, -1):
-          slot = budget - sep
-          if slot <= 0:
-            break
-          full_text, action = path[i]
-          full_ts = measure_text_cached(med_font, full_text, PAST_SIZE)
-          if full_ts.x <= slot:
-            before.insert(0, (full_text, action))
-            budget -= full_ts.x + sep
-          else:
-            trunc = truncate_text_ellipsis(med_font, full_text, slot, PAST_SIZE)
-            visible = trunc.removesuffix("...").rstrip()
-            if len(visible) < 3:
-              break
-            before.insert(0, (trunc, action))
-            budget -= measure_text_cached(med_font, trunc, PAST_SIZE).x + sep
+        active_size = MIN_ACTIVE_SIZE
+        w_active = measure_text_cached(semi_font, active_text, active_size).x
+        w_active_max = available_w - capsule_need
 
-        hidden = len(path) - 1 - len(before)
-        if hidden > 0:
-          display_path = [("...", "action:breadcrumb_history")] + before + [active]
+        if w_active > w_active_max and w_active_max > 60:
+          active_text = truncate_text_ellipsis(semi_font, active_text, w_active_max, active_size)
+          w_active = measure_text_cached(semi_font, active_text, active_size).x
+          display_path = [("...", "action:breadcrumb_history", PAST_SIZE, True), (active_text, active_action, active_size, False)]
         else:
-          display_path = before + [active]
-        overflow_alpha = 1.0
+          ancestor_budget = available_w - w_active - capsule_need
+          ancestors = []
+          for i in range(k - 2, -1, -1):
+            item_text, item_action = path[i]
+            item_w = measure_text_cached(med_font, item_text, PAST_SIZE).x
+            slot_needed = item_w + sep
+            if slot_needed <= ancestor_budget:
+              ancestors.insert(0, (item_text, item_action, PAST_SIZE, False))
+              ancestor_budget -= slot_needed
+            else:
+              slot = ancestor_budget - sep
+              if slot > 30:
+                trunc = truncate_text_ellipsis(med_font, item_text, slot, PAST_SIZE)
+                visible = trunc.removesuffix("...").rstrip()
+                if len(visible) >= 3:
+                  ancestors.insert(0, (trunc, item_action, PAST_SIZE, False))
+              break
 
-    current_x = rect.x + 20
+          display_path = [("...", "action:breadcrumb_history", PAST_SIZE, True)] + ancestors + [(active_text, active_action, active_size, False)]
+        overflow_alpha = max(0.0, 1.0 - self._expand_alpha)
+
+    current_x = rect.x + LEFT_INSET
 
     aether_begin_scissor_mode(int(rect.x), int(rect.y), int(rect.width), int(rect.height))
 
-    for i, (text, action) in enumerate(display_path):
-      is_last     = (i == len(display_path) - 1)
-      is_first    = (i == 0)
-      is_overflow = (action == "action:breadcrumb_history")
-      pressed     = self._pressed == action
+    for i, (text, action, font_size, is_capsule) in enumerate(display_path):
+      is_last = (i == len(display_path) - 1)
+      pressed = (self._pressed == action)
 
-      if is_overflow:
-        if overflow_alpha <= FADE_THRESH:
+      if is_capsule:
+        if overflow_alpha <= 0.01:
           current_x += GAP
           continue
 
-        capsule_w, capsule_h = CAPSULE_W, 48
-        cap_rect = rl.Rectangle(current_x, center_y - capsule_h / 2, capsule_w, capsule_h)
-        hovered = point_hits(mouse_pos, cap_rect, None, pad_x=4, pad_y=6)
-        
-        # Only add to interactive rects if it's visible within the bounds
+        cap_rect = rl.Rectangle(current_x, center_y - CAPSULE_H / 2, CAPSULE_W, CAPSULE_H)
+        touch_hit = rl.Rectangle(current_x - GAP / 2, rect.y, CAPSULE_W + GAP, rect.height)
+        hovered = bool(point_hits(mouse_pos, touch_hit, rect, pad_x=0, pad_y=0))
+
         if cap_rect.x < rect.x + rect.width:
-          self._rects[action] = cap_rect
+          self._rects[action] = touch_hit
 
         oa = overflow_alpha
         if pressed:
@@ -1361,10 +1367,10 @@ class BreadcrumbController:
           glow = rl.Color(148, 142, 168, int(60 * oa))
           dots_c = rl.Color(255, 255, 255, int(255 * oa))
         else:
-          fill = rl.Color(28, 26, 38, int(160 * oa))
-          outline = rl.Color(120, 115, 160, int(60 * oa))
-          glow = rl.Color(120, 115, 160, int(20 * oa))
-          dots_c = rl.Color(190, 180, 220, int(180 * oa))
+          fill = rl.Color(24, 20, 36, int(180 * oa))
+          outline = rl.Color(120, 115, 160, int(70 * oa))
+          glow = rl.Color(120, 115, 160, int(25 * oa))
+          dots_c = rl.Color(200, 210, 225, int(200 * oa))
 
         if oa > 0.05:
           rl.draw_rectangle_rounded_lines_ex(
@@ -1373,47 +1379,28 @@ class BreadcrumbController:
           rl.draw_rectangle_rounded(cap_rect, 1.0, 16, fill)
           rl.draw_rectangle_rounded_lines_ex(cap_rect, 1.0, 16, 1.0, outline)
 
-          font_dots = gui_app.font(FontWeight.BOLD)
-          dots_ts = measure_text_cached(font_dots, "...", 34)
+          font_dots = gui_app.font(FontWeight.SEMI_BOLD)
+          dots_ts = measure_text_cached(font_dots, "...", 24)
           rl.draw_text_ex(font_dots, "...",
             rl.Vector2(cap_rect.x + (cap_rect.width - dots_ts.x) / 2, center_y - dots_ts.y / 2),
-            34, 0, dots_c)
-        current_x += capsule_w + GAP
+            24, 0, dots_c)
+        current_x += CAPSULE_W + GAP
 
       else:
-        item_alpha = 255
-
-        if is_last:
-          font      = gui_app.font(FontWeight.BOLD)
-          font_size = active_size
-          c_normal  = rl.Color(252, 252, 255, item_alpha)
-          c_hover   = rl.Color(252, 252, 255, item_alpha)
-          c_pressed = rl.Color(200, 200, 200, item_alpha)
-        elif is_first:
-          font      = gui_app.font(FontWeight.MEDIUM)
-          font_size = PAST_SIZE
-          c_normal  = rl.Color(home_normal.r, home_normal.g, home_normal.b, item_alpha)
-          c_hover   = rl.Color(home_hover.r, home_hover.g, home_hover.b, item_alpha)
-          c_pressed = rl.Color(home_pressed.r, home_pressed.g, home_pressed.b, item_alpha)
-        else:
-          font      = gui_app.font(FontWeight.MEDIUM)
-          font_size = PAST_SIZE
-          c_normal  = rl.Color(past_normal.r, past_normal.g, past_normal.b, item_alpha)
-          c_hover   = rl.Color(past_hover.r, past_hover.g, past_hover.b, item_alpha)
-          c_pressed = rl.Color(past_pressed.r, past_pressed.g, past_pressed.b, item_alpha)
-
+        font = semi_font if is_last else med_font
         ts = measure_text_cached(font, text, font_size)
-        hit_rect = rl.Rectangle(current_x - 8, center_y - 38, ts.x + 16, 76)
-        hovered  = point_hits(mouse_pos, hit_rect, None, pad_x=0, pad_y=0)
-        
-        # Only add to interactive rects if it's visible within the bounds
-        if hit_rect.x < rect.x + rect.width:
-          self._rects[action] = hit_rect
+        touch_hit = rl.Rectangle(current_x - GAP / 2, rect.y, ts.x + GAP, rect.height)
+        hovered = bool(point_hits(mouse_pos, touch_hit, rect, pad_x=0, pad_y=0))
 
-        color = c_pressed if pressed else (c_hover if hovered else c_normal)
+        if not is_last and touch_hit.x < rect.x + rect.width:
+          self._rects[action] = touch_hit
+
+        color = past_pressed if pressed else (past_hover if hovered else (active_normal if is_last else past_normal))
 
         if hovered and not is_last:
-          rl.draw_rectangle_rounded(hit_rect, 0.4, 12, rl.Color(255, 255, 255, int(12 * item_alpha / 255)))
+          highlight_h = 44
+          highlight_rect = rl.Rectangle(current_x - 6, center_y - highlight_h / 2, ts.x + 12, highlight_h)
+          rl.draw_rectangle_rounded(highlight_rect, 0.35, 10, rl.Color(255, 255, 255, 14))
 
         text_y = center_y - ts.y / 2
         rl.draw_text_ex(font, text, rl.Vector2(current_x, text_y), font_size, 0, color)
@@ -1421,13 +1408,12 @@ class BreadcrumbController:
 
       if i < len(display_path) - 1:
         chev_rect = rl.Rectangle(current_x, center_y - CHEVRON_SIZE / 2, CHEVRON_W, CHEVRON_SIZE)
-        draw_chevron_icon(chev_rect, color_sep, thickness=2.0, direction="right")
+        draw_breadcrumb_chevron(chev_rect, color_sep, thickness=3.0)
         current_x += CHEVRON_W + GAP
 
-    if current_x > rect.x + rect.width:
-      fade_w = 60
+    if current_x > rect.x + rect.width - 20:
+      fade_w = 48
       fade_x = rect.x + rect.width - fade_w
-      bg_color = AetherListColors.PANEL_BG
       transparent_bg = rl.Color(bg_color.r, bg_color.g, bg_color.b, 0)
       rl.draw_rectangle_gradient_h(int(fade_x), int(rect.y), int(fade_w), int(rect.height), transparent_bg, bg_color)
 
@@ -1810,6 +1796,20 @@ def draw_chevron_icon(rect: rl.Rectangle, color: rl.Color, *, thickness: float =
     bottom_y = center_y + size
     rl.draw_line_ex(rl.Vector2(left_x, top_y), rl.Vector2(right_x, center_y), thickness, color)
     rl.draw_line_ex(rl.Vector2(left_x, bottom_y), rl.Vector2(right_x, center_y), thickness, color)
+
+
+def draw_breadcrumb_chevron(rect: rl.Rectangle, color: rl.Color, *, thickness: float = 3.0):
+  snapped = snap_rect(rect)
+  center_x = snapped.x + snapped.width / 2
+  center_y = snapped.y + snapped.height / 2
+  w = 12.0
+  h = 20.0
+  left_x = center_x - w * 0.45
+  right_x = center_x + w * 0.45
+  top_y = center_y - h / 2
+  bottom_y = center_y + h / 2
+  rl.draw_line_ex(rl.Vector2(left_x, top_y), rl.Vector2(right_x, center_y), thickness, color)
+  rl.draw_line_ex(rl.Vector2(left_x, bottom_y), rl.Vector2(right_x, center_y), thickness, color)
 
 
 TAB_HEIGHT = 98
