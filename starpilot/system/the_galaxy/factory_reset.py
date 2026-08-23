@@ -1,18 +1,11 @@
 import subprocess
 import time
 
-from openpilot.system.hardware import HARDWARE
-
 
 _DELETE_TIMEOUT_S = 1800
 _DELETE_RETRY_ATTEMPTS = 20
 _DELETE_RETRY_DELAY_S = 0.25
 _DIRECTORY_NOT_EMPTY_ERROR = "directory not empty"
-
-
-def request_system_factory_reset():
-  """Request AGNOS's stock userdata reset and reboot flow."""
-  HARDWARE.uninstall()
 
 
 def remove_path(path):

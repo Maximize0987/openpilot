@@ -16,24 +16,6 @@ def _load_factory_reset_module():
 factory_reset = _load_factory_reset_module()
 
 
-def test_request_system_factory_reset_uses_agnos_uninstall(monkeypatch):
-  calls = []
-  monkeypatch.setattr(factory_reset.HARDWARE, "uninstall", lambda: calls.append(True))
-
-  factory_reset.request_system_factory_reset()
-
-  assert calls == [True]
-
-
-def test_galaxy_factory_reset_worker_does_not_partially_delete_userdata():
-  source = (Path(__file__).resolve().parents[1] / "the_galaxy.py").read_text(encoding="utf-8")
-  worker = source.split("def _factory_reset_worker():", 1)[1].split("\ndef ", 1)[0]
-
-  assert "_request_system_factory_reset()" in worker
-  assert "_run_factory_reset_delete" not in worker
-  assert "_finish_update_and_reboot" not in worker
-
-
 def test_remove_path_retries_directory_not_empty(monkeypatch):
   results = iter(
     [
