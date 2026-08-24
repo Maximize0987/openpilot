@@ -59,6 +59,8 @@ LEAD_VETO_M_OVERRIDES = {
 }
 FORCE_STOP_APPROACH_DECEL = 0.65  # m/s^2 — speed ceiling before commit. LOWER = more early
                           # braking; don't go under FORCE_STOP_MODEL_APPROACH_DECEL
+# approachStopLength is published RAW: model_length converges from above, so rate-limiting
+# it inward freezes it far out and the constraint never binds. Tried, measured, don't re-add.
 ADAS_MAX_MS = 17.88       # 40 mph — cross-street ADAS guard
 DASH_SEED_M = 27.0        # ~88 ft — typical ADAS detection distance, used to snap
                           # tracked length closer when dashboard confirms a sign
@@ -76,7 +78,14 @@ FORCE_STOP_TURN_VETO_STEERING_ANGLE = 25.0
 FORCE_STOP_CURVE_VETO_MAX_ROAD_CURVATURE = 0.003
 FORCE_STOP_TURN_VETO_STOP_SEEN_HOLD_TIME = 4.0
 FORCE_STOP_DISTANCE_REANCHOR_MIN_GAP = 3.0  # m — ignore small model-horizon noise
-FORCE_STOP_REANCHOR_MIN_M = 40.0
+FORCE_STOP_REANCHOR_MIN_M = 40.0  # m — inside this only ratchet down; shouldStop doesn't
+                          # assert until ~10 m, so horizon jitter would release the stop
+FORCE_STOP_CAP_SLACK_M = 15.0  # m — the line can't move away, so tracked can never exceed
+                          # what it was at commit minus distance driven. Slack covers an
+                          # under-read at commit; without it that would stop us short.
+FORCE_STOP_CAP_TAPER_M = 60.0  # m — slack fades to 0 as the cap closes. The solver aims at
+                          # tracked, so slack held near the line is braking for a stop bar
+                          # that far past the real one.
 
 # Knob bounds (mirror of UI slider; defense in depth)
 OFFSET_FT_MIN = -20
@@ -180,9 +189,11 @@ class StarPilotVCruise:
     self.force_stop_from_light = False
     self.force_stop_light_clear_since = None
     self.controls_enabled_previously = False
+    self.approach_stop_length = 0.0  # published as starpilotPlan.approachStopLength
     # Kinematic distance estimator. Same attribute also published as
     # starpilotPlan.forcingStopLength, so the existing reader keeps working.
     self.tracked_model_length = 0.0
+    self.force_stop_distance_cap = 0.0  # odometry ceiling, re-seeded until commit
 
     self.stop_sign_confirmed = False
     self.stop_seen_on_approach_at = None
@@ -606,6 +617,9 @@ class StarPilotVCruise:
     offset_ft = max(OFFSET_FT_MIN, min(OFFSET_FT_MAX, offset_ft_raw))
     offset_m = offset_ft * FT_TO_M
 
+    # cleared on every path; only the far-approach envelope below republishes it
+    self.approach_stop_length = 0.0
+
     if force_standstill_enabled and not self.override_force_standstill:
       self.forcing_stop = True
       self.tracked_model_length = 0.0
@@ -645,6 +659,12 @@ class StarPilotVCruise:
           self.tracked_model_length = model_length
         else:
           self.tracked_model_length = min(self.tracked_model_length, model_length)
+        # Odometry ceiling: the line can't recede, so a re-anchor may never exceed what we
+        # had at commit minus what we've driven. Bounds a ballooning horizon (seen +95 m)
+        # that the REANCHOR_MIN floor can't catch, since that floor trusts the estimate.
+        self.force_stop_distance_cap = max(self.force_stop_distance_cap - (v_ego * DT_MDL), 0.0)
+        cap_slack = FORCE_STOP_CAP_SLACK_M * min(self.force_stop_distance_cap / FORCE_STOP_CAP_TAPER_M, 1.0)
+        self.tracked_model_length = min(self.tracked_model_length, self.force_stop_distance_cap + cap_slack)
         if dash_active:
           if model_length < DASH_MODEL_AGREE_M:
             self.tracked_model_length = min(self.tracked_model_length, DASH_SEED_M)
@@ -678,6 +698,7 @@ class StarPilotVCruise:
       self.stop_sign_confirmed = False
 
       self.tracked_model_length = self.starpilot_planner.model_length
+      self.force_stop_distance_cap = self.tracked_model_length
 
       targets = [v_cruise]
       if self.csc_target >= CSC_MIN_SPEED:
@@ -723,6 +744,8 @@ class StarPilotVCruise:
         adjacent_stop_d = self._get_adjacent_stop_distance(sm)
         if adjacent_stop_d is not None:
           approach_d = min(approach_d, adjacent_stop_d)
+        # pre-offset, so it hands off to forcingStopLength at commit without a step
+        self.approach_stop_length = max(approach_d, 0.0)
         approach_d += offset_m + force_stop_distance_bias_m
         if approach_d > force_stop_handoff_m:
           targets.append(math.sqrt(2.0 * FORCE_STOP_APPROACH_DECEL * (approach_d - force_stop_handoff_m)))

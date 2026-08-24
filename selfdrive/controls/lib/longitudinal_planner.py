@@ -9,6 +9,7 @@ from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.starpilot.common.model_versions import is_tinygrad_model_version
+from openpilot.starpilot.controls.lib.starpilot_vcruise import FT_TO_M, OFFSET_FT_MAX, OFFSET_FT_MIN
 from openpilot.selfdrive.controls.lib.longcontrol import LongCtrlState
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import LongitudinalMpc
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import desired_follow_distance
@@ -381,6 +382,11 @@ def get_vehicle_min_accel(CP, v_ego):
 
 # Restored planner constants retained by CEM, stop, and departure paths.
 A_CRUISE_MIN = -1.0
+# The stop distance runs ~9 m long through the mid-approach, which leaves the obstacle slack
+# so it stays silent and deceleration sags. Multiplicative so the trim scales with what is
+# left. Note the car parks where the obstacle sits, so this is also a placement bias — 0.85
+# stopped ~4.6 m short, 0.93 ~1.6 m.
+FORCE_STOP_OBSTACLE_TRIM = 0.93
 STANDSTILL_LEAD_CREEP_RELEASE_MIN_LEAD_SPEED = 0.25
 STANDSTILL_LEAD_CREEP_RELEASE_MIN_LEAD_ACCEL = 0.08
 STANDSTILL_LEAD_CREEP_RELEASE_MIN_GAP_MARGIN = 0.1
@@ -2217,8 +2223,17 @@ class LongitudinalPlanner:
     force_stop_x = None
     force_stop_handoff_m = get_force_stop_handoff_distance(self.CP.carFingerprint)
     if sm['starpilotPlan'].forcingStop and sm['starpilotPlan'].forcingStopLength > force_stop_handoff_m:
+      stop_length = float(sm['starpilotPlan'].forcingStopLength)
+    else:
+      # pre-commit the envelope is only a speed ceiling, which the solver tracks with a lag;
+      # getattr so a stale cereal build degrades to the old behaviour instead of raising
+      stop_length = float(getattr(sm['starpilotPlan'], 'approachStopLength', 0.0))
+    if stop_length > force_stop_handoff_m:
+      # ForceStopDistanceOffset shifts the perceived line for the v_cruise ceiling, so it has
+      # to shift the obstacle too or the slider barely moves anything now that stop_x leads.
+      offset_ft = max(OFFSET_FT_MIN, min(OFFSET_FT_MAX, int(getattr(starpilot_toggles, 'force_stop_distance_offset', 0) or 0)))
       force_stop_x = (
-        float(sm['starpilotPlan'].forcingStopLength) + STOP_DISTANCE +
+        stop_length * FORCE_STOP_OBSTACLE_TRIM + offset_ft * FT_TO_M + STOP_DISTANCE +
         get_force_stop_distance_bias(self.CP.carFingerprint)
       )
 
