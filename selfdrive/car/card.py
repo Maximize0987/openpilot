@@ -298,17 +298,21 @@ class Car:
       self.v_cruise_helper.v_cruise_cluster_kph = preap_v_cruise_kph
     slc_force_speed = self.params_memory.get_float("SLCForceCruiseSpeed")
     if slc_force_speed > 0:
-      if self.is_metric:
-        new_cruise_kph = round(slc_force_speed * CV.MS_TO_KPH)
-      else:
-        new_cruise_kph = round(slc_force_speed * CV.MS_TO_MPH) * IMPERIAL_INCREMENT
-      self.v_cruise_helper.v_cruise_kph = max(min(new_cruise_kph, V_CRUISE_MAX), V_CRUISE_MIN)
-      self.v_cruise_helper.v_cruise_cluster_kph = self.v_cruise_helper.v_cruise_kph
+      # Do not apply an adoption queued before SLC was switched off.
+      if self.starpilot_toggles.speed_limit_controller:
+        if self.is_metric:
+          new_cruise_kph = round(slc_force_speed * CV.MS_TO_KPH)
+        else:
+          new_cruise_kph = round(slc_force_speed * CV.MS_TO_MPH) * IMPERIAL_INCREMENT
+        self.v_cruise_helper.v_cruise_kph = max(min(new_cruise_kph, V_CRUISE_MAX), V_CRUISE_MIN)
+        self.v_cruise_helper.v_cruise_cluster_kph = self.v_cruise_helper.v_cruise_kph
       self.params_memory.remove("SLCForceCruiseSpeed")
 
     if self.sm['carControl'].enabled and not self.CC_prev.enabled and not preap_software_cruise:
       # Use CarState w/ buttons from the step selfdrived enables on
-      desired_speed_limit = self.sm['starpilotPlan'].slcSpeedLimit + self.sm['starpilotPlan'].slcSpeedLimitOffset
+      desired_speed_limit = self.sm['starpilotPlan'].slcSpeedLimit
+      if self.starpilot_toggles.speed_limit_controller:
+        desired_speed_limit += self.sm['starpilotPlan'].slcSpeedLimitOffset
       self.v_cruise_helper.initialize_v_cruise(
         self.CS_prev,
         self.experimental_mode,
