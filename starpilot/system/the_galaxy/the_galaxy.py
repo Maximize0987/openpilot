@@ -1210,6 +1210,7 @@ TMUX_LOGS_PATH = Path("/data/tmux_logs")
 
 MODEL_DOWNLOAD_PARAM = "ModelToDownload"
 MODEL_DOWNLOAD_ALL_PARAM = "DownloadAllModels"
+ALLOW_GPU_DOWNLOAD_WITHOUT_GPU_PARAM = "AllowGpuModelDownloadWithoutGpu"
 MODEL_DOWNLOAD_PROGRESS_PARAM = "ModelDownloadProgress"
 MODEL_CANCEL_DOWNLOAD_PARAM = "CancelModelDownload"
 MODEL_SORT_MODE_PARAM = "ModelSortMode"
@@ -5709,11 +5710,13 @@ def setup(app):
 
     if model["installed"]:
       return jsonify({"message": f"\"{model['label']}\" is already installed."}), 200
-    if model["requiresGpu"] and not model["gpuAvailable"]:
+    allow_gpu_without_gpu = data.get("allowGpuWithoutGpu") is True
+    if model["requiresGpu"] and not model["gpuAvailable"] and not allow_gpu_without_gpu:
       return jsonify({"error": "This model requires a detected external GPU."}), 409
 
     params_memory.remove(MODEL_CANCEL_DOWNLOAD_PARAM)
     params_memory.remove(MODEL_DOWNLOAD_ALL_PARAM)
+    params_memory.put_bool(ALLOW_GPU_DOWNLOAD_WITHOUT_GPU_PARAM, allow_gpu_without_gpu)
     params_memory.put(MODEL_DOWNLOAD_PARAM, model_key)
     params_memory.put(MODEL_DOWNLOAD_PROGRESS_PARAM, "Downloading...")
 
@@ -5727,12 +5730,18 @@ def setup(app):
     if params_memory.get_bool(MODEL_DOWNLOAD_ALL_PARAM) or (params_memory.get(MODEL_DOWNLOAD_PARAM, encoding="utf-8") or ""):
       return jsonify({"error": "A model download is already in progress."}), 409
 
-    missing_models = [model for model in get_model_catalog() if not model["installed"] and (not model["requiresGpu"] or model["gpuAvailable"])]
+    data = request.get_json(silent=True) or {}
+    allow_gpu_without_gpu = data.get("allowGpuWithoutGpu") is True
+    missing_models = [
+      model for model in get_model_catalog()
+      if not model["installed"] and (not model["requiresGpu"] or model["gpuAvailable"] or allow_gpu_without_gpu)
+    ]
     if not missing_models:
       return jsonify({"message": "All models are already installed."}), 200
 
     params_memory.remove(MODEL_CANCEL_DOWNLOAD_PARAM)
     params_memory.remove(MODEL_DOWNLOAD_PARAM)
+    params_memory.put_bool(ALLOW_GPU_DOWNLOAD_WITHOUT_GPU_PARAM, allow_gpu_without_gpu)
     params_memory.put_bool(MODEL_DOWNLOAD_ALL_PARAM, True)
     params_memory.put(MODEL_DOWNLOAD_PROGRESS_PARAM, "Downloading...")
 

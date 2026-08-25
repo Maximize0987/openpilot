@@ -188,6 +188,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ApiCache_DriveStats", {PERSISTENT, JSON, "{}", "{}"}},
     {"AutomaticallyDownloadModels", {PERSISTENT, BOOL, "1", "0", 1}},
     {"AutomaticUpdates", {PERSISTENT, BOOL, "1", "1", 0}},
+    {"AllowGpuModelDownloadWithoutGpu", {CLEAR_ON_MANAGER_START, BOOL, "0", "0"}},
     {"AvailableModelNames", {PERSISTENT, STRING, "", "", 1}},
     {"AvailableModelSeries", {PERSISTENT, STRING, "", "", 1}},
     {"AvailableModels", {PERSISTENT, STRING, "", "", 1}},
