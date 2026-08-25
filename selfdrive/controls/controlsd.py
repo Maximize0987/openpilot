@@ -13,9 +13,15 @@ from opendbc.car.car_helpers import interfaces
 from opendbc.car.chrysler.values import pacifica_hybrid_aol_stock_acc_mode
 from opendbc.car.gm.values import CAR as GM_CAR
 from opendbc.car.honda.values import CAR as HONDA_CAR
+from opendbc.car.hyundai.values import CAR as HYUNDAI_CAR
 from opendbc.car.nissan.values import CAR as NISSAN_CAR
 from opendbc.car.vehicle_model import VehicleModel
-from openpilot.selfdrive.controls.lib.drive_helpers import MAX_LATERAL_JERK, clip_curvature, get_lateral_active
+from openpilot.selfdrive.controls.lib.drive_helpers import (
+  MAX_LATERAL_JERK,
+  clip_curvature,
+  get_kona_non_scc_lateral_active,
+  get_lateral_active,
+)
 from openpilot.selfdrive.controls.lib.lane_centering import LaneCenteringController
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
@@ -340,6 +346,7 @@ class Controls:
     self.turn_hold_handoff_t = 0.0
     self.turn_hold_done = False
     self.turn_blinker_swept = 0.0
+    self.kona_non_scc_lateral_active = False
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -434,11 +441,22 @@ class Controls:
 
     # Check which actuators can be enabled
     standstill = abs(CS.vEgo) <= max(self.CP.minSteerSpeed, 0.3) or CS.standstill
-    CC.latActive = get_lateral_active(CC.enabled, self.sm['selfdriveState'].active,
-                                      self.sm['starpilotCarState'].alwaysOnLateralEnabled,
-                                      CS.steerFaultTemporary, CS.steerFaultPermanent,
-                                      standstill, self.CP.steerAtStandstill,
-                                      self.sm['starpilotPlan'].lateralCheck)
+    if self.CP.carFingerprint == HYUNDAI_CAR.HYUNDAI_KONA_NON_SCC:
+      CC.latActive = get_kona_non_scc_lateral_active(
+        CC.enabled, self.sm['selfdriveState'].active,
+        self.sm['starpilotCarState'].alwaysOnLateralEnabled,
+        CS.steerFaultTemporary, CS.steerFaultPermanent,
+        standstill, self.CP.steerAtStandstill,
+        self.sm['starpilotPlan'].lateralCheck,
+        CS.steeringPressed, self.kona_non_scc_lateral_active,
+      )
+      self.kona_non_scc_lateral_active = CC.latActive
+    else:
+      CC.latActive = get_lateral_active(CC.enabled, self.sm['selfdriveState'].active,
+                                        self.sm['starpilotCarState'].alwaysOnLateralEnabled,
+                                        CS.steerFaultTemporary, CS.steerFaultPermanent,
+                                        standstill, self.CP.steerAtStandstill,
+                                        self.sm['starpilotPlan'].lateralCheck)
     # EcuDisableFailed is set when car started in READY mode (ECU disable was rejected)
     # Disable longitudinal so stock ACC works instead
     self.update_ecu_disable_failed()
