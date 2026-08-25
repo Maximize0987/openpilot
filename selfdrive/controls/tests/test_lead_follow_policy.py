@@ -77,10 +77,24 @@ def test_follow_policy_never_relaxes_material_braking():
   assert result.target == pytest.approx(-1.2)
 
 
-def test_follow_policy_leaves_low_speed_vision_follow_uncapped():
-  result = run(lead(d_rel=8.0, v_lead=4.0), v_ego=2.0, raw=1.4)
+def test_follow_policy_leaves_low_speed_vision_departure_uncapped():
+  # This is the range the old vision-only cap affected; below 4.5 m/s the
+  # longitudinal planner still has its independent weak-lead safety cap.
+  result = run(lead(d_rel=12.0, v_lead=6.0), v_ego=5.0, raw=1.4)
   assert result.accel_cap is None
   assert result.target == pytest.approx(1.4)
+
+
+@pytest.mark.parametrize("v_ego", [0.0, 2.0, 4.5, 6.0, 7.9])
+def test_follow_policy_low_speed_vision_never_relaxes_braking(v_ego):
+  result = run(
+    lead(d_rel=8.0, v_lead=max(v_ego - 0.8, 0.0), a_lead=-0.8),
+    v_ego=v_ego,
+    previous=0.3,
+    raw=-0.6,
+  )
+
+  assert result.target <= -0.6
 
 
 def test_follow_policy_bypasses_post_departure_handoff():

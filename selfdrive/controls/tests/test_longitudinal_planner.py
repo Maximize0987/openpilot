@@ -1310,6 +1310,37 @@ def test_low_speed_weak_departure_accel_cap_softens_voacc_follow_pulse(model_ver
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
+@pytest.mark.parametrize("v_ego,v_lead,d_rel", [
+  (4.5, 3.7, 12.0),
+  (6.0, 5.2, 12.0),
+  (7.5, 6.7, 12.0),
+])
+def test_acc_mode_low_speed_vision_takeoff_never_relaxes_closing_lead(model_version, v_ego, v_lead, d_rel):
+  """The takeoff change must not turn a closing vision lead into acceleration."""
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  planner = LongitudinalPlanner(CP, init_v=v_ego)
+  sm = make_sm(
+    v_ego,
+    desired_accel=1.4,
+    min_accel=-1.0,
+    experimental_mode=False,
+    tracking_lead=True,
+    lead_one=make_lead(
+      status=True, d_rel=d_rel, v_lead=v_lead, a_lead=0.0,
+      radar=False, model_prob=0.99, y_rel=0.0,
+    ),
+  )
+  sm["starpilotPlan"].vCruise = v_ego + 10.0
+
+  for _ in range(3):
+    planner.update(sm, make_toggles(model_version))
+
+  assert planner.mode == "acc"
+  assert planner.output_a_target <= 0.0
+  assert not planner.output_should_stop
+
+
+@pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
 def test_acc_mode_pretracking_vision_far_slower_lead_starts_braking_before_tracking(model_version):
   v_ego = 21.48
 
