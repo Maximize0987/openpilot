@@ -28,6 +28,10 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_far_follow_output_slew_rates,
   get_follow_prebrake_min_headway,
   get_honda_accord_lead_departure_tune,
+  get_honda_crv_5g_stopped_lead_obstacle_bias,
+  get_honda_crv_5g_low_speed_stopped_lead_cap,
+  allow_honda_crv_5g_vision_gap_settle,
+  get_standstill_gap_settle_max_extra_gap,
   get_toyota_prius_stopped_lead_obstacle_bias,
   get_toyota_rav4_tss2_lead_departure_tune,
   get_toyota_rav4_tss2_early_lead_cap,
@@ -114,6 +118,50 @@ def test_prius_stopped_lead_obstacle_bias_does_not_apply_at_standstill_or_to_dep
 
   assert get_toyota_prius_stopped_lead_obstacle_bias(prius, stopped_lead, v_ego=0.0) == pytest.approx(0.0)
   assert get_toyota_prius_stopped_lead_obstacle_bias(prius, departing_lead, v_ego=8.0) == pytest.approx(0.0)
+
+
+def test_honda_crv_5g_stopped_lead_tune_is_vehicle_specific():
+  crv = CarInterface.get_non_essential_params(CAR.HONDA_CRV_5G)
+  civic = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  stopped_lead = make_lead(status=True, d_rel=18.0, v_lead=0.2, model_prob=0.99)
+
+  bias = get_honda_crv_5g_stopped_lead_obstacle_bias(crv, stopped_lead, v_ego=8.0)
+  assert 0.0 < bias < 1.0
+  assert get_honda_crv_5g_stopped_lead_obstacle_bias(civic, stopped_lead, v_ego=8.0) == pytest.approx(0.0)
+  assert get_honda_crv_5g_low_speed_stopped_lead_cap(
+    crv, make_lead(status=True, d_rel=10.0, v_lead=0.1, model_prob=0.99), v_ego=1.6, accel_min=-0.5,
+  ) == pytest.approx(-0.272)
+  assert get_honda_crv_5g_low_speed_stopped_lead_cap(
+    civic, make_lead(status=True, d_rel=10.0, v_lead=0.1, model_prob=0.99), v_ego=1.6, accel_min=-0.5,
+  ) is None
+  assert allow_honda_crv_5g_vision_gap_settle(crv)
+  assert not allow_honda_crv_5g_vision_gap_settle(civic)
+  assert get_standstill_gap_settle_max_extra_gap(crv) > get_standstill_gap_settle_max_extra_gap(civic)
+
+
+@pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
+def test_honda_crv_5g_vision_lead_gap_settle_is_bounded(model_version):
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_CRV_5G)
+  planner = LongitudinalPlanner(CP, init_v=0.0)
+  sm = make_sm(
+    0.0,
+    desired_accel=-0.12,
+    min_accel=-0.5,
+    experimental_mode=True,
+    tracking_lead=False,
+    lead_one=make_lead(status=True, d_rel=11.0, v_lead=0.0, a_lead=0.0, model_prob=0.99),
+  )
+  sm["carState"].standstill = True
+  sm["controlsState"].longControlState = LongCtrlState.stopping
+  sm["modelV2"].action.shouldStop = True
+
+  frames = int(round(longitudinal_planner_module.RADAR_STANDSTILL_GAP_SETTLE_CONFIRM_TIME / planner.dt)) + 2
+  for _ in range(frames):
+    planner.update(sm, make_toggles(model_version))
+
+  assert planner.radar_standstill_gap_settle_active
+  assert not planner.output_should_stop
+  assert planner.output_a_target == pytest.approx(longitudinal_planner_module.RADAR_STANDSTILL_GAP_SETTLE_ACCEL)
 
 
 def test_mpc_duplicate_vision_filter_smooths_distance_jumps_per_track():

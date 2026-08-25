@@ -35,7 +35,7 @@ def test_galaxy_layout_removes_obsolete_and_duplicate_controls():
   all_keys = {key for params in sections.values() for key in params}
 
   assert "Model & Customization" not in sections
-  assert {"HumanAcceleration", "ReverseCruise"}.isdisjoint(all_keys)
+  assert "HumanAcceleration" not in all_keys
   assert "DisableWideRoad" in sections["Visual (Display & UI)"]
   assert sum(
     param.get("key") == "DisableWideRoad"
@@ -64,6 +64,58 @@ def test_galaxy_layout_contains_basic_mode_controls():
   assert sections["Longitudinal (Speed & Following)"]["PulseGlideSpeedDelta"]["settings_tier"] == "advanced"
   assert "PulseGlideSpeedDelta" not in sections["Developer"]
   assert {"AlphaLongitudinalEnabled", "ForceOffroad", "GalaxyDeveloperMode"} <= sections["Developer"].keys()
+
+
+def test_ford_lateral_controls_are_ford_only_and_galaxy_only():
+  lateral = _params_by_section(_layout())["Lateral (Steering)"]
+  ford_keys = {
+    "FordLateralMode",
+    "FordHumanTurnDetection",
+    "FordHandsFreeCluster",
+    "FordCurvatureBlendLow",
+    "FordCurvatureBlendHigh",
+    "FordCurvatureLaneChangeFactor",
+    "FordAngleBlend",
+    "FordAngleLowSpeedFactor",
+    "FordAngleHighSpeedFactor",
+    "FordAngleHighSpeedDamping",
+    "FordAngleLaneChangeFactor",
+  }
+
+  assert ford_keys <= lateral.keys()
+  assert all(lateral[key]["galaxy_only"] is True for key in ford_keys)
+  assert all(lateral[key]["vehicle_makes"] == ["Ford"] for key in ford_keys)
+  assert all(lateral[key]["settings_tier"] == "simple" for key in ford_keys)
+
+  mode = lateral["FordLateralMode"]
+  assert mode["ui_type"] == "dropdown"
+  assert mode["data_type"] == "int"
+  assert mode["is_parent_toggle"] is True
+  assert {option["label"]: option["value"] for option in mode["options"]} == {
+    "Native": 0,
+    "Curvature": 1,
+    "Angle": 2,
+  }
+  assert _declared_default("FordLateralMode") == "1"
+
+  common_keys = {"FordHumanTurnDetection", "FordHandsFreeCluster"}
+  curvature_keys = {"FordCurvatureBlendLow", "FordCurvatureBlendHigh", "FordCurvatureLaneChangeFactor"}
+  angle_keys = {
+    "FordAngleBlend",
+    "FordAngleLowSpeedFactor",
+    "FordAngleHighSpeedFactor",
+    "FordAngleHighSpeedDamping",
+    "FordAngleLaneChangeFactor",
+  }
+  assert all(lateral[key]["visible_when_values"] == [1, 2] for key in common_keys)
+  assert all(lateral[key]["visible_when_values"] == [1] for key in curvature_keys)
+  assert all(lateral[key]["visible_when_values"] == [2] for key in angle_keys)
+  assert all(lateral[key]["parent_key"] == "FordLateralMode" for key in ford_keys - {"FordLateralMode"})
+
+  device_ui_root = REPO_ROOT / "selfdrive/ui"
+  for path in device_ui_root.rglob("*.py"):
+    source = path.read_text(encoding="utf-8")
+    assert all(key not in source for key in ford_keys)
 
 
 def test_device_shutdown_uses_literal_hours():
@@ -290,7 +342,11 @@ def test_pip_preview_is_under_driving_screen_widgets_and_configured_only_in_gala
   assert _declared_default("PIPPreviewEnabled") == "0"
   assert _declared_default("PIPPreviewShowOnBlinker") == "0"
   assert _declared_default("PIPPreviewShowOnBSM") == "0"
-  assert '"{\\"width\\":1928,\\"height\\":1208,\\"center_left\\":[315,548],\\"center_right\\":[1571,539],\\"crop_size\\":580}"' in PARAM_KEYS_PATH.read_text(encoding="utf-8")
+  annotation_default = (
+    '"{\\"width\\":1928,\\"height\\":1208,\\"center_left\\":[315,548],' +
+    '\\"center_right\\":[1571,539],\\"crop_size\\":580}"'
+  )
+  assert annotation_default in PARAM_KEYS_PATH.read_text(encoding="utf-8")
 
   physical_settings = (
     REPO_ROOT / "selfdrive/ui/layouts/settings/starpilot/aethergrid.py",

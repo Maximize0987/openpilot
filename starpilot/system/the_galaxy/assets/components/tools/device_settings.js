@@ -11,7 +11,7 @@ const FAVORITE_OPTION_COLLATOR = new Intl.Collator(undefined, { numeric: true, s
 const FAVORITE_ACTION_PREFIX = "__starpilot_favorite_action__:"
 const GALAXY_DEVELOPER_MODE_KEY = "GalaxyDeveloperMode"
 const HIDDEN_SECTION_NAMES = new Set(["Model & Customization"])
-const HIDDEN_SETTING_KEYS = new Set(["HumanAcceleration", "ReverseCruise"])
+const HIDDEN_SETTING_KEYS = new Set(["HumanAcceleration"])
 const GM_MAKES = ["Buick", "Cadillac", "Chevrolet", "GMC", "Holden"]
 const HKG_MAKES = ["Genesis", "Hyundai", "Kia"]
 const VEHICLE_SETTING_MAKES = {
@@ -96,16 +96,22 @@ function normalizeVehicleMake(value) {
 }
 
 function isVehicleSettingVisible(section, param) {
-  if (section.name !== "Vehicle") return true
-  const allowedMakes = VEHICLE_SETTING_MAKES[param.key]
+  const allowedMakes = param.vehicle_makes || (section.name === "Vehicle" ? VEHICLE_SETTING_MAKES[param.key] : null)
   if (!allowedMakes) return true
   const selectedMake = normalizeVehicleMake(state.values.CarMake)
   return allowedMakes.some(make => normalizeVehicleMake(make) === selectedMake)
 }
 
+function matchesSettingValueCondition(param) {
+  if (!param.visible_when_key) return true
+  const allowedValues = Array.isArray(param.visible_when_values) ? param.visible_when_values : []
+  const currentValue = toSelectValue(state.values[param.visible_when_key])
+  return allowedValues.some(value => toSelectValue(value) === currentValue)
+}
+
 function isSettingVisible(section, param) {
   // This policy controls Galaxy rendering only; hidden params retain their stored values.
-  if (HIDDEN_SETTING_KEYS.has(param.key) || !isVehicleSettingVisible(section, param)) return false
+  if (HIDDEN_SETTING_KEYS.has(param.key) || !isVehicleSettingVisible(section, param) || !matchesSettingValueCondition(param)) return false
   if (param.requires_capability && !state.values[param.requires_capability]) return false
   if (RADAR_REQUIRED_KEYS.has(param.key) && !state.values.HasRadar) return false
   if (param.key === "AlphaLongitudinalEnabled" && !state.values.AlphaLongitudinalAvailable) return false

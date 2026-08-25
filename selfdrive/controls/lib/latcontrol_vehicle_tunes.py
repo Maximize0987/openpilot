@@ -376,6 +376,8 @@ BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED = 2.5
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_WIDTH = 0.7
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX = 7.2
 BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX_WIDTH = 0.5
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SCALE_MIN = 0.62
+BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_ALPHA_MIN = 0.28
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_BUMP = 0.080
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_LAT = 0.18
 BOLT_2022_2023_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.06
@@ -457,7 +459,7 @@ SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_LAT = 0.10
 SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_LAT_WIDTH = 0.02
 SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_SPEED_MAX = 7.5
 SONATA_HYBRID_LOW_SPEED_CENTER_TAPER_SPEED_WIDTH = 1.0
-SONATA_HYBRID_CENTER_OUTPUT_TAPER_MAX = 0.08
+SONATA_HYBRID_CENTER_OUTPUT_TAPER_MAX = 0.14
 SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT = 0.18
 SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.05
 SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED = 12.5
@@ -2265,6 +2267,27 @@ def get_bolt_2022_2023_low_speed_center_output_limit(desired_lateral_accel: floa
   speed_weight = speed_onset * speed_cutoff
   reduction = (1.0 - BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LIMIT) * speed_weight * center_weight
   return 1.0 - reduction
+
+
+def get_bolt_2022_2023_low_speed_center_output(output_torque: float, prev_output_torque: float,
+                                               desired_lateral_accel: float, v_ego: float) -> float:
+  """Damp low-speed center reversals without reducing real turn authority."""
+  speed_weight = _bolt_2022_2023_sigmoid(
+    (v_ego - BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_WIDTH
+  ) * _bolt_2022_2023_sigmoid(
+    (BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX - v_ego) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SPEED_MAX_WIDTH
+  )
+  center_weight = _bolt_2022_2023_sigmoid(
+    (BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT - abs(desired_lateral_accel)) /
+    BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_LAT_WIDTH
+  )
+  envelope = speed_weight * center_weight
+  output_scale = 1.0 - ((1.0 - BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_SCALE_MIN) * envelope)
+  output_alpha = 1.0 - ((1.0 - BOLT_2022_2023_LOW_SPEED_CENTER_OUTPUT_ALPHA_MIN) * envelope)
+  limited_output = output_torque * output_scale
+  return float(prev_output_torque + output_alpha * (limited_output - prev_output_torque))
 
 
 def get_bolt_2022_2023_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0, desired_lateral_jerk: float = 0.0) -> float:

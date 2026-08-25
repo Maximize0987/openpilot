@@ -11,6 +11,8 @@ from openpilot.starpilot.controls.lib.speed_limit_controller import SpeedLimitCo
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
+  get_force_stop_low_speed_hold,
+  get_force_stop_reanchor_speed_tolerance,
 )
 
 CSC_MIN_SPEED = CITY_SPEED_LIMIT * CV.MPH_TO_MS
@@ -166,6 +168,7 @@ class StarPilotVCruise:
 
     self.override_force_stop_timer = 0
     self.force_stop_timer = 0.0
+    self.force_stop_entry_speed = None
     self.activation_gate_active = False
     self.standstill_force_stop_hold = False
     self.standstill_force_stop_clear_since = 0.0
@@ -358,6 +361,8 @@ class StarPilotVCruise:
       car_params = sm["carParams"]
     except (KeyError, IndexError, TypeError, AttributeError):
       car_params = None
+    force_stop_reanchor_speed_tolerance = get_force_stop_reanchor_speed_tolerance(car_params)
+    force_stop_low_speed_hold = get_force_stop_low_speed_hold(car_params)
     lead_veto_m = get_lead_veto_distance(car_params)
     lead_present = (bool(getattr(lead, "status", False))
                     and float(getattr(lead, "dRel", float("inf"))) < lead_veto_m
@@ -490,6 +495,17 @@ class StarPilotVCruise:
       not stop_light_detected and
       not dash_active
     )
+    low_speed_stop_commit = bool(
+      light_stop_cleared and
+      force_stop_low_speed_hold is not None and
+      self.force_stop_entry_speed is not None and
+      v_ego <= force_stop_low_speed_hold and
+      v_ego < self.force_stop_entry_speed - 0.25
+    )
+    # The Santa Fe's model stop signal can blink off after the car has already
+    # committed to the stop. Do not turn that late dropout into a throttle
+    # release while the vehicle is still rolling through the sign.
+    light_stop_cleared &= not low_speed_stop_commit
     if light_stop_cleared:
       if self.force_stop_light_clear_since is None:
         self.force_stop_light_clear_since = now
@@ -593,6 +609,8 @@ class StarPilotVCruise:
       v_cruise = 0.0
 
     elif force_stop_enabled and not self.override_force_stop:
+      if self.force_stop_entry_speed is None and not sm["carState"].standstill:
+        self.force_stop_entry_speed = v_ego
       self.forcing_stop |= not sm["carState"].standstill or self.standstill_force_stop_hold
 
       if self.standstill_force_stop_hold:
@@ -614,7 +632,12 @@ class StarPilotVCruise:
           not dash_active and
           self.tracked_model_length > force_stop_handoff_m and
           not model_wants_stop and
-          model_length > self.tracked_model_length + FORCE_STOP_DISTANCE_REANCHOR_MIN_GAP
+          model_length > self.tracked_model_length + FORCE_STOP_DISTANCE_REANCHOR_MIN_GAP and
+          (
+            force_stop_reanchor_speed_tolerance is None or
+            self.force_stop_entry_speed is None or
+            v_ego >= self.force_stop_entry_speed - force_stop_reanchor_speed_tolerance
+          )
         ):
           self.tracked_model_length = model_length
         else:
@@ -646,6 +669,7 @@ class StarPilotVCruise:
 
     else:
       self.forcing_stop = False
+      self.force_stop_entry_speed = None
       self._clear_standstill_force_stop_hold()
       # Latch is only meaningful during an active force-stop cycle
       self.stop_sign_confirmed = False

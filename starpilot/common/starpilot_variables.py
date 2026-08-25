@@ -1278,7 +1278,6 @@ class StarPilotVariables:
     map_gears = self.get_value("MapGears", condition=quality_of_life_longitudinal)
     toggle.map_acceleration = self.get_value("MapAcceleration", condition=map_gears)
     toggle.map_deceleration = self.get_value("MapDeceleration", condition=map_gears)
-    toggle.reverse_cruise_increase = self.get_value("ReverseCruise", condition=quality_of_life_cruise)
     toggle.set_speed_offset = self.get_value("SetSpeedOffset", cast=float, condition=(quality_of_life_longitudinal and not pcm_cruise), conversion=(1 if toggle.is_metric else CV.MPH_TO_KPH))
     toggle.weather_presets = self.get_value("WeatherPresets", condition=quality_of_life_longitudinal)
     toggle.increase_following_distance_low_visibility = self.get_value("IncreaseFollowingLowVisibility", cast=float, condition=toggle.weather_presets)

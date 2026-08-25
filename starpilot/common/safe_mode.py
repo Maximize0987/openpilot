@@ -91,7 +91,6 @@ SAFE_MODE_MANAGED_KEYS = (
   "MapGears",
   "MapAcceleration",
   "MapDeceleration",
-  "ReverseCruise",
   "SetSpeedOffset",
   "WeatherPresets",
   "IncreaseFollowingLowVisibility",

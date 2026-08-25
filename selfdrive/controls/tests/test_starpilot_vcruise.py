@@ -16,6 +16,8 @@ from openpilot.starpilot.controls.lib.starpilot_vcruise import (
 from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
+  get_force_stop_low_speed_hold,
+  get_force_stop_reanchor_speed_tolerance,
 )
 from types import SimpleNamespace
 
@@ -58,7 +60,7 @@ def make_vcruise(*, red_light=False, raw_model_stopped=False, forcing_stop=False
   return planner, vcruise
 
 
-def make_sm(*, standstill=True, min_steer_speed=0.0):
+def make_sm(*, standstill=True, min_steer_speed=0.0, car_fingerprint=""):
   return {
     "carControl": SimpleNamespace(longActive=True),
     "carState": SimpleNamespace(
@@ -71,7 +73,7 @@ def make_sm(*, standstill=True, min_steer_speed=0.0):
       rightBlinker=False,
       steeringAngleDeg=0.0,
     ),
-    "carParams": SimpleNamespace(minSteerSpeed=min_steer_speed),
+    "carParams": SimpleNamespace(minSteerSpeed=min_steer_speed, carFingerprint=car_fingerprint),
     "starpilotCarState": SimpleNamespace(accelPressed=False, dashboardStopSign=0, dashboardSpeedLimit=0),
     "onroadEvents": [],
   }
@@ -128,6 +130,16 @@ def test_camry_tss2_uses_closer_force_stop_handoff():
 def test_camry_tss2_gets_forward_force_stop_bias_only():
   assert get_force_stop_distance_bias("TOYOTA_CAMRY_TSS2") == pytest.approx(6.0)
   assert get_force_stop_distance_bias("TOYOTA_RAV4_TSS2") == pytest.approx(0.0)
+
+
+def test_santa_fe_force_stop_tune_only_applies_to_that_car():
+  santa_fe = SimpleNamespace(carFingerprint="HYUNDAI_SANTA_FE_2022")
+  other = SimpleNamespace(carFingerprint="HYUNDAI_SANTA_FE_2021")
+
+  assert get_force_stop_reanchor_speed_tolerance(santa_fe) == pytest.approx(0.25)
+  assert get_force_stop_low_speed_hold(santa_fe) == pytest.approx(2.5)
+  assert get_force_stop_reanchor_speed_tolerance(other) is None
+  assert get_force_stop_low_speed_hold(other) is None
 
 
 def test_curve_speed_controller_holds_target_through_brief_detector_dropout():
@@ -518,6 +530,34 @@ def test_force_stop_reanchors_when_model_reopens_path_without_stop_action():
 
   assert vcruise.tracked_model_length == pytest.approx(40.0)
   assert result > 5.0
+
+
+def test_santa_fe_force_stop_does_not_reanchor_after_braking():
+  planner, vcruise = make_vcruise(red_light=False, raw_model_stopped=False, forcing_stop=True)
+  planner.model_length = 40.0
+  vcruise.tracked_model_length = 10.0
+  vcruise.force_stop_entry_speed = 12.0
+  sm = make_sm(standstill=False, car_fingerprint="HYUNDAI_SANTA_FE_2022")
+  sm["modelV2"] = SimpleNamespace(action=SimpleNamespace(shouldStop=False))
+
+  result = update_vcruise(vcruise, sm, make_toggles(), now=0.0, v_ego=5.0)
+
+  assert vcruise.tracked_model_length < 10.0
+  assert result < 5.0
+
+
+def test_santa_fe_force_stop_holds_through_low_speed_detector_dropout():
+  planner, vcruise = make_vcruise(red_light=True, raw_model_stopped=False, forcing_stop=True)
+  vcruise.force_stop_entry_speed = 12.0
+  sm = make_sm(standstill=False, car_fingerprint="HYUNDAI_SANTA_FE_2022")
+  toggles = make_toggles()
+
+  update_vcruise(vcruise, sm, toggles, now=0.0, v_ego=2.0)
+  planner.starpilot_cem.stop_light_detected = False
+  result = update_vcruise(vcruise, sm, toggles, now=0.75, v_ego=2.0)
+
+  assert vcruise.forcing_stop
+  assert result == pytest.approx(0.0)
 
 
 def test_force_stop_does_not_reanchor_committed_model_stop():

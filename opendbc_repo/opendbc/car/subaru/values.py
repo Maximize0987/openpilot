@@ -37,6 +37,11 @@ class CarControllerParams:
     self.STEER_OVERRIDE_TORQUE_HIGH = 200
     self.STEER_OVERRIDE_TORQUE_LOW = 150
 
+    # Crosstrek 2025 reports manual parking-lot inputs below the generic handoff threshold.
+    if CP.carFingerprint == CAR.SUBARU_CROSSTREK_2025:
+      self.STEER_OVERRIDE_TORQUE_HIGH = 150
+      self.STEER_OVERRIDE_TORQUE_LOW = 100
+
     if CP.flags & SubaruFlags.GLOBAL_GEN2:
       # TODO: lower rate limits, this reaches min/max in 0.5s which negatively affects tuning
       self.STEER_MAX = 1500

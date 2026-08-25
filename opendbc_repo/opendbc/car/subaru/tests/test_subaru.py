@@ -429,13 +429,23 @@ def test_angle_controller_tracks_driver_override():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_CROSSTREK_2025)
   controller = CarController({}, CP)
   CC = SimpleNamespace(latActive=True, actuators=SimpleNamespace(steeringAngleDeg=15.0))
-  CS = SimpleNamespace(out=SimpleNamespace(vEgoRaw=15.0, steeringAngleDeg=2.0, steeringTorque=250.0))
+  CS = SimpleNamespace(out=SimpleNamespace(vEgoRaw=15.0, steeringAngleDeg=2.0, steeringTorque=175.0))
 
   msg = controller.lateral_angle(CC, CS)
 
   assert controller.driver_override
+  assert controller.p.STEER_OVERRIDE_TORQUE_HIGH == 150
+  assert controller.p.STEER_OVERRIDE_TORQUE_LOW == 100
   assert controller.apply_steer_last == CS.out.steeringAngleDeg
   assert msg[0] == 0x124
+
+  CS.out.steeringTorque = 125.0
+  controller.lateral_angle(CC, CS)
+  assert controller.driver_override
+
+  CS.out.steeringTorque = 75.0
+  controller.lateral_angle(CC, CS)
+  assert not controller.driver_override
 
 
 def test_ascent_angle_controller_uses_fixed_angle_rate_limits():

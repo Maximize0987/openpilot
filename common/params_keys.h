@@ -549,7 +549,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"RelaxedJerkDeceleration", {PERSISTENT, FLOAT, "100.0", "100.0", 3}},
     {"RelaxedJerkSpeed", {PERSISTENT, FLOAT, "100.0", "100.0", 3}},
     {"RelaxedJerkSpeedDecrease", {PERSISTENT, FLOAT, "100.0", "100.0", 3}},
-    {"ReverseCruise", {PERSISTENT, BOOL, "0", "0", 1}},
     {"RivianAngleControl", {PERSISTENT, BOOL, "0", "0", 2, SETTINGS_SIMPLE}},
     {"RivianAngleSaturated", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, BOOL, "0", "0"}},
     {"RivianToiRecoveryFailed", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, BOOL, "0", "0"}},

@@ -93,6 +93,7 @@ class LatControlTorque(LatControl):
     self.low_speed_reset_threshold = max(CP.minSteerSpeed, MIN_LATERAL_CONTROL_SPEED)
     self.steer_release_i_decay = 0.8
     self.prev_steering_pressed = False
+    self.prev_output_torque = 0.0
     self.debug_counter = 0
     self.prev_desired_lateral_accel = 0.0
     self.starpilot_lateral_state = custom.StarPilotLateralState.new_message()
@@ -231,6 +232,7 @@ class LatControlTorque(LatControl):
     future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
     if not active:
       output_torque = 0.0
+      self.prev_output_torque = 0.0
       pid_log.active = False
       self._clear_starpilot_lateral_state()
       self.pid.reset()
@@ -541,6 +543,9 @@ class LatControlTorque(LatControl):
           -low_speed_center_output_limit,
           low_speed_center_output_limit,
         ))
+        output_torque = get_bolt_2022_2023_low_speed_center_output(
+          output_torque, self.prev_output_torque, setpoint, CS.vEgo,
+        )
       elif self.is_bolt_2017:
         output_torque *= get_bolt_2017_torque_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif bolt_2018_2021_tuned_path_active:
@@ -658,6 +663,7 @@ class LatControlTorque(LatControl):
       self.starpilot_lateral_state.lowSpeedFactor = float(low_speed_factor)
       self.starpilot_lateral_state.unwindDetected = bool(unwind_detected)
       pid_log.saturated = bool(self._check_saturation(self.steer_max - abs(output_torque) < 1e-3, CS, steer_limited_by_safety, curvature_limited))
+      self.prev_output_torque = float(output_torque)
 
       if DEBUG_TORQUE_TUNE and self.is_bolt:
         self.debug_counter += 1

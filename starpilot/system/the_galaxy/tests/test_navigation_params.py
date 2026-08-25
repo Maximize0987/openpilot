@@ -95,10 +95,11 @@ def _params_client(monkeypatch, values, device_type):
     the_galaxy,
     "_get_param_type_info",
     lambda: (
-      {"AlphaLongitudinalEnabled", "ForceOffroad"},
+      {"AlphaLongitudinalEnabled", "ForceOffroad", "FordLateralMode"},
       {
         "AlphaLongitudinalEnabled": bool,
         "ForceOffroad": bool,
+        "FordLateralMode": int,
       },
     ),
   )
@@ -253,6 +254,19 @@ def test_device_settings_layout_asset_is_served_from_common_catalog(monkeypatch)
   with client.get("/assets/components/tools/device_settings_layout.json") as response:
     assert response.status_code == 200
     assert response.get_json() == the_galaxy.load_settings_catalog()
+
+
+def test_ford_lateral_mode_is_editable_through_galaxy(monkeypatch):
+  client, fake_params = _params_client(monkeypatch, {
+    "CarMake": "Ford",
+    "FordLateralMode": 1,
+  }, "mici")
+
+  response = client.put("/api/params", json={"key": "FordLateralMode", "value": 2, "label": "Angle"})
+
+  assert response.status_code == 200
+  assert fake_params.values["FordLateralMode"] == "2"
+  assert ("FordLateralMode", "2") in fake_params.writes
 
 
 def test_favorite_slot_options_include_virtual_cruise_actions(monkeypatch):

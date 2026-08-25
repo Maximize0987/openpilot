@@ -47,12 +47,32 @@ TOYOTA_PRIUS_STOPPED_LEAD_MIN_CLOSING_SPEED = 0.15
 TOYOTA_PRIUS_STOPPED_LEAD_MAX_DISTANCE = 80.0
 TOYOTA_PRIUS_STOPPED_LEAD_RAMP_DISTANCE = 10.0
 TOYOTA_PRIUS_STOPPED_LEAD_MAX_LATERAL_OFFSET = 1.75
+HONDA_CRV_5G_STOPPED_LEAD_OBSTACLE_BIAS_M = 1.0
+HONDA_CRV_5G_STOPPED_LEAD_MAX_EGO_SPEED = 22.0
+HONDA_CRV_5G_STOPPED_LEAD_MAX_SPEED = 1.0
+HONDA_CRV_5G_STOPPED_LEAD_MIN_CLOSING_SPEED = 0.15
+HONDA_CRV_5G_STOPPED_LEAD_MAX_DISTANCE = 80.0
+HONDA_CRV_5G_STOPPED_LEAD_RAMP_DISTANCE = 10.0
+HONDA_CRV_5G_STOPPED_LEAD_MAX_LATERAL_OFFSET = 1.75
+HONDA_CRV_5G_LOW_SPEED_STOP_MAX_EGO_SPEED = 4.5
+HONDA_CRV_5G_LOW_SPEED_STOP_MAX_LEAD_SPEED = 0.5
+HONDA_CRV_5G_LOW_SPEED_STOP_MIN_MODEL_PROB = 0.99
+HONDA_CRV_5G_LOW_SPEED_STOP_MAX_DISTANCE = 12.0
+HONDA_CRV_5G_LOW_SPEED_STOP_MIN_DISTANCE = 6.5
+HONDA_CRV_5G_LOW_SPEED_STOP_MIN_CLOSING_SPEED = 0.15
+HONDA_CRV_5G_LOW_SPEED_STOP_MAX_LEAD_ACCEL = 0.25
+HONDA_CRV_5G_LOW_SPEED_STOP_MAX_DECEL = 0.45
+HONDA_CRV_5G_LOW_SPEED_STOP_MIN_DECEL = 0.12
+HONDA_CRV_5G_GAP_SETTLE_MAX_EXTRA_GAP = 7.0
+HONDA_CRV_5G_GUARD_DISTANCE_MARGIN = 1.5
 TOYOTA_CAMRY_TSS2_FORCE_STOP_HANDOFF_M = 4.5
 # The Camry's force-stop path otherwise consumes the model endpoint before the
 # normal MPC stop-distance margin can be applied. Keep it within the forward
 # offset range exposed by the Force Stop setting.
 TOYOTA_CAMRY_TSS2_FORCE_STOP_DISTANCE_BIAS_M = 6.0
 DEFAULT_FORCE_STOP_HANDOFF_M = 6.0
+HYUNDAI_SANTA_FE_2022_FORCE_STOP_REANCHOR_SPEED_TOLERANCE = 0.25
+HYUNDAI_SANTA_FE_2022_FORCE_STOP_LOW_SPEED_HOLD = 2.5
 
 
 def get_toyota_prius_stopped_lead_obstacle_bias(CP, lead, v_ego):
@@ -82,6 +102,92 @@ def get_toyota_prius_stopped_lead_obstacle_bias(CP, lead, v_ego):
   )
   bias = TOYOTA_PRIUS_STOPPED_LEAD_OBSTACLE_BIAS_M * strength
   return float(min(bias, max(distance - 0.5, 0.0)))
+
+
+def is_honda_crv_5g(CP):
+  return (
+    getattr(CP, "brand", "") == "honda" and
+    str(getattr(CP, "carFingerprint", "")) == "HONDA_CRV_5G"
+  )
+
+
+def get_honda_crv_5g_stopped_lead_obstacle_bias(CP, lead, v_ego):
+  """Bring the CR-V's vision stopped-lead target in without changing stops."""
+  if (
+    not is_honda_crv_5g(CP) or
+    lead is None or not bool(getattr(lead, "status", False)) or
+    float(v_ego) <= 0.0 or float(v_ego) > HONDA_CRV_5G_STOPPED_LEAD_MAX_EGO_SPEED or
+    float(getattr(lead, "vLead", 0.0)) > HONDA_CRV_5G_STOPPED_LEAD_MAX_SPEED or
+    bool(getattr(lead, "radar", False)) or
+    float(getattr(lead, "modelProb", 0.0)) < 0.95 or
+    abs(float(getattr(lead, "yRel", 0.0))) > HONDA_CRV_5G_STOPPED_LEAD_MAX_LATERAL_OFFSET
+  ):
+    return 0.0
+
+  distance = float(getattr(lead, "dRel", float("inf")))
+  closing_speed = float(v_ego) - float(getattr(lead, "vLead", 0.0))
+  if (
+    distance <= 0.0 or distance > HONDA_CRV_5G_STOPPED_LEAD_MAX_DISTANCE or
+    closing_speed < HONDA_CRV_5G_STOPPED_LEAD_MIN_CLOSING_SPEED
+  ):
+    return 0.0
+
+  strength = np.clip(
+    (HONDA_CRV_5G_STOPPED_LEAD_MAX_DISTANCE - distance) /
+    (HONDA_CRV_5G_STOPPED_LEAD_MAX_DISTANCE - HONDA_CRV_5G_STOPPED_LEAD_RAMP_DISTANCE),
+    0.0, 1.0,
+  )
+  bias = HONDA_CRV_5G_STOPPED_LEAD_OBSTACLE_BIAS_M * strength
+  return float(min(bias, max(distance - 0.5, 0.0)))
+
+
+def get_honda_crv_5g_low_speed_stopped_lead_cap(CP, lead, v_ego, accel_min):
+  """Bleed a CR-V crawl into the normal standstill gap without a hard jab."""
+  if (
+    not is_honda_crv_5g(CP) or
+    lead is None or not bool(getattr(lead, "status", False)) or
+    bool(getattr(lead, "radar", False)) or
+    float(getattr(lead, "modelProb", 0.0)) < HONDA_CRV_5G_LOW_SPEED_STOP_MIN_MODEL_PROB or
+    float(v_ego) <= 0.0 or float(v_ego) > HONDA_CRV_5G_LOW_SPEED_STOP_MAX_EGO_SPEED
+  ):
+    return None
+
+  lead_speed = max(float(getattr(lead, "vLead", 0.0)), 0.0)
+  distance = float(getattr(lead, "dRel", float("inf")))
+  if (
+    lead_speed > HONDA_CRV_5G_LOW_SPEED_STOP_MAX_LEAD_SPEED or
+    float(getattr(lead, "aLeadK", 0.0)) > HONDA_CRV_5G_LOW_SPEED_STOP_MAX_LEAD_ACCEL or
+    distance < HONDA_CRV_5G_LOW_SPEED_STOP_MIN_DISTANCE or
+    distance > HONDA_CRV_5G_LOW_SPEED_STOP_MAX_DISTANCE or
+    float(v_ego) - lead_speed < HONDA_CRV_5G_LOW_SPEED_STOP_MIN_CLOSING_SPEED or
+    abs(float(getattr(lead, "yRel", 0.0))) > HONDA_CRV_5G_STOPPED_LEAD_MAX_LATERAL_OFFSET
+  ):
+    return None
+
+  available_gap = max(distance - 6.0, 1.0)
+  required_decel = float(v_ego) ** 2 / (2.0 * available_gap)
+  decel = float(np.clip(
+    required_decel * 0.85,
+    HONDA_CRV_5G_LOW_SPEED_STOP_MIN_DECEL,
+    HONDA_CRV_5G_LOW_SPEED_STOP_MAX_DECEL,
+  ))
+  return max(float(accel_min), -decel)
+
+
+def allow_honda_crv_5g_vision_gap_settle(CP):
+  return is_honda_crv_5g(CP)
+
+
+def get_standstill_gap_settle_max_extra_gap(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_GAP_SETTLE_MAX_EXTRA_GAP
+  return 1.5
+
+
+def get_standstill_stopped_lead_guard_distance_margin(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_GUARD_DISTANCE_MARGIN
+  return 3.0
 
 
 def is_toyota_rav4_tss2_post_departure_tune(CP):
@@ -285,3 +391,17 @@ def get_force_stop_distance_bias(car_fingerprint):
   if str(car_fingerprint) == "TOYOTA_CAMRY_TSS2":
     return TOYOTA_CAMRY_TSS2_FORCE_STOP_DISTANCE_BIAS_M
   return 0.0
+
+
+def get_force_stop_reanchor_speed_tolerance(car_params):
+  """Keep the Santa Fe stop distance from reopening after braking begins."""
+  if str(getattr(car_params, "carFingerprint", car_params)) == "HYUNDAI_SANTA_FE_2022":
+    return HYUNDAI_SANTA_FE_2022_FORCE_STOP_REANCHOR_SPEED_TOLERANCE
+  return None
+
+
+def get_force_stop_low_speed_hold(car_params):
+  """Keep a committed Santa Fe stop from releasing while it is still rolling."""
+  if str(getattr(car_params, "carFingerprint", car_params)) == "HYUNDAI_SANTA_FE_2022":
+    return HYUNDAI_SANTA_FE_2022_FORCE_STOP_LOW_SPEED_HOLD
+  return None

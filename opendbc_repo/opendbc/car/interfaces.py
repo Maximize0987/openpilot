@@ -245,6 +245,13 @@ class CarInterfaceBase(ABC):
           fp_ret.pcmCruiseSpeed = False
           CP.openpilotLongitudinalControl = True
 
+        # These classic Hyundai hybrids need their stock ACC main state tracked while
+        # using OP long. Their cluster/EPS state becomes inconsistent when AOL remains
+        # active after the physical ACC main state changes.
+        if candidate in (HYUNDAI.HYUNDAI_SONATA_HYBRID, HYUNDAI.HYUNDAI_ELANTRA_HEV_2024) and \
+            CP.openpilotLongitudinalControl:
+          fp_ret.flags |= HyundaiStarPilotFlags.MAIN_CRUISE_STATE_TRACKING.value
+
         hyundai_has_lda_button = not (CP.flags & HyundaiFlags.CANFD) and (
           0x391 in fingerprint[0] or
           0x50C in fingerprint[0] or

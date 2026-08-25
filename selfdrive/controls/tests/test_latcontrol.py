@@ -65,6 +65,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_bolt_2022_2023_ff_scale,
   get_bolt_2022_2023_center_output_scale,
   get_bolt_2022_2023_low_speed_center_output_limit,
+  get_bolt_2022_2023_low_speed_center_output,
   get_bolt_2022_2023_friction_scale,
   get_bolt_2022_2023_friction_threshold,
   get_trailer_lateral_ff_scale,
@@ -332,6 +333,15 @@ class TestLatControl:
     assert 0.40 < low_speed_center < 0.50
     assert low_speed_turn > 0.98
     assert normal_speed_center > 0.98
+
+  def test_bolt_2022_2023_low_speed_center_output_damps_reversals(self):
+    low_speed = get_bolt_2022_2023_low_speed_center_output(1.0, -1.0, 0.05, 4.2)
+    large_turn = get_bolt_2022_2023_low_speed_center_output(1.0, -1.0, 0.40, 4.2)
+    highway = get_bolt_2022_2023_low_speed_center_output(1.0, -1.0, 0.05, 9.0)
+
+    assert abs(low_speed) < 0.50
+    assert abs(large_turn) > abs(low_speed)
+    assert highway > low_speed
 
   def test_bolt_2022_2023_friction_threshold_curve(self):
     base = get_gm_base_friction_threshold(6.0)
@@ -906,6 +916,7 @@ class TestLatControl:
     assert low_speed > center
     assert turn > center
     assert turn > 0.99
+    assert center > 0.85
 
   def test_ioniq_5_ff_scale_curve(self):
     assert get_ioniq_5_ff_scale(0.0, 0.0, 20.0) == 1.0
@@ -1487,6 +1498,26 @@ class TestLatControl:
     _, _, lac_log = controller.update(True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles)
 
     assert lac_log.active
+
+  def test_bolt_2022_2023_low_speed_center_output_update_path(self, monkeypatch):
+    calls = []
+
+    def record_call(output_torque, prev_output_torque, desired_lateral_accel, v_ego):
+      calls.append((output_torque, prev_output_torque, desired_lateral_accel, v_ego))
+      return 0.0
+
+    monkeypatch.setattr(latcontrol_torque, "get_bolt_2022_2023_low_speed_center_output", record_call)
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.CHEVROLET_BOLT_ACC_2022_2023)
+    CS.vEgo = 4.0
+
+    output, _, lac_log = controller.update(
+      True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    assert lac_log.active
+    assert output == 0.0
+    assert calls
+    assert calls[0][3] == pytest.approx(4.0)
 
   def test_volt_standard_testing_ground_update_path(self, monkeypatch):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.CHEVROLET_VOLT_ASCM)
