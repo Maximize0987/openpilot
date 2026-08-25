@@ -57,6 +57,9 @@ class HondaSafetyFlags(IntFlag):
   RADARLESS = 8
   BOSCH_CANFD = 16
   GAS_INTERCEPTOR = 32
+  # Accord 11G MVL radar/camera handover messages. Keep the generic CAN-FD
+  # safety profile unchanged for other Honda CAN-FD platforms (for example CR-V 6G).
+  BOSCH_CANFD_MVL = 64
 
 
 class HondaFlags(IntFlag):
@@ -179,8 +182,9 @@ class CAR(Platforms):
     [
       HondaCarDocs("Honda Accord 2023-25", "All"),
       HondaCarDocs("Honda Accord Hybrid 2023-25", "All"),
-  ],
-    CarSpecs(mass=3477 * CV.LB_TO_KG, wheelbase=2.83, steerRatio=16.0, centerToFrontRatio=0.39),
+    ],
+    CarSpecs(mass=3477 * CV.LB_TO_KG, wheelbase=2.83, steerRatio=16.7, centerToFrontRatio=0.39),
+    {Bus.pt: 'honda_common_canfd_generated', Bus.radar: 'honda_common_canfd_generated'},
   )
   HONDA_CIVIC_BOSCH = HondaBoschPlatformConfig(
     [
