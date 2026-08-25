@@ -7,6 +7,7 @@ from opendbc.can.dbc import DBC as DbcFile
 from opendbc.can.parser import get_raw_value
 from opendbc.car.can_definitions import CanData
 from opendbc.car.honda.hondacan import CanBus
+import opendbc.car.honda.interface as honda_interface
 from opendbc.car.honda.interface import CarInterface
 from opendbc.car.honda.radar_interface import (
   BOSCH_A_AZIMUTH_SCALE_RAD,
@@ -30,7 +31,7 @@ from opendbc.car.honda.radar_interface import (
   _bosch_a_range_ratio,
   _bosch_a_range_ratio_vrel,
 )
-from opendbc.car.honda.values import CAR
+from opendbc.car.honda.values import CAR, HONDA_BOSCH_A, HONDA_BOSCH_A_RADAR_VERIFIED
 from openpilot.common.params import Params
 
 # Tester toggle: CP is computed once at import time below (many helpers in this module close over
@@ -44,7 +45,10 @@ def teardown_module(module):
   Params().remove("HondaBoschARadar")
 
 
+# Parser behavior is tested directly with an explicitly available CP. Production availability is
+# separately gated below by HONDA_BOSCH_A_RADAR_VERIFIED and the developer parameter.
 CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC_BOSCH)
+CP.radarUnavailable = False
 BUS = CanBus(CP).camera
 
 
@@ -1087,7 +1091,7 @@ def test_bosch_a_timing_contract():
 
 # --- misc integration: DBC wiring -------------------------------------------------------------------
 
-def test_civic_bosch_radar_dbc_wired_and_available():
+def test_civic_bosch_radar_dbc_wired_for_parser_unit_tests():
   assert CP.radarUnavailable is False
   ri = make_radar_interface()
   assert ri.bosch_a_radar is True
@@ -1102,31 +1106,68 @@ def test_civic_bosch_object_feed_uses_camera_side_acc_can():
   assert ri.rcp.bus != can.radar
 
 
-# Computed once at collection time, like CP above -- the openpilot_function_fixture in the root
-# conftest.py gives every test function its own fresh, isolated OpenpilotPrefix(), so a
-# get_non_essential_params() call made from *inside* a test body runs in an environment where the
-# HondaBoschARadar=True set at module import time (before any fixture exists) was never written.
-# Computing these at module scope, in the same environment CP uses, sidesteps that entirely.
-_OPEN_BOSCH_A_CARS = [CAR.HONDA_CRV_5G, CAR.HONDA_CRV_HYBRID, CAR.HONDA_ACCORD, CAR.HONDA_INSIGHT, CAR.ACURA_RDX_3G]
-_OPEN_BOSCH_A_CPS = {car: CarInterface.get_non_essential_params(car) for car in _OPEN_BOSCH_A_CARS}
+_EXPECTED_BOSCH_A_CARS = frozenset({
+  CAR.HONDA_NBOX_2G,
+  CAR.HONDA_ACCORD,
+  CAR.HONDA_CIVIC_BOSCH,
+  CAR.HONDA_CIVIC_BOSCH_DIESEL,
+  CAR.HONDA_CRV_5G,
+  CAR.HONDA_CRV_HYBRID,
+  CAR.ACURA_RDX_3G,
+  CAR.HONDA_INSIGHT,
+  CAR.HONDA_E,
+  CAR.HONDA_E_ADVANCE,
+})
+_VERIFIED_BOSCH_A_CARS = frozenset({CAR.HONDA_CIVIC_BOSCH})
 
-# radarless and CANFD Bosch platforms respectively -- same HONDA_BOSCH family as Civic Bosch, but
-# excluded from HONDA_BOSCH_A, so the gate must stay closed regardless of the tester toggle.
-_CLOSED_BOSCH_A_CARS = [CAR.HONDA_CIVIC_2022, CAR.HONDA_ACCORD_11G]
-_CLOSED_BOSCH_A_CPS = {car: CarInterface.get_non_essential_params(car) for car in _CLOSED_BOSCH_A_CARS}
+_EXCLUDED_BOSCH_CARS = [
+  CAR.HONDA_CIVIC_2022,
+  CAR.HONDA_ACCORD_11G,
+  CAR.HONDA_CRV_6G,
+  CAR.HONDA_HRV_3G,
+  CAR.HONDA_CITY_7G,
+  CAR.HONDA_PILOT_4G,
+  CAR.HONDA_PASSPORT_4G,
+  CAR.ACURA_RDX_3G_MMR,
+]
 
 
-@pytest.mark.parametrize("car", _OPEN_BOSCH_A_CARS)
-def test_bosch_a_gate_open_to_other_bosch_a_platforms(car):
-  cp = _OPEN_BOSCH_A_CPS[car]
-  assert cp.radarUnavailable is False
-  from opendbc.car.honda.radar_interface import RadarInterface
-  ri = RadarInterface(cp)
-  assert ri.bosch_a_radar is True
-  assert ri.rcp is not None
+def test_bosch_a_hardware_allowlist_is_exact_and_verified_set_is_explicit():
+  assert HONDA_BOSCH_A == _EXPECTED_BOSCH_A_CARS
+  assert HONDA_BOSCH_A_RADAR_VERIFIED == _VERIFIED_BOSCH_A_CARS
 
 
-@pytest.mark.parametrize("car", _CLOSED_BOSCH_A_CARS)
-def test_bosch_a_gate_stays_closed_for_non_bosch_a_platforms(car):
-  cp = _CLOSED_BOSCH_A_CPS[car]
+@pytest.mark.parametrize("car", sorted(_EXPECTED_BOSCH_A_CARS - _VERIFIED_BOSCH_A_CARS, key=lambda candidate: candidate.name))
+def test_bosch_a_radar_stays_closed_until_platform_is_verified(car):
+  cp = CarInterface.get_non_essential_params(car)
   assert cp.radarUnavailable is True
+
+
+@pytest.mark.parametrize("car", _EXCLUDED_BOSCH_CARS)
+def test_bosch_a_gate_stays_closed_for_non_bosch_a_platforms(car):
+  cp = CarInterface.get_non_essential_params(car)
+  assert cp.radarUnavailable is True
+
+
+def test_bosch_a_verified_platform_gate_can_open():
+  cp = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC_BOSCH)
+  assert cp.radarUnavailable is False
+
+
+def test_bosch_a_toggle_can_close_verified_platform(monkeypatch):
+  monkeypatch.setattr(honda_interface, "HONDA_BOSCH_A_RADAR_VERIFIED", frozenset({CAR.HONDA_CIVIC_BOSCH}))
+  original = Params().get_bool("HondaBoschARadar")
+  try:
+    Params().put_bool("HondaBoschARadar", False)
+    assert CarInterface.get_non_essential_params(CAR.HONDA_CIVIC_BOSCH).radarUnavailable is True
+  finally:
+    Params().put_bool("HondaBoschARadar", original)
+
+
+def test_bosch_a_toggle_defaults_off():
+  original = Params().get_bool("HondaBoschARadar")
+  try:
+    Params().remove("HondaBoschARadar")
+    assert Params().get_bool("HondaBoschARadar") is False
+  finally:
+    Params().put_bool("HondaBoschARadar", original)
