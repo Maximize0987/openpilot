@@ -117,6 +117,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_toyota_highlander_tss2_friction_threshold,
   get_toyota_highlander_tss2_output_taper_scale,
   get_toyota_corolla_tss2_center_output_scale,
+  get_toyota_corolla_tss2_friction_threshold,
   get_toyota_corolla_tss2_ff_scale,
   get_lexus_is_ff_scale,
   get_camry_ff_scale,
@@ -443,6 +444,17 @@ class TestLatControl:
     crawl_curve = get_toyota_corolla_tss2_center_output_scale(0.6, 1.0)
     assert 0.65 <= crawl_center < cruise_center <= 1.0
     assert crawl_curve > crawl_center
+
+  def test_toyota_corolla_tss2_friction_threshold_targets_center_highway_band(self):
+    base = get_standard_friction_threshold(16.0)
+    center = get_toyota_corolla_tss2_friction_threshold(16.0, 0.0, 0.0)
+    curve = get_toyota_corolla_tss2_friction_threshold(16.0, 0.8, 0.8)
+    slow = get_toyota_corolla_tss2_friction_threshold(5.0, 0.0, 0.0)
+    fast = get_toyota_corolla_tss2_friction_threshold(30.0, 0.0, 0.0)
+    assert center > base
+    assert curve < center
+    assert slow < center
+    assert fast < center
 
   def test_flm_standard_friction_curve_override(self):
     base = get_standard_friction_threshold(10.0)

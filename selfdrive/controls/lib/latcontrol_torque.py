@@ -408,6 +408,7 @@ class LatControlTorque(LatControl):
         friction_scale = get_toyota_highlander_tss2_friction_scale(CS.vEgo, setpoint, desired_lateral_jerk)
       elif toyota_corolla_tss2_active:
         ff *= get_toyota_corolla_tss2_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
+        friction_threshold = get_toyota_corolla_tss2_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
       elif lexus_is_active:
         ff *= get_lexus_is_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)
       elif ioniq_5_active:

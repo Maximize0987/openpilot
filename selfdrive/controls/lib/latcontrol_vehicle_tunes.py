@@ -1116,6 +1116,15 @@ TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_LAT = 0.18
 TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.08
 TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_SPEED = 4.5
 TOYOTA_COROLLA_TSS2_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 1.5
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_GAIN = 0.12
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_ONSET = 12.0
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH = 2.0
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_CUTOFF = 25.0
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_CUTOFF_WIDTH = 3.0
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_LAT = 0.24
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.10
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_JERK = 0.25
+TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_JERK_WIDTH = 0.10
 
 TOYOTA_HIGHLANDER_TSS2_PHASE_SCALE = 0.12
 TOYOTA_HIGHLANDER_TSS2_UNWIND_FF_REDUCTION = 0.10
@@ -1660,6 +1669,23 @@ def get_toyota_corolla_tss2_ff_scale(desired_lateral_accel: float,
   unwind_reduction = _flm_vehicle_knob("toyota_corolla_tss2.unwind_ff_reduction",
                                        TOYOTA_COROLLA_TSS2_UNWIND_FF_REDUCTION)
   return 1.0 + curve_weight * speed_weight * (boost * turn_in_weight - unwind_reduction * unwind_weight)
+
+
+def get_toyota_corolla_tss2_friction_threshold(v_ego: float,
+                                               desired_lateral_accel: float = 0.0,
+                                               desired_lateral_jerk: float = 0.0) -> float:
+  """Reduce center-only friction chasing on highway-sized model corrections."""
+  speed_weight = (_sigmoid((v_ego - TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_ONSET) /
+                           TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH) *
+                  _sigmoid((TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_CUTOFF - v_ego) /
+                           TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_SPEED_CUTOFF_WIDTH))
+  center_weight = _sigmoid((TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_LAT - abs(desired_lateral_accel)) /
+                           TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_LAT_WIDTH)
+  calm_weight = _sigmoid((TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_JERK - abs(desired_lateral_jerk)) /
+                         TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_JERK_WIDTH)
+  gain = _flm_vehicle_knob("toyota_corolla_tss2.center_friction_threshold_gain",
+                           TOYOTA_COROLLA_TSS2_CENTER_FRICTION_THRESHOLD_GAIN)
+  return get_standard_friction_threshold(v_ego) * (1.0 + gain * speed_weight * center_weight * calm_weight)
 
 
 def get_toyota_corolla_tss2_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:

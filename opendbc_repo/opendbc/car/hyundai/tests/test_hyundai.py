@@ -1653,6 +1653,7 @@ class TestHyundaiFingerprint:
     assert CP.startAccel == pytest.approx(0.2)
     assert CP.vEgoStarting == pytest.approx(0.5)
     assert CP.longitudinalActuatorDelay == pytest.approx(0.3)
+    assert KIA_EV9_ACCEL_MAX == pytest.approx(2.2)
     assert CarInterface.get_pid_accel_limits(CP, 0.0, 0.0)[1] == pytest.approx(KIA_EV9_ACCEL_MAX)
 
     ioniq_6_cp = CarInterface.get_params(CAR.HYUNDAI_IONIQ_6, gen_empty_fingerprint(), [], True, False, False, toggles)
