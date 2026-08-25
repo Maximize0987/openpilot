@@ -48,7 +48,9 @@ class CarInterface(CarInterfaceBase):
       # HONDA_BOSCH_A describes the physical harness family. Radar remains unavailable until the
       # exact platform is added to HONDA_BOSCH_A_RADAR_VERIFIED after real-capture validation.
       try:
-        bosch_a_radar_tryout = not docs and Params().get_bool("HondaBoschARadar")
+        # The explicit default keeps the verified platform usable on installs that have not yet
+        # persisted the internal kill-switch parameter; the verified-platform set remains mandatory.
+        bosch_a_radar_tryout = not docs and Params().get_bool("HondaBoschARadar", default=True)
       except UnknownKeyName:
         bosch_a_radar_tryout = False
       ret.radarUnavailable = not (candidate in HONDA_BOSCH_A and

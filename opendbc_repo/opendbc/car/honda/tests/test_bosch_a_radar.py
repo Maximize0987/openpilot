@@ -1164,10 +1164,11 @@ def test_bosch_a_toggle_can_close_verified_platform(monkeypatch):
     Params().put_bool("HondaBoschARadar", original)
 
 
-def test_bosch_a_toggle_defaults_off():
+def test_bosch_a_toggle_defaults_on_but_allowlist_still_gates_platforms():
   original = Params().get_bool("HondaBoschARadar")
   try:
     Params().remove("HondaBoschARadar")
-    assert Params().get_bool("HondaBoschARadar") is False
+    assert CarInterface.get_non_essential_params(CAR.HONDA_CIVIC_BOSCH).radarUnavailable is False
+    assert CarInterface.get_non_essential_params(CAR.HONDA_ACCORD).radarUnavailable is True
   finally:
     Params().put_bool("HondaBoschARadar", original)

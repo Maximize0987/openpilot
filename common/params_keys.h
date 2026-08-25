@@ -62,8 +62,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"GsmRoaming", {PERSISTENT, BOOL}},
     {"HardwareSerial", {PERSISTENT, STRING}},
     {"HasAcceptedTerms", {PERSISTENT, STRING, "0"}},
-    // Developer-only while each Bosch-A platform is being verified against real captures.
-    {"HondaBoschARadar", {PERSISTENT, BOOL, "0"}},
+    // Internal kill switch; the platform verification allowlist remains the hard safety gate.
+    {"HondaBoschARadar", {PERSISTENT, BOOL, "1"}},
     {"HondaGasFactorParams", {PERSISTENT, FLOAT}},
     {"HondaLateralPidKiScale", {PERSISTENT, FLOAT, "1.0", "1.0", 3}},
     {"HondaLateralPidKpScale", {PERSISTENT, FLOAT, "1.0", "1.0", 3}},
