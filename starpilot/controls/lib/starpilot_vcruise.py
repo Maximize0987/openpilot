@@ -545,7 +545,7 @@ class StarPilotVCruise:
     v_ego_cluster = max(sm["carState"].vEgoCluster, v_ego)
     v_ego_diff = v_ego_cluster - v_ego
 
-    # FrogsGoMoo's Curve Speed Controller
+    # Curve Speed Controller
     following_lead = bool(getattr(self.starpilot_planner.starpilot_following, "following_lead", False))
     manual_speed_control = is_manual_speed_control(sm)
     csc_available = (

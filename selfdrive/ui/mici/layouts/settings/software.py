@@ -2,8 +2,6 @@ import os
 import threading
 from collections.abc import Callable
 from enum import IntEnum
-from functools import cache
-from pathlib import Path
 
 import pyray as rl
 
@@ -13,7 +11,6 @@ from openpilot.selfdrive.ui.mici.layouts.settings.device import EngagedConfirmat
 from openpilot.selfdrive.ui.mici.widgets.button import BigButton, BigParamControl
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigConfirmationDialog, BigDialog
 from openpilot.selfdrive.ui.ui_state import ui_state
-from openpilot.system.hardware.hw import Paths
 from openpilot.system.ui.lib.application import FontWeight, MousePos, gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import Widget
@@ -21,11 +18,6 @@ from openpilot.system.ui.widgets.label import UnifiedLabel
 from openpilot.system.ui.widgets.scroller import NavScroller
 
 UPDATER_TIMEOUT = 10.0
-
-
-@cache
-def _is_frogs_go_moo() -> bool:
-  return (Path(Paths.persist_root()) / "frogsgomoo.py").is_file()
 
 
 def _split_description(desc: str) -> tuple[str, str, str, str] | None:
@@ -233,10 +225,9 @@ class BranchSelectPage(NavScroller):
     branches_str = params.get("UpdaterAvailableBranches") or ""
     branches = [b for b in branches_str.split(",") if b]
 
-    if not _is_frogs_go_moo():
-      for hidden_branch in ("StarPilot-Vetting", "MAKE-PRS-HERE"):
-        if hidden_branch in branches:
-          branches.remove(hidden_branch)
+    for hidden_branch in ("StarPilot-Vetting", "MAKE-PRS-HERE"):
+      if hidden_branch in branches:
+        branches.remove(hidden_branch)
 
     for branch in [current_git_branch, "devel-staging", "devel", "nightly", "nightly-dev", "master"]:
       if branch in branches:

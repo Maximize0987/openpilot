@@ -28,3 +28,7 @@ def test_kona_non_scc_aol_gate_does_not_change_fault_or_normal_lateral_gates():
   assert get_kona_non_scc_lateral_active(
     True, True, False, False, False, False, False, True, True, False,
   )
+
+
+def test_get_lateral_active_honors_manual_pause_while_cruise_is_engaged():
+  assert not get_lateral_active(True, True, False, False, False, False, False, False)

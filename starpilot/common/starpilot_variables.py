@@ -74,7 +74,7 @@ def _lkas_allowed_for_aol(car_make, cp_flags, fpcp_safety_configs) -> bool:
   hyundai_can_use_lkas_for_aol = car_make == "hyundai" and (
     bool(cp_flags & HyundaiFlags.CANFD) or hyundai_has_lda_button
   )
-  return hyundai_can_use_lkas_for_aol or car_make == "honda"
+  return hyundai_can_use_lkas_for_aol or car_make in ("ford", "honda")
 
 
 def _main_cruise_aol_allowed(button_control: float) -> bool:
@@ -145,8 +145,6 @@ BACKUP_PATH = _FP_CACHE_ROOT / "on_backup"
 STARPILOT_BACKUPS = _FP_DATA_ROOT / "backups"
 TOGGLE_BACKUPS = _FP_DATA_ROOT / "toggle_backups"
 
-FROGS_GO_MOO_PATH = _FP_PERSIST_ROOT / "frogsgomoo.py"
-
 HD_LOGS_PATH = _FP_DATA_ROOT / "media/0/realdata_HD"
 HD_PATH = _FP_CACHE_ROOT / "use_HD"
 
@@ -183,6 +181,7 @@ CANCEL_BUTTON_MAPPINGS = (
 )
 
 AOL_LKAS_MIGRATION_KEY = "AOLLKASMigratedToButtonControl"
+FORD_LKAS_MIGRATION_KEY = "FordLKASButtonControlMigrated"
 
 
 def sync_reboot_marker(marker_path: Path, enabled: bool, params: Params) -> bool:
@@ -401,6 +400,18 @@ def migrate_aol_lkas_to_button_control(params: Params | None = None) -> bool:
   return True
 
 
+def migrate_ford_lkas_button_default(car_make: str, params: Params | None = None) -> bool:
+  params = params or Params(return_defaults=True)
+  if car_make != "ford" or params.get_bool(FORD_LKAS_MIGRATION_KEY):
+    return False
+
+  if params.get_int("LKASButtonControl") == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]:
+    params.put_int("LKASButtonControl", BUTTON_FUNCTIONS["AOL_TOGGLE"])
+
+  params.put_bool(FORD_LKAS_MIGRATION_KEY, True)
+  return True
+
+
 class StarPilotVariables:
   def __init__(self):
     self.params = Params(return_defaults=True)
@@ -419,7 +430,6 @@ class StarPilotVariables:
     self.testing_branch = branch == "StarPilot-Testing"
     self.vetting_branch = branch == "StarPilot-Vetting"
 
-    self.frogs_go_moo = FROGS_GO_MOO_PATH.is_file()
     # Development/vetting branches are no longer gated into dashcam mode.
     toggle.block_user = False
 
@@ -611,6 +621,7 @@ class StarPilotVariables:
 
     alpha_longitudinal = CP.alphaLongitudinalAvailable
     toggle.car_make = CP.brand
+    migrate_ford_lkas_button_default(toggle.car_make, self.params)
     toggle.car_model = CP.carFingerprint
     toggle.disable_openpilot_long = self.get_value("DisableOpenpilotLongitudinal", condition=not alpha_longitudinal)
     friction = CP.lateralTuning.torque.friction
@@ -789,7 +800,10 @@ class StarPilotVariables:
 
     toggle.always_on_lateral = self.get_value("AlwaysOnLateral")
     lkas_button_assigned_to_aol = self.get_button_function("LKASButtonControl") == BUTTON_FUNCTIONS["AOL_TOGGLE"]
-    toggle.always_on_lateral_lkas = toggle.always_on_lateral and toggle.lkas_allowed_for_aol and lkas_button_assigned_to_aol
+    toggle.ford_lkas_aol_toggle = toggle.car_make == "ford" and lkas_button_assigned_to_aol
+    toggle.always_on_lateral_lkas = (
+      toggle.always_on_lateral and toggle.lkas_allowed_for_aol and lkas_button_assigned_to_aol and not toggle.ford_lkas_aol_toggle
+    )
     toggle.always_on_lateral_main = toggle.always_on_lateral and not prohibited_main_aol
     toggle.always_on_lateral_pause_speed = self.get_value("PauseAOLOnBrake", cast=float, condition=toggle.always_on_lateral)
 

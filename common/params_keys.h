@@ -339,6 +339,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ForceStops", {PERSISTENT, BOOL, "1", "0", 2, SETTINGS_SIMPLE}},
     {"ForceStopDistanceOffset", {PERSISTENT, INT, "0", "0", 2, SETTINGS_SIMPLE}},
     {"ForceStandstill", {PERSISTENT, BOOL, "0", "0", 2, SETTINGS_SIMPLE}},
+    {"FordLKASButtonControlMigrated", {PERSISTENT, BOOL, "0", "0"}},
     {"ForceTorqueController", {PERSISTENT, BOOL, "0", "0", 3}},
     {"FordAngleBlend", {PERSISTENT, FLOAT, "0.5", "0.5", 2}},
     {"FordAngleHighSpeedDamping", {PERSISTENT, FLOAT, "1.0", "1.0", 2}},

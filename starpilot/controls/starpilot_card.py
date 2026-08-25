@@ -16,7 +16,6 @@ from openpilot.starpilot.common.experimental_state import (
   sync_manual_ce_state,
 )
 from openpilot.starpilot.common.favorite_slots import FAVORITE_ACTION_TRAFFIC_MODE_COUNTER, toggle_favorite_slot
-from openpilot.starpilot.common.starpilot_utilities import is_FrogsGoMoo
 from openpilot.starpilot.common.starpilot_variables import ERROR_LOGS_PATH, GearShifter, NON_DRIVING_GEARS
 
 HYUNDAI_MAIN_CRUISE_AOL_CONFIRM_TIMEOUT_FRAMES = 100
@@ -74,8 +73,6 @@ class StarPilotCard:
     self._onroad_distance_pressed = False
 
     self.always_on_lateral_set = bool(FPCP.alternativeExperience & ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL)
-    self.frogs_go_moo = is_FrogsGoMoo()
-
     self.long_press_threshold = CRUISE_LONG_PRESS
     self.very_long_press_threshold = CRUISE_LONG_PRESS * 5
 
@@ -215,6 +212,13 @@ class StarPilotCard:
             self.params_memory.put_bool("SLCAdoptSpeedLimit", True)
 
     cruise_available_changed = self.prev_cruise_available is not None and carState.cruiseState.available != self.prev_cruise_available
+    ford_lateral_session_started = self.CP.brand == "ford" and (
+      (cruise_available_changed and carState.cruiseState.available) or
+      (carState.cruiseState.enabled and not self.prev_cruise_enabled)
+    )
+    if ford_lateral_session_started:
+      self.pause_lateral = False
+
     if self.g70_main_cruise_aol_pending:
       if cruise_available_changed:
         self.always_on_lateral_allowed = carState.cruiseState.available
@@ -256,9 +260,9 @@ class StarPilotCard:
     self.always_on_lateral_enabled &= sm["starpilotPlan"].lateralCheck
     self.always_on_lateral_enabled &= sm["liveCalibration"].calPerc >= 1
     alert_types = sm["selfdriveState"].alertType + sm["starpilotSelfdriveState"].alertType
-    self.always_on_lateral_enabled &= ET.IMMEDIATE_DISABLE not in alert_types or self.frogs_go_moo
+    self.always_on_lateral_enabled &= ET.IMMEDIATE_DISABLE not in alert_types
     self.always_on_lateral_enabled &= not (carState.brakePressed and carState.vEgo < starpilot_toggles.always_on_lateral_pause_speed) or carState.standstill
-    self.always_on_lateral_enabled &= not self.error_log.is_file() or self.frogs_go_moo
+    self.always_on_lateral_enabled &= not self.error_log.is_file()
 
     if sm.updated["starpilotPlan"] or any(be_type in (ButtonType.accelCruise, ButtonType.resumeCruise) for be_type in button_event_types):
       self.accel_pressed = any(be_type in (ButtonType.accelCruise, ButtonType.resumeCruise) for be_type in button_event_types)
@@ -327,7 +331,11 @@ class StarPilotCard:
       self.cancel_pulse_glide_suppressed = False
 
     if lkas_pressed:
-      self.handle_button_event("lkas", sm, starpilot_toggles)
+      if self.CP.brand != "ford" or carState.cruiseState.available:
+        if self.CP.brand == "ford" and getattr(starpilot_toggles, "ford_lkas_aol_toggle", False):
+          self.pause_lateral = not self.pause_lateral
+        else:
+          self.handle_button_event("lkas", sm, starpilot_toggles)
 
     if getattr(starpilot_toggles, "has_canfd_media_buttons", False):
       if starpilotCarState.modePressed:
