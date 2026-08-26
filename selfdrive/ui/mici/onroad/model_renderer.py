@@ -20,6 +20,7 @@ CLIP_MARGIN = 500
 MIN_DRAW_DISTANCE = 10.0
 MAX_DRAW_DISTANCE = 100.0
 STOCK_LANE_LINES_COLOR = rl.Color(255, 255, 255, 255)
+OCEAN_BLUE_LANE_LINES_COLOR = rl.Color(0, 176, 220, 255)
 DEFAULT_LANE_LINES_WIDTH = 4.0
 DEFAULT_PATH_WIDTH = 6.1
 DEFAULT_ROAD_EDGES_WIDTH = 2.0
@@ -360,7 +361,7 @@ class ModelRenderer(Widget):
 
     return LeadVehicle(glow=glow, chevron=chevron, fill_alpha=int(fill_alpha))
 
-  def _lane_line_palette(self) -> tuple[bool, rl.Color, rl.Color]:
+  def _lane_line_palette(self) -> tuple[bool, rl.Color, rl.Color, bool]:
     stock_scheme = is_stock_color_scheme(self._params)
     line_status = UIStatus.ENGAGED if ui_state.status == UIStatus.DISENGAGED and ui_state.always_on_lateral_active else ui_state.status
 
@@ -373,12 +374,18 @@ class ModelRenderer(Widget):
     if lane_color is None:
       lane_color = STOCK_LANE_LINES_COLOR if stock_scheme else get_theme_color("LaneLines", STOCK_LANE_LINES_COLOR)
 
-    return stock_scheme, edge_color, lane_color
+    lane_centering_active = bool(ui_state.starpilot_toggles.get("lane_centering", False)) and (
+      ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active
+    )
+    return stock_scheme, edge_color, lane_color, lane_centering_active
 
   def _get_ll_color(self, prob: float, adjacent: bool, left: bool, stock_scheme: bool,
-                    edge_color: rl.Color, lane_color: rl.Color):
+                    edge_color: rl.Color, lane_color: rl.Color, lane_centering_active: bool = False):
     alpha = np.clip(prob, 0.0, 0.7)
-    if adjacent:
+    if lane_centering_active:
+      color = rl.Color(OCEAN_BLUE_LANE_LINES_COLOR.r, OCEAN_BLUE_LANE_LINES_COLOR.g,
+                       OCEAN_BLUE_LANE_LINES_COLOR.b, int(alpha * OCEAN_BLUE_LANE_LINES_COLOR.a))
+    elif adjacent:
       color = rl.Color(edge_color.r, edge_color.g, edge_color.b, int(alpha * edge_color.a))
 
       # turn adjacent lls orange if torque is high
@@ -401,13 +408,13 @@ class ModelRenderer(Widget):
   def _draw_lane_lines(self):
     """Draw lane lines and road edges"""
     """Two closest lines should be green (lane line or road edges)"""
-    stock_scheme, edge_color, lane_color = self._lane_line_palette()
+    stock_scheme, edge_color, lane_color, lane_centering_active = self._lane_line_palette()
     for i, lane_line in enumerate(self._lane_lines):
       if lane_line.projected_points.size == 0:
         continue
 
       color = self._get_ll_color(float(self._lane_line_probs[i]), i in (1, 2), i in (0, 1),
-                                 stock_scheme, edge_color, lane_color)
+                                 stock_scheme, edge_color, lane_color, lane_centering_active)
       draw_polygon(self._rect, lane_line.projected_points, color)
 
     for i, road_edge in enumerate(self._road_edges):

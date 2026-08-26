@@ -20,6 +20,7 @@ CLIP_MARGIN = 500
 MIN_DRAW_DISTANCE = 10.0
 MAX_DRAW_DISTANCE = 250.0
 STOCK_LANE_LINES_COLOR = rl.Color(255, 255, 255, 255)
+OCEAN_BLUE_LANE_LINES_COLOR = rl.Color(0, 176, 220, 255)
 DEFAULT_LANE_LINES_WIDTH = 4.0
 DEFAULT_PATH_EDGE_WIDTH = 20.0
 DEFAULT_PATH_WIDTH = 6.1
@@ -143,12 +144,7 @@ class ModelRenderer(Widget):
     self._is_metric = self._params.get_bool('IsMetric')
     if self._use_rainbow and sm.valid.get('carState', False):
       self._rainbow_path.update(max(sm['carState'].vEgo, 0.0))
-    lead_info_enabled = self._lead_info_enabled
-    render_lead_indicator = (
-      (self._longitudinal_control or lead_info_enabled)
-      and radar_state is not None
-      and lead_indicator_enabled(self._params)
-    )
+    render_lead_indicator = self._should_render_lead_indicator(radar_state)
 
     # Update model data when needed
     model_updated = sm.updated['modelV2']
@@ -182,6 +178,9 @@ class ModelRenderer(Widget):
         self._draw_adjacent_leads()
 
     self._draw_radar_tracks()
+
+  def _should_render_lead_indicator(self, radar_state) -> bool:
+    return radar_state is not None and lead_indicator_enabled(self._params)
 
   def _update_raw_points(self, model):
     """Update raw 3D points from model data"""
@@ -372,8 +371,13 @@ class ModelRenderer(Widget):
 
   def _draw_lane_lines(self):
     """Draw lane lines and road edges"""
+    lane_centering_active = bool(ui_state.starpilot_toggles.get("lane_centering", False)) and (
+      ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active
+    )
     lane_lines_override = get_param_color(self._params, "LaneLinesColor", STOCK_LANE_LINES_COLOR.a)
-    if lane_lines_override is not None:
+    if lane_centering_active:
+      lane_lines_color = OCEAN_BLUE_LANE_LINES_COLOR
+    elif lane_lines_override is not None:
       lane_lines_color = lane_lines_override
     elif is_stock_color_scheme(self._params):
       lane_lines_color = STOCK_LANE_LINES_COLOR

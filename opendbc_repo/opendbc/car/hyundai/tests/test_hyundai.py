@@ -730,7 +730,7 @@ class TestHyundaiFingerprint:
 
   @pytest.mark.parametrize("candidate, tracks_main_cruise", (
     (CAR.HYUNDAI_ELANTRA_2021, False),
-    (CAR.HYUNDAI_ELANTRA_HEV_2024, True),
+    (CAR.HYUNDAI_ELANTRA_HEV_2024, False),
     (CAR.HYUNDAI_SONATA_HYBRID, True),
   ))
   def test_legacy_hyundai_long_main_cruise_tracking_is_vehicle_specific(self, candidate, tracks_main_cruise):

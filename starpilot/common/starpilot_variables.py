@@ -707,7 +707,7 @@ class StarPilotVariables:
     toggle.hide_distance_profile_banner = self.get_value("HideDistanceProfileBanner", condition=advanced_custom_ui and not toggle.debug_mode)
     toggle.hide_turning_banner = self.get_value("HideTurningBanner", condition=advanced_custom_ui and not toggle.debug_mode)
     toggle.hide_dm_icon = self.get_value("HideDMIcon", condition=advanced_custom_ui) and not toggle.debug_mode
-    toggle.hide_lead_marker = self.get_value("HideLeadMarker", condition=advanced_custom_ui and toggle.openpilot_longitudinal and not toggle.debug_mode)
+    toggle.hide_lead_marker = self.get_value("HideLeadMarker", condition=advanced_custom_ui and not toggle.debug_mode)
     toggle.hide_max_speed = self.get_value("HideMaxSpeed", condition=advanced_custom_ui and not toggle.debug_mode)
     toggle.hide_speed = self.get_value("HideSpeed", condition=advanced_custom_ui and not toggle.debug_mode)
     toggle.hide_speed_limit = self.get_value("HideSpeedLimit", condition=advanced_custom_ui and not toggle.debug_mode)
@@ -956,7 +956,7 @@ class StarPilotVariables:
     developer_widgets = self.get_value("DeveloperWidgets", condition=toggle.developer_ui)
     toggle.adjacent_lead_tracking = has_radar and (self.get_value("AdjacentLeadsUI", condition=developer_widgets) or toggle.debug_mode)
     toggle.radar_tracks = has_radar and (self.get_value("RadarTracksUI", condition=developer_widgets) or toggle.debug_mode)
-    toggle.show_stopping_point = toggle.openpilot_longitudinal and (self.get_value("ShowStoppingPoint", condition=developer_widgets) or toggle.debug_mode)
+    toggle.show_stopping_point = self.get_value("ShowStoppingPoint", condition=developer_widgets) or toggle.debug_mode
     toggle.show_stopping_point_metrics = self.get_value("ShowStoppingPointMetrics", condition=toggle.show_stopping_point) or toggle.debug_mode
 
     device_management = self.get_value("DeviceManagement")

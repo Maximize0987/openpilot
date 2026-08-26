@@ -6728,11 +6728,13 @@ def setup(app):
   @app.route("/api/flm/status", methods=["GET"])
   def get_flm_status():
     is_onroad = params.get_bool("IsOnroad")
+    lane_centering = params.get_bool("LaneCentering")
     if is_onroad:
       flm_workspace.cancel_flm_if_onroad()
     workspace = flm_workspace.list_workspace()
     return jsonify({
       "isOnroad": is_onroad,
+      "laneCentering": lane_centering,
       "status": flm_workspace.read_flm_status(),
       "activeTrial": workspace.get("activeTrial"),
       "reports": workspace.get("reports", [])[:10],
@@ -6744,6 +6746,10 @@ def setup(app):
   def start_flm_analysis():
     if params.get_bool("IsOnroad"):
       return jsonify({"error": "FLM analysis can only run offroad."}), 409
+    if params.get_bool("LaneCentering"):
+      return jsonify({
+        "error": "Turn Lane Centering off before running FLM. Its correction must not be mixed into lateral-tuning analysis."
+      }), 409
 
     data = request.get_json(silent=True) or {}
     route_names = [str(route).strip() for route in data.get("routes", []) if str(route).strip()]
