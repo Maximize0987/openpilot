@@ -85,7 +85,8 @@ class LaneCenteringController:
   def _covers(x, distance: float) -> bool:
     return bool(x[0] <= distance <= x[-1])
 
-  def _raw_correction(self, model_v2, v_ego: float, offset: float, e2e_authority: float) -> tuple[bool, float]:
+  @staticmethod
+  def _raw_correction(model_v2, v_ego: float, offset: float, e2e_authority: float) -> tuple[bool, float]:
     try:
       lane_lines = model_v2.laneLines
       probs = np.asarray(model_v2.laneLineProbs, dtype=float)
@@ -105,11 +106,13 @@ class LaneCenteringController:
       right_y = np.asarray(lane_lines[2].y, dtype=float)
       pos_x = np.asarray(model_v2.position.x, dtype=float)
       pos_y = np.asarray(model_v2.position.y, dtype=float)
-      if not (self._valid_path(left_x, left_y) and self._valid_path(right_x, right_y) and self._valid_path(pos_x, pos_y)):
+      if not (LaneCenteringController._valid_path(left_x, left_y) and
+              LaneCenteringController._valid_path(right_x, right_y) and
+              LaneCenteringController._valid_path(pos_x, pos_y)):
         return False, 0.0
 
       lookahead = float(np.clip(v_ego, 8.0, 35.0))
-      if not all(self._covers(x, lookahead) for x in (left_x, right_x, pos_x)):
+      if not all(LaneCenteringController._covers(x, lookahead) for x in (left_x, right_x, pos_x)):
         return False, 0.0
 
       left = float(np.interp(lookahead, left_x, left_y))
@@ -130,7 +133,7 @@ class LaneCenteringController:
 
       try:
         pos_y_std = np.asarray(model_v2.position.yStd, dtype=float)
-        if self._valid_path(pos_x, pos_y_std):
+        if LaneCenteringController._valid_path(pos_x, pos_y_std):
           path_std = float(np.interp(lookahead, pos_x, pos_y_std))
           if 0.0 <= path_std <= _E2E_MAX_PATH_STD:
             break_in = np.clip(
@@ -145,3 +148,38 @@ class LaneCenteringController:
       return True, float(2.0 * error / lookahead ** 2)
     except (AttributeError, IndexError, TypeError, ValueError):
       return False, 0.0
+
+
+def get_raw_lane_centering_correction(model_v2, v_ego: float, offset: float,
+                                      e2e_authority: float) -> tuple[bool, float]:
+  """Return the instantaneous lane-centering correction without controller filtering."""
+  return LaneCenteringController._raw_correction(model_v2, v_ego, offset, e2e_authority)
+
+
+def get_lane_centering_visual_direction(model_v2, v_ego: float, offset: float, e2e_authority: float,
+                                        enabled: bool, lat_active: bool, pause_on_signal: bool = False,
+                                        turn_signal_active: bool = False) -> int:
+  """Return 1 for a right correction, -1 for left, and 0 when no correction is active."""
+  if not enabled or not lat_active or (pause_on_signal and turn_signal_active):
+    return 0
+
+  try:
+    v_ego = float(v_ego)
+    offset = float(offset)
+    e2e_authority = float(e2e_authority)
+    if not np.isfinite([v_ego, offset, e2e_authority]).all() or v_ego < _MIN_V_EGO:
+      return 0
+    if model_v2.meta.laneChangeState != log.LaneChangeState.off:
+      return 0
+  except (AttributeError, TypeError, ValueError):
+    return 0
+
+  valid, correction = get_raw_lane_centering_correction(
+    model_v2,
+    v_ego,
+    float(np.clip(offset, -_MAX_OFFSET, _MAX_OFFSET)),
+    float(np.clip(e2e_authority, 0.0, 1.0)),
+  )
+  if not valid or not np.isfinite(correction) or correction == 0.0:
+    return 0
+  return 1 if correction > 0.0 else -1

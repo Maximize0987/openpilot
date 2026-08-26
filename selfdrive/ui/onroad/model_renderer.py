@@ -5,6 +5,7 @@ from cereal import messaging, car
 from dataclasses import dataclass, field
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.constants import CV
+from openpilot.selfdrive.controls.lib.lane_centering import get_lane_centering_visual_direction
 from openpilot.selfdrive.locationd.calibrationd import HEIGHT_INIT
 from openpilot.selfdrive.ui.lib.starpilot_theme import get_param_color, get_theme_color, get_visual_color, is_stock_color_scheme, with_alpha
 from openpilot.selfdrive.ui.onroad.radar_tracks import project_radar_points
@@ -369,15 +370,28 @@ class ModelRenderer(Widget):
 
     return LeadVehicle(glow=glow, chevron=chevron, fill_alpha=int(fill_alpha))
 
+  def _lane_centering_direction(self) -> int:
+    toggles = ui_state.starpilot_toggles
+    sm = ui_state.sm
+    if not sm.valid.get("modelV2", False) or not sm.valid.get("carState", False):
+      return 0
+
+    car_state = sm["carState"]
+    return get_lane_centering_visual_direction(
+      sm["modelV2"], car_state.vEgo,
+      toggles.get("lane_center_offset", 0.0),
+      toggles.get("lane_centering_e2e_authority", 1.0),
+      bool(toggles.get("lane_centering", False)),
+      ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active,
+      bool(toggles.get("lane_centering_pause_on_signal", True)),
+      bool(car_state.leftBlinker or car_state.rightBlinker),
+    )
+
   def _draw_lane_lines(self):
     """Draw lane lines and road edges"""
-    lane_centering_active = bool(ui_state.starpilot_toggles.get("lane_centering", False)) and (
-      ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active
-    )
+    lane_centering_direction = self._lane_centering_direction()
     lane_lines_override = get_param_color(self._params, "LaneLinesColor", STOCK_LANE_LINES_COLOR.a)
-    if lane_centering_active:
-      lane_lines_color = OCEAN_BLUE_LANE_LINES_COLOR
-    elif lane_lines_override is not None:
+    if lane_lines_override is not None:
       lane_lines_color = lane_lines_override
     elif is_stock_color_scheme(self._params):
       lane_lines_color = STOCK_LANE_LINES_COLOR
@@ -389,7 +403,10 @@ class ModelRenderer(Widget):
         continue
 
       alpha = np.clip(self._lane_line_probs[i], 0.0, 0.7)
-      color = with_alpha(lane_lines_color, int(alpha * lane_lines_color.a))
+      lane_centering_line = (lane_centering_direction > 0 and i == 2) or \
+                            (lane_centering_direction < 0 and i == 1)
+      line_color = OCEAN_BLUE_LANE_LINES_COLOR if lane_centering_line else lane_lines_color
+      color = with_alpha(line_color, int(alpha * line_color.a))
       draw_polygon(self._rect, lane_line.projected_points, color)
 
     for i, road_edge in enumerate(self._road_edges):
