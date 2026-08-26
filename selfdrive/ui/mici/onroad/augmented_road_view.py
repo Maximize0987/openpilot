@@ -801,17 +801,6 @@ class AugmentedRoadView(CameraView):
       gui_app.mark_progress("mici.onroad.after_sidebar")
     if draw_hud_controls and (camera_view_none or is_driver_stream or not in_reverse):
       self._favorite_slots.render(self._content_rect)
-    if camera_view_none or is_driver_stream or not in_reverse:
-      self._draw_border()
-
-    self._bookmark_icon.render(self.rect)
-
-    # Draw darkened background and text if not onroad
-    if not ui_state.started:
-      rl.draw_rectangle(int(self.rect.x), int(self.rect.y), int(self.rect.width), int(self.rect.height), rl.Color(0, 0, 0, 175))
-      self._offroad_label.render(self._content_rect)
-
-    # C4 sidecam renders last (on top) and only when showing the road camera
     # Inset by the border so the pill never covers the green/orange status border.
     border = self._get_border_width()
     preview_rect = rl.Rectangle(
@@ -821,6 +810,16 @@ class AugmentedRoadView(CameraView):
       max(1, self._content_rect.height - 2 * border),
     )
     self._pip_sidecam.render(preview_rect)
+
+    if camera_view_none or is_driver_stream or not in_reverse:
+      self._draw_border()
+
+    self._bookmark_icon.render(self.rect)
+
+    # Draw darkened background and text if not onroad
+    if not ui_state.started:
+      rl.draw_rectangle(int(self.rect.x), int(self.rect.y), int(self.rect.width), int(self.rect.height), rl.Color(0, 0, 0, 175))
+      self._offroad_label.render(self._content_rect)
 
     # publish uiDebug
     msg = messaging.new_message('uiDebug')
