@@ -2990,6 +2990,39 @@ def test_modeld_action_uses_current_action_head_scaling_for_v15(monkeypatch):
   assert not action.shouldStop
 
 
+def test_modeld_action_uses_current_action_head_scaling_for_v16(monkeypatch):
+  monkeypatch.setenv("DEBUG", "0")
+  fake_commonmodel = types.ModuleType("openpilot.selfdrive.modeld.models.commonmodel_pyx")
+  fake_commonmodel.DrivingModelFrame = object
+  fake_commonmodel.CLContext = object
+  monkeypatch.setitem(sys.modules, fake_commonmodel.__name__, fake_commonmodel)
+
+  from openpilot.selfdrive.modeld import modeld
+
+  prev_action = log.ModelDataV2.Action.new_message()
+  prev_action.desiredCurvature = 0.05
+  prev_action.desiredAcceleration = -0.2
+  toggles = SimpleNamespace(vEgoStopping=0.42)
+
+  action = modeld.get_action_from_model(
+    {"action": np.array([[12.0, -0.8]], dtype=np.float32)},
+    prev_action,
+    lat_action_t=0.2,
+    long_action_t=0.73,
+    v_ego=5.0,
+    mlsim=True,
+    is_v9=False,
+    is_v14=False,
+    is_v15=False,
+    starpilot_toggles=toggles,
+    is_v16=True,
+  )
+
+  assert action.desiredCurvature == pytest.approx(modeld.smooth_value(0.48, prev_action.desiredCurvature, modeld.LAT_SMOOTH_SECONDS))
+  assert action.desiredAcceleration < -0.2
+  assert not action.shouldStop
+
+
 def test_publish_force_stop_handoff_sets_should_stop_when_vcruise_zero():
   class FakePM:
     def __init__(self):

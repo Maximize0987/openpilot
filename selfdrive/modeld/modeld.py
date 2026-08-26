@@ -277,10 +277,11 @@ def _close_tinygrad_disk_cache_connection() -> None:
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,
                           lat_action_t: float, long_action_t: float, v_ego: float, mlsim: bool,
                           is_v9: bool, is_v14: bool, is_v15: bool, starpilot_toggles,
-                          lat_smooth_seconds=LAT_SMOOTH_SECONDS, long_smooth_seconds=LONG_SMOOTH_SECONDS) -> log.ModelDataV2.Action:
-    if is_v14 or is_v15:
+                          lat_smooth_seconds=LAT_SMOOTH_SECONDS, long_smooth_seconds=LONG_SMOOTH_SECONDS,
+                          is_v16: bool = False) -> log.ModelDataV2.Action:
+    if is_v14 or is_v15 or is_v16:
       desired_curv_unscaled, desired_accel = model_output['action'][0]
-      if is_v15:
+      if is_v15 or is_v16:
         desired_curvature = float(desired_curv_unscaled) / max(1.0, v_ego) ** 2
       else:
         desired_curvature = float(desired_curv_unscaled) / 100.0
@@ -464,6 +465,7 @@ class ModelState:
     self.is_v9 = self.policy_generation == "v9"
     self.is_v14 = self.policy_generation == "v14"
     self.is_v15 = self.policy_generation == "v15"
+    self.is_v16 = self.policy_generation == "v16"
     self.mlsim = is_tinygrad_model_version(self.policy_generation)
     if write_model_version:
       params.put("ModelVersion", self.policy_generation)
@@ -953,7 +955,7 @@ def main(demo=False):
         lat_action_t,
         long_action_t,
         v_ego, model.mlsim, model.is_v9, model.is_v14, model.is_v15, starpilot_toggles,
-        lat_smooth_seconds, long_smooth_seconds,
+        lat_smooth_seconds, long_smooth_seconds, is_v16=model.is_v16,
       )
       prev_action = action
       fill_model_msg(drivingdata_send, modelv2_send, model_output, action,
