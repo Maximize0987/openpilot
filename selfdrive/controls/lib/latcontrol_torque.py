@@ -363,6 +363,8 @@ class LatControlTorque(LatControl):
         friction_threshold = get_genesis_g70_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
       elif self.is_genesis_gv70:
         friction_threshold = get_genesis_gv70_friction_threshold(CS.vEgo, setpoint, desired_lateral_jerk)
+      elif self.is_sonata_hybrid:
+        friction_threshold = get_sonata_hybrid_friction_threshold(CS.vEgo, setpoint)
       friction_scale = 1.0
       if bolt_2022_2023_tuned_path_active:
         ff *= get_bolt_2022_2023_ff_scale(setpoint, desired_lateral_jerk, CS.vEgo)

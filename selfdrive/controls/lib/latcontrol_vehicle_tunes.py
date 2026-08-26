@@ -464,6 +464,10 @@ SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT = 0.18
 SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.05
 SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED = 12.5
 SONATA_HYBRID_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 2.5
+SONATA_HYBRID_CHATTER_THRESHOLD_SPEED_BP = [0.0, 4.5, 7.5, 11.0, 20.0]
+SONATA_HYBRID_CHATTER_THRESHOLD_BUMP = [0.02, 0.04, 0.04, 0.02, 0.0]
+SONATA_HYBRID_CHATTER_THRESHOLD_CENTER = 0.20
+SONATA_HYBRID_CHATTER_THRESHOLD_CENTER_WIDTH = 0.05
 
 SONATA_FF_REDUCTION_LEFT = 0.04
 SONATA_FF_REDUCTION_RIGHT = 0.26
@@ -2504,6 +2508,17 @@ def get_sonata_hybrid_center_output_scale(desired_lateral_accel: float, v_ego: f
   center_weight = _sonata_hybrid_sigmoid((SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
                                          SONATA_HYBRID_CENTER_OUTPUT_TAPER_LAT_WIDTH)
   return 1.0 - SONATA_HYBRID_CENTER_OUTPUT_TAPER_MAX * speed_weight * center_weight
+
+
+def get_sonata_hybrid_friction_threshold(v_ego: float, desired_lateral_accel: float) -> float:
+  base_threshold = get_standard_friction_threshold(v_ego)
+  speed_bump = np.interp(max(v_ego, 0.0), SONATA_HYBRID_CHATTER_THRESHOLD_SPEED_BP,
+                         SONATA_HYBRID_CHATTER_THRESHOLD_BUMP)
+  center_weight = _sonata_hybrid_sigmoid(
+    (SONATA_HYBRID_CHATTER_THRESHOLD_CENTER - abs(desired_lateral_accel)) /
+    SONATA_HYBRID_CHATTER_THRESHOLD_CENTER_WIDTH
+  )
+  return float(base_threshold + speed_bump * center_weight)
 
 
 def _sonata_sigmoid(x: float) -> float:

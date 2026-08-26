@@ -34,6 +34,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   get_kona_non_scc_highway_transition_output_scale,
   get_kia_ev6_center_output_scale,
   get_sonata_hybrid_center_output_scale,
+  get_sonata_hybrid_friction_threshold,
   get_prius_center_taper_scale,
   KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT,
   HONDA_ACCORD_TORQUE_KI,
@@ -929,6 +930,13 @@ class TestLatControl:
     assert turn > center
     assert turn > 0.99
     assert center > 0.85
+
+  def test_sonata_hybrid_chatter_threshold_is_low_mid_speed_and_center_gated(self):
+    base_low = get_standard_friction_threshold(5.5)
+    base_high = get_standard_friction_threshold(20.0)
+    assert get_sonata_hybrid_friction_threshold(5.5, 0.0) > base_low
+    assert get_sonata_hybrid_friction_threshold(5.5, 0.6) == pytest.approx(base_low, abs=0.0001)
+    assert get_sonata_hybrid_friction_threshold(20.0, 0.0) == pytest.approx(base_high)
 
   def test_ioniq_5_ff_scale_curve(self):
     assert get_ioniq_5_ff_scale(0.0, 0.0, 20.0) == 1.0

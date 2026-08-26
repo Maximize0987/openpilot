@@ -285,8 +285,8 @@ class StarPilotLateralLayout(_SettingsPage):
       SettingRow(
         "SteerDelay", "value", tr_noop("Actuator Delay"),
         subtitle=tr_noop("Exact full delay between steering command and vehicle response."),
-        get_value=lambda: f"{p.get_float('SteerDelay'):.2f}s",
-        on_click=lambda: self._show_slider("SteerDelay", 0.01, 1.0, step=0.01, unit="s", value_type="float"),
+        get_value=lambda: f"{p.get_float('SteerDelay'):.3f}s",
+        on_click=lambda: self._show_slider("SteerDelay", 0.01, 1.0, step=0.001, unit="s", value_type="float"),
         enabled=lambda: not p.get_bool("UseAutoSteerDelay"),
         disabled_label=tr_noop("Disabled while auto-learned delay is enabled."),
         visible=lambda: alt_on() and cs.steerActuatorDelay != 0,
