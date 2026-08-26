@@ -4682,48 +4682,63 @@ def setup(app):
     try:
       with car.CarParams.from_bytes(params.get("CarParamsPersistent")) as cp:
         if tool == "doors":
-          return jsonify({"result": HARDWARE.get_device_type() != "tici" and cp.carName == "toyota"})
+          car_brand = getattr(cp, "brand", getattr(cp, "carName", ""))
+          return jsonify({"result": car_brand == "toyota"})
         elif tool == "tsk":
-          return jsonify({"result": cp.secOcRequired})
+          return jsonify({"result": getattr(cp, "secOcRequired", False)})
     except Exception:
       pass
     return jsonify({"result": False})
 
   @app.route("/api/doors/lock", methods=["POST"])
   def lock_doors():
-    can_parser = CANParser("toyota_nodsu_pt_generated", [("DOOR_LOCKS", 3)], bus=0)
-    can_sock = messaging.sub_sock("can", timeout=100)
+    try:
+      can_parser = CANParser("toyota_nodsu_pt_generated", [("DOOR_LOCKS", 3)], bus=0)
+      can_sock = messaging.sub_sock("can", timeout=100)
 
-    while True:
-      with Panda(disable_checks=True) as panda:
-        if not params.get_bool("IsOnroad"):
-          panda.set_safety_mode(panda.SAFETY_TOYOTA)
-        panda.can_send(0x750, LOCK_CMD, 0)
+      for _ in range(6):
+        try:
+          with Panda(disable_checks=True) as panda:
+            if not params.get_bool("IsOnroad"):
+              panda.set_safety_mode(car.CarParams.SafetyModel.toyota)
+            panda.can_send(0x750, LOCK_CMD, 0)
+            panda.can_send(0x750, LOCK_CMD, 1)
+        except Exception:
+          pass
 
-      time.sleep(1)
+        time.sleep(1)
 
-      lock_status = get_lock_status(can_parser, can_sock)
-      if lock_status == 0:
-        break
+        lock_status = get_lock_status(can_parser, can_sock)
+        if lock_status == 0:
+          break
+    except Exception as e:
+      return {"message": f"Lock failed: {e}"}, 500
 
     return {"message": "Doors locked!"}
 
   @app.route("/api/doors/unlock", methods=["POST"])
   def unlock_doors():
-    can_parser = CANParser("toyota_nodsu_pt_generated", [("DOOR_LOCKS", 3)], bus=0)
-    can_sock = messaging.sub_sock("can", timeout=100)
+    try:
+      can_parser = CANParser("toyota_nodsu_pt_generated", [("DOOR_LOCKS", 3)], bus=0)
+      can_sock = messaging.sub_sock("can", timeout=100)
 
-    while True:
-      with Panda(disable_checks=True) as panda:
-        if not params.get_bool("IsOnroad"):
-          panda.set_safety_mode(panda.SAFETY_TOYOTA)
-        panda.can_send(0x750, UNLOCK_CMD, 0)
+      for _ in range(6):
+        try:
+          with Panda(disable_checks=True) as panda:
+            if not params.get_bool("IsOnroad"):
+              panda.set_safety_mode(car.CarParams.SafetyModel.toyota)
+            panda.can_send(0x750, UNLOCK_CMD, 0)
+            panda.can_send(0x750, UNLOCK_CMD, 1)
+        except Exception:
+          pass
 
-      time.sleep(1)
+        time.sleep(1)
 
-      lock_status = get_lock_status(can_parser, can_sock)
-      if lock_status != 0:
-        break
+        lock_status = get_lock_status(can_parser, can_sock)
+        if lock_status != 0:
+          break
+    except Exception as e:
+      return {"message": f"Unlock failed: {e}"}, 500
 
     return {"message": "Doors unlocked!"}
 
