@@ -158,7 +158,8 @@ def get_raw_lane_centering_correction(model_v2, v_ego: float, offset: float,
 
 def get_lane_centering_visual_direction(model_v2, v_ego: float, offset: float, e2e_authority: float,
                                         enabled: bool, lat_active: bool, pause_on_signal: bool = False,
-                                        turn_signal_active: bool = False) -> int:
+                                        turn_signal_active: bool = False,
+                                        applied_correction: float | None = None) -> int:
   """Return 1 for a right correction, -1 for left, and 0 when no correction is active."""
   if not enabled or not lat_active or (pause_on_signal and turn_signal_active):
     return 0
@@ -180,6 +181,10 @@ def get_lane_centering_visual_direction(model_v2, v_ego: float, offset: float, e
     float(np.clip(offset, -_MAX_OFFSET, _MAX_OFFSET)),
     float(np.clip(e2e_authority, 0.0, 1.0)),
   )
-  if not valid or not np.isfinite(correction) or correction == 0.0:
+  if not valid or not np.isfinite(correction):
     return 0
+  if correction == 0.0:
+    if applied_correction is None or not np.isfinite(applied_correction) or applied_correction == 0.0:
+      return 0
+    correction = applied_correction
   return 1 if correction > 0.0 else -1

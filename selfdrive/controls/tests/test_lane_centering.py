@@ -186,3 +186,8 @@ def test_visual_direction_requires_both_primary_lane_lines():
   model = _model(left=-1.5, right=2.1)
   model.laneLineProbs[2] = 0.2
   assert get_lane_centering_visual_direction(model, _V_EGO, 0.0, 0.0, True, True) == 0
+
+
+def test_visual_direction_uses_filtered_correction_in_deadband():
+  model = _model()
+  assert get_lane_centering_visual_direction(model, _V_EGO, 0.0, 0.0, True, True, applied_correction=0.001) == 1

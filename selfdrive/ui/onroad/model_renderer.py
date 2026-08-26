@@ -377,6 +377,12 @@ class ModelRenderer(Widget):
       return 0
 
     car_state = sm["carState"]
+    applied_correction = None
+    if sm.valid.get("controlsState", False):
+      try:
+        applied_correction = sm["controlsState"].desiredCurvature - sm["modelV2"].action.desiredCurvature
+      except (AttributeError, TypeError, ValueError):
+        pass
     return get_lane_centering_visual_direction(
       sm["modelV2"], car_state.vEgo,
       toggles.get("lane_center_offset", 0.0),
@@ -385,6 +391,7 @@ class ModelRenderer(Widget):
       ui_state.status == UIStatus.ENGAGED or ui_state.always_on_lateral_active,
       bool(toggles.get("lane_centering_pause_on_signal", True)),
       bool(car_state.leftBlinker or car_state.rightBlinker),
+      applied_correction,
     )
 
   def _draw_lane_lines(self):
