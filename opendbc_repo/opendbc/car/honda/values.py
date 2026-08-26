@@ -533,10 +533,10 @@ HONDA_BOSCH_ALT_RADAR = CAR.with_flags(HondaFlags.BOSCH_ALT_RADAR)
 # HondaBoschARadar. This describes hardware compatibility only; it is deliberately separate from the
 # verified set below so a newly supported model cannot start using unvalidated radar data by accident.
 HONDA_BOSCH_A = HONDA_BOSCH - HONDA_BOSCH_RADARLESS - HONDA_BOSCH_CANFD - HONDA_BOSCH_ALT_RADAR
-# Add individual CAR entries only after the contributor has personally road-tested the exact platform
-# or we have accepted a real capture. James developed and road-tested the plain Bosch Civic decoder;
-# every other Bosch-A variant remains disabled until it gets the same verification.
-HONDA_BOSCH_A_RADAR_VERIFIED = frozenset({CAR.HONDA_CIVIC_BOSCH})
+# Add individual CAR entries only after the exact platform has a real capture and decoder replay
+# validation. The Civic and CR-V 5G captures both exercise the plain Bosch-A object bank; every
+# other Bosch-A variant remains disabled until it gets the same verification.
+HONDA_BOSCH_A_RADAR_VERIFIED = frozenset({CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G})
 HONDA_BOSCH_TJA_CONTROL = CAR.with_flags(HondaFlags.BOSCH_TJA_CONTROL)
 HONDA_CAMERA_MESSAGE_CARS = {
   CAR.HONDA_ACCORD,

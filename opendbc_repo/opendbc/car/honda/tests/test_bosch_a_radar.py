@@ -1098,6 +1098,15 @@ def test_civic_bosch_radar_dbc_wired_for_parser_unit_tests():
   assert ri.rcp is not None
 
 
+def test_crv_5g_bosch_a_radar_dbc_wired_for_parser_unit_tests():
+  cp = CarInterface.get_non_essential_params(CAR.HONDA_CRV_5G)
+  assert cp.radarUnavailable is False
+  ri = CarInterface.RadarInterface(cp)
+  assert ri.bosch_a_radar is True
+  assert ri.rcp is not None
+  assert ri.rcp.bus == CanBus(cp).camera
+
+
 def test_civic_bosch_object_feed_uses_camera_side_acc_can():
   ri = make_radar_interface()
   can = CanBus(CP)
@@ -1118,7 +1127,7 @@ _EXPECTED_BOSCH_A_CARS = frozenset({
   CAR.HONDA_E,
   CAR.HONDA_E_ADVANCE,
 })
-_VERIFIED_BOSCH_A_CARS = frozenset({CAR.HONDA_CIVIC_BOSCH})
+_VERIFIED_BOSCH_A_CARS = frozenset({CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G})
 
 _EXCLUDED_BOSCH_CARS = [
   CAR.HONDA_CIVIC_2022,
@@ -1150,8 +1159,9 @@ def test_bosch_a_gate_stays_closed_for_non_bosch_a_platforms(car):
 
 
 def test_bosch_a_verified_platform_gate_can_open():
-  cp = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC_BOSCH)
-  assert cp.radarUnavailable is False
+  for car in (CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G):
+    cp = CarInterface.get_non_essential_params(car)
+    assert cp.radarUnavailable is False
 
 
 def test_bosch_a_toggle_can_close_verified_platform(monkeypatch):
