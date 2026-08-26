@@ -76,6 +76,7 @@ FORCE_STOP_TURN_VETO_STEERING_ANGLE = 25.0
 FORCE_STOP_CURVE_VETO_MAX_ROAD_CURVATURE = 0.003
 FORCE_STOP_TURN_VETO_STOP_SEEN_HOLD_TIME = 4.0
 FORCE_STOP_DISTANCE_REANCHOR_MIN_GAP = 3.0  # m — ignore small model-horizon noise
+FORCE_STOP_REANCHOR_MIN_M = 40.0
 
 # Knob bounds (mirror of UI slider; defense in depth)
 OFFSET_FT_MIN = -20
@@ -632,7 +633,7 @@ class StarPilotVCruise:
           model_wants_stop = False
         if (
           not dash_active and
-          self.tracked_model_length > force_stop_handoff_m and
+          self.tracked_model_length > max(force_stop_handoff_m, FORCE_STOP_REANCHOR_MIN_M) and
           not model_wants_stop and
           model_length > self.tracked_model_length + FORCE_STOP_DISTANCE_REANCHOR_MIN_GAP and
           (
