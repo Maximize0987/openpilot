@@ -668,12 +668,14 @@ def test_gm_silverado_early_follow_requires_a_credible_centered_vision_lead(kwar
   assert not is_gm_silverado_early_follow_lead(CP, lead, 30.0)
 
 
-def test_silverado_prebrake_floor_is_vehicle_specific():
+def test_prebrake_floor_is_vehicle_specific():
   silverado = SimpleNamespace(brand="gm", carFingerprint=GM_CAR.CHEVROLET_SILVERADO)
+  lightning = SimpleNamespace(brand="ford", carFingerprint="FORD_F_150_LIGHTNING_MK1")
   honda = SimpleNamespace(brand="honda", carFingerprint=CAR.HONDA_CIVIC)
 
   assert get_follow_prebrake_min_headway(silverado, 1.0) == pytest.approx(1.25)
-  assert get_follow_prebrake_min_headway(honda, 1.0) == pytest.approx(1.6)
+  assert get_follow_prebrake_min_headway(lightning, 0.75) == pytest.approx(1.0)
+  assert get_follow_prebrake_min_headway(honda, 1.0) == pytest.approx(1.25)
 
 
 def test_silverado_vision_follow_hold_survives_nonurgent_far_lead_crossover():

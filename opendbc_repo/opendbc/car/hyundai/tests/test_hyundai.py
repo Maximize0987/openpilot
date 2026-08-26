@@ -117,6 +117,7 @@ ANGLE_STEERING_CARS = (
   CAR.KIA_EV6_2025,
   CAR.KIA_EV9,
   CAR.GENESIS_GV70_ELECTRIFIED_2ND_GEN,
+  CAR.GENESIS_GV70_2026,
   CAR.GENESIS_GV80_2025,
 )
 
@@ -1238,6 +1239,28 @@ class TestHyundaiFingerprint:
     exact, matches = match_fw_to_car(car_fw, "", allow_exact=True, allow_fuzzy=False, log=False)
     assert exact
     assert matches == {CAR.KIA_CARNIVAL_2025}
+
+  def test_genesis_gv70_2026_route_fw_exact_matches(self):
+    route_fw = {
+      (Ecu.fwdCamera, 0x7c4): b'\xf1\x00JK  MFC  AT USA LHD 1.00 1.11 99211-IY600 241125',
+      (Ecu.fwdRadar, 0x7d0): b'\xf1\x00JK__ RDR -----      1.00 1.01 99110-AR600         ',
+    }
+    car_fw = [
+      CarParams.CarFw(ecu=ecu, fwVersion=version, address=address, subAddress=0, brand="hyundai")
+      for (ecu, address), version in route_fw.items()
+    ]
+
+    exact, matches = match_fw_to_car(car_fw, "", allow_exact=True, allow_fuzzy=False, log=False)
+    assert exact
+    assert matches == {CAR.GENESIS_GV70_2026}
+
+  def test_genesis_gv70_2026_uses_gas_angle_configuration(self):
+    CP = CarInterface.get_params(CAR.GENESIS_GV70_2026, gen_empty_fingerprint(), [], False, False, False, None)
+
+    assert CP.flags & HyundaiFlags.CANFD_ANGLE_STEERING
+    assert not (CP.flags & HyundaiFlags.EV)
+    assert CP.steerControlType == CarParams.SteerControlType.angle
+    assert CP.safetyConfigs[-1].safetyParam & HyundaiSafetyFlags.CANFD_ANGLE_STEERING
 
   def test_kona_non_scc_fca_radar_fw_is_optional(self):
     fw_versions = FW_VERSIONS[CAR.HYUNDAI_KONA_NON_SCC]

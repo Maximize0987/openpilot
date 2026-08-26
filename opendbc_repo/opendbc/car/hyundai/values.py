@@ -872,6 +872,16 @@ class CAR(Platforms):
     flags=HyundaiFlags.EV | HyundaiFlags.CANFD_ANGLE_STEERING,
     radar_dbc=HYUNDAI_MRR35_RADAR_DBC,
   )
+  GENESIS_GV70_2026 = HyundaiCanFDPlatformConfig(
+    [
+      HyundaiCarDocs("Genesis GV70 (3.5T Sport Prestige Trim, with HDA II & LFA2) 2026",
+                     "Highway Driving Assist II & Lane Follow Assist 2",
+                     car_parts=CarParts.common([CarHarness.hyundai_m])),
+    ],
+    GENESIS_GV70_1ST_GEN.specs,
+    flags=HyundaiFlags.CANFD_ANGLE_STEERING,
+    radar_dbc=HYUNDAI_MRR35_RADAR_DBC,
+  )
   GENESIS_G80 = HyundaiPlatformConfig(
     [HyundaiCarDocs("Genesis G80 2018-19", "All", car_parts=CarParts.common([CarHarness.hyundai_h]))],
     CarSpecs(mass=2060, wheelbase=3.01, steerRatio=16.5),
@@ -1080,7 +1090,7 @@ PART_NUMBER_FW_PATTERN = re.compile(b'(?<=[0-9][.,][0-9]{2} )([0-9]{5}[-/]?[A-Z]
 # We've seen both ICE and hybrid for these platforms, and they have hybrid descriptors (e.g. MQ4 vs MQ4H)
 CANFD_FUZZY_WHITELIST = {CAR.KIA_SORENTO_4TH_GEN, CAR.KIA_SORENTO_HEV_4TH_GEN, CAR.KIA_K8_HEV_1ST_GEN,
                          CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN,
-                         CAR.KIA_SORENTO_HEV_4TH_GEN_LFA2}
+                         CAR.KIA_SORENTO_HEV_4TH_GEN_LFA2, CAR.GENESIS_GV70_2026}
 
 # List of ECUs expected to have platform codes, camera and radar should exist on all cars
 # TODO: use abs, it has the platform code and part number on many platforms
