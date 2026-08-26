@@ -19,6 +19,7 @@ MAX_TIME_OFFROAD_S = 30*3600
 MIN_ON_TIME_S = 3600
 DELAY_SHUTDOWN_TIME_S = 300 # Wait at least DELAY_SHUTDOWN_TIME_S seconds after offroad_time to shutdown.
 VOLTAGE_SHUTDOWN_MIN_OFFROAD_TIME_S = 60
+VOLTAGE_SHUTDOWN_SUSTAINED_TIME_S = 30.0
 
 class PowerMonitoring:
   def __init__(self):
@@ -29,12 +30,13 @@ class PowerMonitoring:
     self.next_pulsed_measurement_time = None
     self.car_voltage_mV = 12e3                  # Low-passed version of peripheralState voltage
     self.car_voltage_instant_mV = 12e3          # Last value of peripheralState voltage
+    self.low_voltage_start_time = None          # Monotonic timestamp when low voltage was first observed
     self.integration_lock = threading.Lock()
 
-    car_battery_capacity_uWh = self.params.get("CarBatteryCapacity") or 0
+    car_battery_capacity_uWh = self.params.get("CarBatteryCapacity") or CAR_BATTERY_CAPACITY_uWh
 
     # Reset capacity if it's low
-    self.car_battery_capacity_uWh = max((CAR_BATTERY_CAPACITY_uWh / 10), car_battery_capacity_uWh)
+    self.car_battery_capacity_uWh = max((CAR_BATTERY_CAPACITY_uWh / 2), car_battery_capacity_uWh)
 
   # Calculation tick
   def calculate(self, voltage: int | None, ignition: bool):
@@ -110,19 +112,29 @@ class PowerMonitoring:
   def shutdown_reason(self, ignition: bool, in_car: bool, offroad_timestamp: float | None,
                       started_seen: bool, starpilot_toggles: SimpleNamespace) -> str | None:
     if offroad_timestamp is None:
+      self.low_voltage_start_time = None
       return None
 
     now = time.monotonic()
     offroad_time = (now - offroad_timestamp)
-    low_voltage_shutdown = (self.car_voltage_mV < (starpilot_toggles.low_voltage_shutdown * 1e3) and
-                            offroad_time > VOLTAGE_SHUTDOWN_MIN_OFFROAD_TIME_S)
+
+    cutoff_voltage = starpilot_toggles.low_voltage_shutdown if getattr(starpilot_toggles, "low_voltage_shutdown", 0) > 0 else 11.8
+    is_below_voltage = self.car_voltage_mV < (cutoff_voltage * 1e3)
+
+    if is_below_voltage and offroad_time > VOLTAGE_SHUTDOWN_MIN_OFFROAD_TIME_S:
+      if self.low_voltage_start_time is None:
+        self.low_voltage_start_time = now
+      low_voltage_sustained_time = now - self.low_voltage_start_time
+      low_voltage_shutdown = low_voltage_sustained_time >= VOLTAGE_SHUTDOWN_SUSTAINED_TIME_S
+    else:
+      self.low_voltage_start_time = None
+      low_voltage_shutdown = False
+
     reason = None
-    if offroad_time > starpilot_toggles.device_shutdown_time:
+    if starpilot_toggles.device_shutdown_time > 0 and offroad_time > starpilot_toggles.device_shutdown_time:
       reason = "offroad_timeout"
     elif low_voltage_shutdown:
       reason = "low_voltage"
-    elif self.car_battery_capacity_uWh <= 0:
-      reason = "battery_capacity_exhausted"
 
     should_shutdown = reason is not None
     should_shutdown &= not ignition
