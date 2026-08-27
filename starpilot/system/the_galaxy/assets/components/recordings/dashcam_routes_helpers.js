@@ -34,7 +34,55 @@ export function normalizeRoute(route, locale) {
   }
 }
 
+export function formatTotalDuration(seconds) {
+  const totalMinutes = Math.max(0, Math.round(Number(seconds) / 60) || 0)
+  if (totalMinutes < 1) return "0 min"
+  if (totalMinutes < 60) return `${totalMinutes} min`
+  const hours = Math.floor(totalMinutes / 60)
+  const remaining = totalMinutes % 60
+  return remaining > 0 ? `${hours}h ${remaining}m` : `${hours}h`
+}
+
+export function computeRouteStats(routes = []) {
+  const list = Array.isArray(routes) ? routes : []
+  let totalDurationSeconds = 0
+  let preservedCount = 0
+  let totalSegments = 0
+
+  for (const route of list) {
+    if (route) {
+      if (Number.isFinite(route.approxDurationSeconds)) {
+        totalDurationSeconds += Math.max(0, route.approxDurationSeconds)
+      }
+      if (route.is_preserved) {
+        preservedCount += 1
+      }
+      if (Number.isFinite(route.segmentCount)) {
+        totalSegments += Math.max(0, route.segmentCount)
+      }
+    }
+  }
+
+  return {
+    count: list.length,
+    totalDurationSeconds,
+    formattedDuration: formatTotalDuration(totalDurationSeconds),
+    preservedCount,
+    totalSegments,
+  }
+}
+
 export function sortRoutes(routes, sortOrder = "newest") {
+  if (sortOrder === "longest" || sortOrder === "shortest") {
+    const direction = sortOrder === "longest" ? -1 : 1
+    return [...routes].sort((left, right) => {
+      const leftDur = Number.isFinite(left?.approxDurationSeconds) ? left.approxDurationSeconds : -1
+      const rightDur = Number.isFinite(right?.approxDurationSeconds) ? right.approxDurationSeconds : -1
+      if (leftDur !== rightDur) return (leftDur - rightDur) * direction
+      return String(left?.name || "").localeCompare(String(right?.name || ""))
+    })
+  }
+
   const direction = sortOrder === "oldest" ? 1 : -1
   return [...routes].sort((left, right) => {
     const leftTime = left?._startedAtMs

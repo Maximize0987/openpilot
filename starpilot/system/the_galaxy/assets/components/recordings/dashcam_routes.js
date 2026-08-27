@@ -4,6 +4,7 @@ import { Modal } from "/assets/components/modal.js"
 import {
   buildRouteView,
   cameraVideoUrl,
+  computeRouteStats,
   formatApproxDuration,
   getSegmentStatus,
   groupRoutesByDate,
@@ -19,6 +20,7 @@ const state = reactive({
   searchQuery: "",
   sortOrder: "newest",
   showPreservedOnly: false,
+  viewMode: "list",
   progress: 0,
   total: 0,
   showDeleteAllModal: false,
@@ -29,6 +31,7 @@ let routesAbortController = null
 let routesRequestToken = 0
 let seenRouteNames = new Set()
 let overlay = null
+const routeLogsCache = new Map()
 
 function routeLabel(route) {
   return route.displayName || route.displayDate || route.name
@@ -218,7 +221,7 @@ function openLogsDialog(route, logsButton, getCachedLogs, setCachedLogs) {
   const closeLogsDialog = () => {
     document.removeEventListener("keydown", handleKeydown)
     closeDialog(logsDialog)
-    logsButton.focus()
+    logsButton?.focus()
   }
   const handleKeydown = event => { if (event.key === "Escape") closeLogsDialog() }
   closeButton.onclick = closeLogsDialog
@@ -240,7 +243,7 @@ function openLogsDialog(route, logsButton, getCachedLogs, setCachedLogs) {
       </ul>`
   }
 
-  const cachedLogs = getCachedLogs()
+  const cachedLogs = getCachedLogs?.()
   if (cachedLogs) {
     renderLogs(cachedLogs)
     return
@@ -253,12 +256,22 @@ function openLogsDialog(route, logsButton, getCachedLogs, setCachedLogs) {
         if (content.isConnected) content.innerHTML = `<p class="route-logs-message route-logs-error">${escapeHtml(data.error || "Could not read logs.")}</p>`
         return
       }
-      setCachedLogs(data)
+      setCachedLogs?.(data)
       if (content.isConnected) renderLogs(data)
     })
     .catch(error => {
       if (content.isConnected) content.innerHTML = `<p class="route-logs-message route-logs-error">Could not reach the device: ${escapeHtml(error.message)}</p>`
     })
+}
+
+function openLogsFromRow(route, event) {
+  const button = event.currentTarget
+  openLogsDialog(
+    route,
+    button,
+    () => routeLogsCache.get(route.name) || null,
+    value => { routeLogsCache.set(route.name, value) },
+  )
 }
 
 async function openOverlay(route) {
@@ -369,7 +382,6 @@ async function openOverlay(route) {
       setPlayerMessage("Switching camera…")
       video.src = cameraVideoUrl(segments[current], selectedCamera)
       video.load()
-      // Switching cameras deliberately leaves current and the status strip unchanged.
     })
   }
 
@@ -406,7 +418,7 @@ function closeOverlay() {
 }
 
 async function togglePreserved(route, event) {
-  event.stopPropagation()
+  event?.stopPropagation?.()
   const isPreserved = !route.is_preserved
   try {
     const response = await fetch(`/api/routes/${route.name}/preserve`, { method: isPreserved ? "POST" : "DELETE" })
@@ -456,35 +468,71 @@ export function RouteRecordings() {
   return html`
     <div class="screen-recordings-wrapper dashcam-routes-wrapper">
       <section class="screen-recordings-widget dashcam-library">
-        <header class="dashcam-library-header">
-          <div><p class="dashcam-library-eyebrow">Local recordings</p><h1>Dashcam Routes</h1></div>
-          <button class="dashcam-refresh-button" type="button" @click="${refresh}" disabled="${() => state.loading || false}"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-        </header>
+        ${() => {
+          const stats = computeRouteStats(state.routes)
+          return html`
+            <header class="dashcam-library-header">
+              <div class="dashcam-header-info">
+                <p class="dashcam-library-eyebrow">Local recordings</p>
+                <h1>Dashcam Routes</h1>
+                <div class="dashcam-stats-bar">
+                  <span class="dashcam-stat-chip"><i class="bi bi-car-front-fill"></i> <strong>${stats.count}</strong> ${stats.count === 1 ? "drive" : "drives"}</span>
+                  <span class="dashcam-stat-chip"><i class="bi bi-stopwatch-fill"></i> <strong>${stats.formattedDuration}</strong> total</span>
+                  ${stats.preservedCount > 0 ? html`<span class="dashcam-stat-chip stat-chip-preserved"><i class="bi bi-heart-fill"></i> <strong>${stats.preservedCount}</strong> preserved</span>` : ""}
+                </div>
+              </div>
+              <div class="dashcam-header-controls">
+                <button class="dashcam-refresh-button" type="button" @click="${refresh}" disabled="${() => state.loading || false}" title="Refresh routes">
+                  <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+              </div>
+            </header>`
+        }}
 
         <div class="dashcam-toolbar">
-          <label class="dashcam-search">
-            <i class="bi bi-search"></i>
-            <input type="search" placeholder="Search names, dates, or route IDs" aria-label="Search routes" value="${() => state.searchQuery}" @input="${event => { state.searchQuery = event.target.value }}">
-          </label>
+          <div class="dashcam-search-box">
+            <i class="bi bi-search dashcam-search-icon"></i>
+            <input type="search" placeholder="Search route names, dates, or hash IDs..." aria-label="Search routes" value="${() => state.searchQuery}" @input="${event => { state.searchQuery = event.target.value }}">
+            ${() => state.searchQuery ? html`
+              <button class="dashcam-search-clear" type="button" title="Clear search" @click="${() => { state.searchQuery = "" }}"><i class="bi bi-x"></i></button>
+            ` : ""}
+          </div>
+          <div class="dashcam-filter-group">
+            <button class="dashcam-filter-pill ${() => !state.showPreservedOnly ? "active" : ""}" type="button" @click="${() => { state.showPreservedOnly = false }}">
+              All Drives
+            </button>
+            <button class="dashcam-filter-pill ${() => state.showPreservedOnly ? "active" : ""}" type="button" @click="${() => { state.showPreservedOnly = true }}">
+              <i class="bi bi-heart-fill"></i> Preserved
+            </button>
+          </div>
           <label class="dashcam-sort">
             <span>Sort</span>
             <select @change="${event => { state.sortOrder = event.target.value }}">
-              <option value="newest" selected="${() => state.sortOrder === "newest" || false}">Newest</option>
-              <option value="oldest" selected="${() => state.sortOrder === "oldest" || false}">Oldest</option>
+              <option value="newest" selected="${() => state.sortOrder === "newest" || false}">Newest first</option>
+              <option value="oldest" selected="${() => state.sortOrder === "oldest" || false}">Oldest first</option>
+              <option value="longest" selected="${() => state.sortOrder === "longest" || false}">Longest duration</option>
+              <option value="shortest" selected="${() => state.sortOrder === "shortest" || false}">Shortest duration</option>
             </select>
           </label>
-          <button class="dashcam-preserved-filter" type="button" aria-pressed="${() => String(state.showPreservedOnly)}" @click="${() => { state.showPreservedOnly = !state.showPreservedOnly }}">
-            <i class="bi bi-heart-fill"></i> ${() => state.showPreservedOnly ? "Preserved only" : "All routes"}
-          </button>
+          <div class="dashcam-view-toggle" aria-label="Layout view mode">
+            <button class="dashcam-view-btn ${() => state.viewMode === "list" ? "active" : ""}" type="button" title="List View" @click="${() => { state.viewMode = "list" }}">
+              <i class="bi bi-list-ul"></i>
+            </button>
+            <button class="dashcam-view-btn ${() => state.viewMode === "grid" ? "active" : ""}" type="button" title="Grid View" @click="${() => { state.viewMode = "grid" }}">
+              <i class="bi bi-grid-fill"></i>
+            </button>
+          </div>
         </div>
 
         ${() => {
           const view = buildRouteView(state.routes, { preservedOnly: state.showPreservedOnly, searchQuery: state.searchQuery, sortOrder: state.sortOrder })
           const groups = groupRoutesByDate(view.visible)
+          const isGrid = state.viewMode === "grid"
+
           return html`
             <div class="dashcam-results-summary" aria-live="polite">
-              <span>${view.matching.length} matching route${view.matching.length === 1 ? "" : "s"}</span>
-              ${state.loading ? html`<span>Loading ${state.progress} of ${state.total}</span>` : html`<span>${state.routes.length} total</span>`}
+              <span>${view.matching.length} matching drive${view.matching.length === 1 ? "" : "s"}</span>
+              ${state.loading ? html`<span>Loading ${state.progress} of ${state.total}</span>` : html`<span>${state.routes.length} total local</span>`}
             </div>
             ${state.error ? html`<p class="screen-recordings-message dashcam-error">${state.error}</p>` : ""}
             ${state.isDeletingAll ? html`<p class="screen-recordings-message">Deleting routes&hellip;</p>` : ""}
@@ -493,25 +541,93 @@ export function RouteRecordings() {
             <div class="dashcam-date-groups">
               ${groups.map(group => html`
                 <section class="dashcam-date-group">
-                  <h2>${group.label}</h2>
-                  <div class="screen-recordings-grid dashcam-routes-grid">
-                    ${group.routes.map(route => html`
-                      <article class="recording-card dashcam-route-card" @click="${() => { state.selectedRoute = route }}">
-                        <button class="preserved-icon" type="button" aria-label="${route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${route.is_preserved ? "Preserved" : "Not preserved"}" @click="${event => togglePreserved(route, event)}">
-                          ${() => html`<i class="bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}"></i>`}
-                        </button>
-                        <div class="recording-preview-container dashcam-preview">
-                          <span class="dashcam-preview-fallback"><i class="bi bi-camera-video"></i><small>Preview unavailable</small></span>
-                          <img src="${route.png}" class="recording-preview" loading="lazy" alt="" @error="${thumbnailFailed}">
-                        </div>
-                        <div class="dashcam-card-body">
-                          <h3>${route.displayName}</h3>
-                          ${route.isCustomName ? html`<p class="dashcam-card-date">${route.displayDate}</p>` : ""}
-                          <p class="dashcam-card-details"><span>${formatApproxDuration(route.approxDurationSeconds)}</span><span>${route.segmentCount} segment${route.segmentCount === 1 ? "" : "s"}</span></p>
-                          <p class="dashcam-preserve-status ${route.is_preserved ? "preserved" : ""}"><i class="bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}"></i> ${route.is_preserved ? "Preserved" : "Not preserved"}</p>
-                        </div>
-                      </article>`)}
+                  <div class="dashcam-date-group-header">
+                    <h2>${group.label}</h2>
+                    <span class="dashcam-date-group-count">${group.routes.length} ${group.routes.length === 1 ? "drive" : "drives"}</span>
                   </div>
+                  ${isGrid ? html`
+                    <div class="screen-recordings-grid dashcam-routes-grid">
+                      ${group.routes.map(route => html`
+                        <article class="recording-card dashcam-route-card ${route.is_preserved ? "is-preserved" : ""}" @click="${() => { state.selectedRoute = route }}">
+                          <div class="dashcam-card-top-bar">
+                            <button class="btn-route-action btn-preserve ${route.is_preserved ? "active" : ""}" type="button" aria-label="${route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${route.is_preserved ? "Preserved (click to unpreserve)" : "Click to preserve"}" @click="${event => togglePreserved(route, event)}">
+                              <i class="bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}"></i>
+                            </button>
+                            <span class="meta-pill id-pill" title="Route ID: ${route.name}"><i class="bi bi-hash"></i>${route.name.split("--").slice(1).join("--") || route.name}</span>
+                          </div>
+                          <div class="recording-preview-container dashcam-preview">
+                            <span class="dashcam-preview-fallback"><i class="bi bi-camera-video"></i><small>Preview unavailable</small></span>
+                            <img src="${route.png}" class="recording-preview" loading="lazy" alt="" @error="${thumbnailFailed}">
+                            <span class="dashcam-grid-play-overlay"><i class="bi bi-play-fill"></i></span>
+                          </div>
+                          <div class="dashcam-card-body">
+                            <div class="dashcam-route-title-row">
+                              <h3 title="${route.displayName}">${route.displayName}</h3>
+                              ${route.isCustomName ? html`<span class="dashcam-custom-badge" title="Custom name"><i class="bi bi-tag-fill"></i></span>` : ""}
+                            </div>
+                            ${route.isCustomName ? html`<p class="dashcam-card-date">${route.displayDate}</p>` : ""}
+                            <div class="dashcam-route-meta-pills">
+                              <span class="meta-pill duration-pill"><i class="bi bi-clock"></i> ${formatApproxDuration(route.approxDurationSeconds)}</span>
+                              <span class="meta-pill segments-pill"><i class="bi bi-collection-play"></i> ${route.segmentCount} seg</span>
+                            </div>
+                            <div class="dashcam-card-actions" @click="${event => event.stopPropagation()}">
+                              <button class="btn-route-action btn-play" type="button" title="Play route" @click="${() => { state.selectedRoute = route }}">
+                                <i class="bi bi-play-fill"></i> Play
+                              </button>
+                              <button class="btn-route-action btn-icon" type="button" title="View logs" @click="${event => openLogsFromRow(route, event)}">
+                                <i class="bi bi-file-earmark-arrow-down"></i>
+                              </button>
+                              <button class="btn-route-action btn-icon" type="button" title="Rename" @click="${() => renameRoute(route)}">
+                                <i class="bi bi-pencil"></i>
+                              </button>
+                              <button class="btn-route-action btn-icon btn-danger-action" type="button" title="Delete" @click="${() => deleteRoute(route)}">
+                                <i class="bi bi-trash"></i>
+                              </button>
+                            </div>
+                          </div>
+                        </article>`)}
+                    </div>
+                  ` : html`
+                    <div class="dashcam-routes-list">
+                      ${group.routes.map(route => html`
+                        <article class="dashcam-route-row ${route.is_preserved ? "is-preserved" : ""}" @click="${() => { state.selectedRoute = route }}">
+                          <div class="dashcam-mini-preview">
+                            <span class="dashcam-mini-fallback"><i class="bi bi-camera-video"></i></span>
+                            <img src="${route.png}" class="dashcam-mini-img" loading="lazy" alt="" @error="${thumbnailFailed}">
+                            <span class="dashcam-mini-play-overlay"><i class="bi bi-play-fill"></i></span>
+                          </div>
+                          <div class="dashcam-route-info">
+                            <div class="dashcam-route-title-row">
+                              <h3 class="dashcam-route-title" title="${route.displayName}">${route.displayName}</h3>
+                              ${route.isCustomName ? html`<span class="dashcam-custom-badge" title="Custom name"><i class="bi bi-tag-fill"></i> Custom</span>` : ""}
+                            </div>
+                            ${route.isCustomName ? html`<p class="dashcam-route-subdate"><i class="bi bi-calendar3"></i> ${route.displayDate}</p>` : ""}
+                            <div class="dashcam-route-meta-pills">
+                              <span class="meta-pill duration-pill" title="Estimated duration"><i class="bi bi-clock"></i> ${formatApproxDuration(route.approxDurationSeconds)}</span>
+                              <span class="meta-pill segments-pill" title="Segments recorded"><i class="bi bi-collection-play"></i> ${route.segmentCount} segment${route.segmentCount === 1 ? "" : "s"}</span>
+                              ${route.is_preserved ? html`<span class="meta-pill preserved-pill" title="Preserved from deletion"><i class="bi bi-heart-fill"></i> Preserved</span>` : ""}
+                              <span class="meta-pill id-pill" title="Route ID: ${route.name}"><i class="bi bi-hash"></i>${route.name.split("--").slice(1).join("--") || route.name}</span>
+                            </div>
+                          </div>
+                          <div class="dashcam-route-actions" @click="${event => event.stopPropagation()}">
+                            <button class="btn-route-action btn-play" type="button" title="Play recording" @click="${() => { state.selectedRoute = route }}">
+                              <i class="bi bi-play-fill"></i> <span>Play</span>
+                            </button>
+                            <button class="btn-route-action btn-preserve ${route.is_preserved ? "active" : ""}" type="button" aria-label="${route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${route.is_preserved ? "Preserved (click to unpreserve)" : "Click to preserve"}" @click="${event => togglePreserved(route, event)}">
+                              <i class="bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}"></i>
+                            </button>
+                            <button class="btn-route-action btn-icon" type="button" title="View & download logs" @click="${event => openLogsFromRow(route, event)}">
+                              <i class="bi bi-file-earmark-arrow-down"></i>
+                            </button>
+                            <button class="btn-route-action btn-icon" type="button" title="Rename route" @click="${() => renameRoute(route)}">
+                              <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn-route-action btn-icon btn-danger-action" type="button" title="Delete route" @click="${() => deleteRoute(route)}">
+                              <i class="bi bi-trash"></i>
+                            </button>
+                          </div>
+                        </article>`)}
+                    </div>`}
                 </section>`)}
             </div>
             ${view.truncated ? html`<p class="screen-recordings-message">Showing the first ${MAX_RENDERED_ROUTES} of ${view.matching.length} matching routes.</p>` : ""}`
