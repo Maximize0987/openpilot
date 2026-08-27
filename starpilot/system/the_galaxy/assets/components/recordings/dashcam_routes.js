@@ -301,6 +301,7 @@ async function openOverlay(route) {
       </header>
       <div class="dashcam-video-shell">
         <video controls muted playsinline preload="metadata"></video>
+        <canvas class="dashcam-transition-frame" aria-hidden="true" hidden></canvas>
         <div class="dashcam-player-state" role="status">Loading route metadata&hellip;</div>
       </div>
       <div class="dashcam-player-toolbar">
@@ -324,6 +325,7 @@ async function openOverlay(route) {
   document.body.appendChild(overlay)
 
   const video = overlay.querySelector("video")
+  const transitionFrame = overlay.querySelector(".dashcam-transition-frame")
   const playerState = overlay.querySelector(".dashcam-player-state")
   const segmentBar = overlay.querySelector(".dashcam-segment-bar")
   const segmentSelect = overlay.querySelector(".segment-select")
@@ -341,6 +343,7 @@ async function openOverlay(route) {
   let qualityToken = 0
   let upgradeController = null
   let upgradeTimer = null
+  let transitionActive = false
 
   const setPlayerMessage = (message, isError = false) => {
     playerState.textContent = message
@@ -359,9 +362,35 @@ async function openOverlay(route) {
       .join("")
     segmentBar.hidden = !segments.length
   }
-  const swapSource = (url, { message } = {}) => {
+
+  const finishTransition = () => {
+    transitionActive = false
+    transitionFrame.hidden = true
+  }
+  const holdCurrentFrame = () => {
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) return false
+    const context = transitionFrame.getContext("2d")
+    if (!context) return false
+    transitionFrame.width = video.videoWidth
+    transitionFrame.height = video.videoHeight
+    try {
+      context.drawImage(video, 0, 0, transitionFrame.width, transitionFrame.height)
+    } catch (_) {
+      return false
+    }
+    transitionActive = true
+    transitionFrame.hidden = false
+    setPlayerMessage("")
+    return true
+  }
+  const swapSource = (url, { message, seamless = false } = {}) => {
     const playbackTime = Number.isFinite(video.currentTime) ? video.currentTime : 0
     const shouldResume = !video.paused && !video.ended
+    const heldFrame = seamless && holdCurrentFrame()
+    // Never trade a working preview for a black frame. The prepared full stream can
+    // be attempted again later, while the low-resolution video keeps playing.
+    if (seamless && !heldFrame) return false
+    if (heldFrame) video.addEventListener("canplay", finishTransition, { once: true })
     video.addEventListener("loadedmetadata", () => {
       if (playbackTime > 0) {
         try {
@@ -370,9 +399,11 @@ async function openOverlay(route) {
       }
       if (shouldResume) video.play().catch(() => {})
     }, { once: true })
+    if (!heldFrame) finishTransition()
     if (message) setPlayerMessage(message)
     video.src = url
     video.load()
+    return true
   }
 
   const cancelUpgrade = () => {
@@ -393,14 +424,23 @@ async function openOverlay(route) {
     const fullUrl = cameraVideoUrl(segmentUrl, camera)
     const stillCurrent = () =>
       token === qualityToken && showingPreview && segments[current] === segmentUrl && selectedCamera === camera && !!overlay
+    const swapPreparedStream = (attempt = 0) => {
+      if (!stillCurrent()) return
+      if (swapSource(fullUrl, { seamless: true })) {
+        showingPreview = false
+        return
+      }
+      if (attempt < 5) {
+        upgradeTimer = setTimeout(() => swapPreparedStream(attempt + 1), 100)
+      }
+    }
 
     fetch(fullUrl, { method: "HEAD", signal: controller.signal })
       .then(response => {
         if (!stillCurrent()) return
         if (upgradeController === controller) upgradeController = null
         if (response.ok) {
-          showingPreview = false
-          swapSource(fullUrl)
+          swapPreparedStream()
           return
         }
         if (response.status === 503 && attempt < FULL_QUALITY_RETRIES) {
@@ -428,6 +468,7 @@ async function openOverlay(route) {
     const camera = selectedCamera
     if (!segmentUrl || !camera) return
     cancelUpgrade()
+    finishTransition()
     wantsPlayback = autoplay
     showingPreview = preview === undefined ? supportsLowQuality(camera) : preview
     setPlayerMessage(message || "Loading video…")
@@ -498,8 +539,11 @@ async function openOverlay(route) {
   })
   video.addEventListener("loadeddata", () => setPlayerMessage(""))
   video.addEventListener("playing", () => setPlayerMessage(""))
-  video.addEventListener("waiting", () => setPlayerMessage("Loading video…"))
+  video.addEventListener("waiting", () => {
+    if (!transitionActive) setPlayerMessage("Loading video…")
+  })
   video.addEventListener("error", () => {
+    finishTransition()
     // A dead preview drops through to the real stream rather than showing an error.
     if (showingPreview) {
       showingPreview = false
