@@ -1212,6 +1212,7 @@
 .dashcam-video-shell {
   aspect-ratio: 16 / 9;
   background: #07080b;
+  overflow: hidden;
   position: relative;
   width: 100%;
 }
@@ -1219,23 +1220,22 @@
 .dashcam-player-overlay .dashcam-player .dashcam-video-shell video {
   border-radius: 0;
   height: 100%;
+  inset: 0;
   object-fit: contain;
+  position: absolute;
   width: 100%;
 }
 
-.dashcam-transition-frame {
-  background: #07080b;
-  height: 100%;
-  inset: 0;
-  object-fit: contain;
-  pointer-events: none;
-  position: absolute;
-  width: 100%;
+.dashcam-player-overlay .dashcam-player .dashcam-video-shell video.active {
+  opacity: 1;
+  pointer-events: auto;
   z-index: 1;
 }
 
-.dashcam-transition-frame[hidden] {
-  display: none;
+.dashcam-player-overlay .dashcam-player .dashcam-video-shell video.staging {
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .dashcam-player-state {

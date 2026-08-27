@@ -300,8 +300,8 @@ async function openOverlay(route) {
         <button class="dashcam-player-close action-close" type="button" aria-label="Close player">&times;</button>
       </header>
       <div class="dashcam-video-shell">
-        <video controls muted playsinline preload="metadata"></video>
-        <canvas class="dashcam-transition-frame" aria-hidden="true" hidden></canvas>
+        <video class="dashcam-video active" controls muted playsinline preload="metadata"></video>
+        <video class="dashcam-video staging" muted playsinline preload="none"></video>
         <div class="dashcam-player-state" role="status">Loading route metadata&hellip;</div>
       </div>
       <div class="dashcam-player-toolbar">
@@ -324,8 +324,9 @@ async function openOverlay(route) {
     </section>`
   document.body.appendChild(overlay)
 
-  const video = overlay.querySelector("video")
-  const transitionFrame = overlay.querySelector(".dashcam-transition-frame")
+  const [videoA, videoB] = overlay.querySelectorAll(".dashcam-video")
+  let activeVideo = videoA
+  let stagingVideo = videoB
   const playerState = overlay.querySelector(".dashcam-player-state")
   const segmentBar = overlay.querySelector(".dashcam-segment-bar")
   const segmentSelect = overlay.querySelector(".segment-select")
@@ -343,7 +344,7 @@ async function openOverlay(route) {
   let qualityToken = 0
   let upgradeController = null
   let upgradeTimer = null
-  let transitionActive = false
+  let isUpgrading = false
 
   const setPlayerMessage = (message, isError = false) => {
     playerState.textContent = message
@@ -363,59 +364,138 @@ async function openOverlay(route) {
     segmentBar.hidden = !segments.length
   }
 
-  const finishTransition = () => {
-    transitionActive = false
-    transitionFrame.hidden = true
-  }
-  const holdCurrentFrame = () => {
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth || !video.videoHeight) return false
-    const context = transitionFrame.getContext("2d")
-    if (!context) return false
-    transitionFrame.width = video.videoWidth
-    transitionFrame.height = video.videoHeight
-    try {
-      context.drawImage(video, 0, 0, transitionFrame.width, transitionFrame.height)
-    } catch (_) {
-      return false
-    }
-    transitionActive = true
-    transitionFrame.hidden = false
-    setPlayerMessage("")
-    return true
-  }
-  const swapSource = (url, { message, seamless = false } = {}) => {
-    const playbackTime = Number.isFinite(video.currentTime) ? video.currentTime : 0
-    const shouldResume = !video.paused && !video.ended
-    const heldFrame = seamless && holdCurrentFrame()
-    // Never trade a working preview for a black frame. The prepared full stream can
-    // be attempted again later, while the low-resolution video keeps playing.
-    if (seamless && !heldFrame) return false
-    if (heldFrame) video.addEventListener("canplay", finishTransition, { once: true })
-    video.addEventListener("loadedmetadata", () => {
-      if (playbackTime > 0) {
-        try {
-          video.currentTime = Math.min(playbackTime, Number.isFinite(video.duration) ? video.duration : playbackTime)
-        } catch (_) {}
-      }
-      if (shouldResume) video.play().catch(() => {})
-    }, { once: true })
-    if (!heldFrame) finishTransition()
-    if (message) setPlayerMessage(message)
-    video.src = url
-    video.load()
-    return true
-  }
-
   const cancelUpgrade = () => {
     qualityToken += 1
+    isUpgrading = false
     clearTimeout(upgradeTimer)
     upgradeTimer = null
     upgradeController?.abort()
     upgradeController = null
+    stagingVideo.pause()
+    stagingVideo.removeAttribute("src")
+    stagingVideo.load()
   }
 
-  // Prepare the real stream behind the playing preview. Only replace the media source
-  // after the server confirms the remux is ready, so slow device work never blanks it.
+  const performSeamlessUpgrade = (fullUrl, token) => {
+    if (token !== qualityToken || !showingPreview || !overlay) return
+    isUpgrading = true
+
+    stagingVideo.muted = activeVideo.muted
+    stagingVideo.volume = activeVideo.volume
+    stagingVideo.playbackRate = activeVideo.playbackRate
+    stagingVideo.src = fullUrl
+    stagingVideo.preload = "auto"
+    stagingVideo.load()
+
+    const cleanupStaging = () => {
+      stagingVideo.removeEventListener("loadedmetadata", onMetadata)
+      stagingVideo.removeEventListener("error", onStagingError)
+    }
+
+    const onStagingError = () => {
+      cleanupStaging()
+      if (token !== qualityToken) return
+      isUpgrading = false
+      showingPreview = false
+    }
+
+    const onMetadata = () => {
+      if (token !== qualityToken || !showingPreview || !overlay) {
+        cleanupStaging()
+        return
+      }
+
+      const syncAndSwap = () => {
+        if (token !== qualityToken || !showingPreview || !overlay) {
+          cleanupStaging()
+          return
+        }
+
+        const applySwap = () => {
+          if (token !== qualityToken || !showingPreview || !overlay) {
+            cleanupStaging()
+            return
+          }
+          cleanupStaging()
+
+          const targetTime = Number.isFinite(activeVideo.currentTime) ? activeVideo.currentTime : 0
+          const isPlaying = !activeVideo.paused && !activeVideo.ended
+
+          stagingVideo.muted = activeVideo.muted
+          stagingVideo.volume = activeVideo.volume
+          stagingVideo.playbackRate = activeVideo.playbackRate
+
+          if (Math.abs(stagingVideo.currentTime - targetTime) > 0.15) {
+            try {
+              stagingVideo.currentTime = targetTime
+            } catch (_) {}
+          }
+
+          if (isPlaying && stagingVideo.paused) {
+            stagingVideo.play().catch(() => {})
+          } else if (!isPlaying && !stagingVideo.paused) {
+            stagingVideo.pause()
+          }
+
+          activeVideo.classList.remove("active")
+          activeVideo.classList.add("staging")
+          activeVideo.controls = false
+
+          stagingVideo.classList.remove("staging")
+          stagingVideo.classList.add("active")
+          stagingVideo.controls = true
+
+          const oldActive = activeVideo
+          activeVideo = stagingVideo
+          stagingVideo = oldActive
+
+          stagingVideo.pause()
+          stagingVideo.removeAttribute("src")
+          stagingVideo.load()
+
+          showingPreview = false
+          isUpgrading = false
+          setPlayerMessage("")
+        }
+
+        const isPlaying = !activeVideo.paused && !activeVideo.ended
+        if (isPlaying) {
+          stagingVideo.play().then(() => {
+            if ("requestVideoFrameCallback" in stagingVideo) {
+              stagingVideo.requestVideoFrameCallback(() => applySwap())
+            } else {
+              stagingVideo.addEventListener("timeupdate", applySwap, { once: true })
+            }
+          }).catch(() => {
+            applySwap()
+          })
+        } else {
+          if ("requestVideoFrameCallback" in stagingVideo) {
+            stagingVideo.requestVideoFrameCallback(() => applySwap())
+          } else {
+            applySwap()
+          }
+        }
+      }
+
+      const playbackTime = Number.isFinite(activeVideo.currentTime) ? activeVideo.currentTime : 0
+      if (playbackTime > 0) {
+        stagingVideo.addEventListener("seeked", syncAndSwap, { once: true })
+        try {
+          stagingVideo.currentTime = Math.min(playbackTime, Number.isFinite(stagingVideo.duration) ? stagingVideo.duration : playbackTime)
+        } catch (_) {
+          syncAndSwap()
+        }
+      } else {
+        syncAndSwap()
+      }
+    }
+
+    stagingVideo.addEventListener("loadedmetadata", onMetadata, { once: true })
+    stagingVideo.addEventListener("error", onStagingError, { once: true })
+  }
+
+  // Request the real stream behind the playing preview without interrupting playback.
   const requestFullQuality = (segmentUrl, camera, attempt = 0) => {
     const token = ++qualityToken
     upgradeController?.abort()
@@ -423,24 +503,14 @@ async function openOverlay(route) {
     upgradeController = controller
     const fullUrl = cameraVideoUrl(segmentUrl, camera)
     const stillCurrent = () =>
-      token === qualityToken && showingPreview && segments[current] === segmentUrl && selectedCamera === camera && !!overlay
-    const swapPreparedStream = (attempt = 0) => {
-      if (!stillCurrent()) return
-      if (swapSource(fullUrl, { seamless: true })) {
-        showingPreview = false
-        return
-      }
-      if (attempt < 5) {
-        upgradeTimer = setTimeout(() => swapPreparedStream(attempt + 1), 100)
-      }
-    }
+      token === qualityToken && showingPreview && segments[current] === segmentUrl && selectedCamera === camera && Boolean(overlay)
 
     fetch(fullUrl, { method: "HEAD", signal: controller.signal })
       .then(response => {
         if (!stillCurrent()) return
         if (upgradeController === controller) upgradeController = null
         if (response.ok) {
-          swapPreparedStream()
+          performSeamlessUpgrade(fullUrl, token)
           return
         }
         if (response.status === 503 && attempt < FULL_QUALITY_RETRIES) {
@@ -468,13 +538,22 @@ async function openOverlay(route) {
     const camera = selectedCamera
     if (!segmentUrl || !camera) return
     cancelUpgrade()
-    finishTransition()
     wantsPlayback = autoplay
     showingPreview = preview === undefined ? supportsLowQuality(camera) : preview
     setPlayerMessage(message || "Loading video…")
-    video.src = cameraVideoUrl(segmentUrl, camera, showingPreview ? "low" : undefined)
-    video.load()
-    if (autoplay) video.play().catch(() => {})
+
+    stagingVideo.pause()
+    stagingVideo.removeAttribute("src")
+    stagingVideo.classList.remove("active")
+    stagingVideo.classList.add("staging")
+    stagingVideo.controls = false
+
+    activeVideo.classList.remove("staging")
+    activeVideo.classList.add("active")
+    activeVideo.controls = true
+    activeVideo.src = cameraVideoUrl(segmentUrl, camera, showingPreview ? "low" : undefined)
+    activeVideo.load()
+    if (autoplay) activeVideo.play().catch(() => {})
   }
 
   const playCurrentSegment = (autoplay = true) => {
@@ -489,7 +568,7 @@ async function openOverlay(route) {
       syncSegmentControls()
       return
     }
-    const keepPlaying = video.ended || (!video.paused && !video.error)
+    const keepPlaying = activeVideo.ended || (!activeVideo.paused && !activeVideo.error)
     current = target
     playCurrentSegment(keepPlaying)
   }
@@ -529,21 +608,26 @@ async function openOverlay(route) {
     link.remove()
   }
 
-  video.addEventListener("loadedmetadata", () => {
+  const handleLoadedMetadata = event => {
+    if (event.target !== activeVideo) return
     if (!showingPreview) return
-    if (shouldUpgradeFromHeight(video.videoHeight)) {
+    if (shouldUpgradeFromHeight(activeVideo.videoHeight)) {
       scheduleUpgrade(segments[current], selectedCamera)
     } else {
       showingPreview = false
     }
-  })
-  video.addEventListener("loadeddata", () => setPlayerMessage(""))
-  video.addEventListener("playing", () => setPlayerMessage(""))
-  video.addEventListener("waiting", () => {
-    if (!transitionActive) setPlayerMessage("Loading video…")
-  })
-  video.addEventListener("error", () => {
-    finishTransition()
+  }
+  const handleLoadedData = event => {
+    if (event.target === activeVideo) setPlayerMessage("")
+  }
+  const handlePlaying = event => {
+    if (event.target === activeVideo) setPlayerMessage("")
+  }
+  const handleWaiting = event => {
+    if (event.target === activeVideo && !isUpgrading) setPlayerMessage("Loading video…")
+  }
+  const handleError = event => {
+    if (event.target !== activeVideo) return
     // A dead preview drops through to the real stream rather than showing an error.
     if (showingPreview) {
       showingPreview = false
@@ -552,8 +636,42 @@ async function openOverlay(route) {
       return
     }
     setPlayerMessage("This segment could not be played.", true)
-  })
-  video.addEventListener("ended", () => goToSegment(current + 1))
+  }
+  const handleEnded = event => {
+    if (event.target === activeVideo) goToSegment(current + 1)
+  }
+  const handleSeeking = event => {
+    if (event.target !== activeVideo) return
+    if (isUpgrading && stagingVideo.readyState >= 1) {
+      try {
+        stagingVideo.currentTime = activeVideo.currentTime
+      } catch (_) {}
+    }
+  }
+  const handlePause = event => {
+    if (event.target !== activeVideo) return
+    if (isUpgrading && !stagingVideo.paused) stagingVideo.pause()
+  }
+  const handlePlay = event => {
+    if (event.target !== activeVideo) return
+    if (isUpgrading && stagingVideo.paused && stagingVideo.readyState >= 3) {
+      stagingVideo.play().catch(() => {})
+    }
+  }
+
+  const bindVideoEvents = el => {
+    el.addEventListener("loadedmetadata", handleLoadedMetadata)
+    el.addEventListener("loadeddata", handleLoadedData)
+    el.addEventListener("playing", handlePlaying)
+    el.addEventListener("waiting", handleWaiting)
+    el.addEventListener("error", handleError)
+    el.addEventListener("ended", handleEnded)
+    el.addEventListener("seeking", handleSeeking)
+    el.addEventListener("pause", handlePause)
+    el.addEventListener("play", handlePlay)
+  }
+  bindVideoEvents(videoA)
+  bindVideoEvents(videoB)
 
   prevSegmentButton.onclick = () => goToSegment(current - 1)
   nextSegmentButton.onclick = () => goToSegment(current + 1)
@@ -564,12 +682,12 @@ async function openOverlay(route) {
       if (button.disabled || button.dataset.camera === selectedCamera || !segments[current]) return
       selectedCamera = button.dataset.camera
       cameraButtons.forEach(candidate => candidate.classList.toggle("active", candidate === button))
-      const playbackTime = Number.isFinite(video.currentTime) ? video.currentTime : 0
-      const shouldResume = !video.paused && !video.ended
-      video.addEventListener("loadedmetadata", () => {
+      const playbackTime = Number.isFinite(activeVideo.currentTime) ? activeVideo.currentTime : 0
+      const shouldResume = !activeVideo.paused && !activeVideo.ended
+      activeVideo.addEventListener("loadedmetadata", () => {
         if (playbackTime > 0) {
           try {
-            video.currentTime = Math.min(playbackTime, Number.isFinite(video.duration) ? video.duration : playbackTime)
+            activeVideo.currentTime = Math.min(playbackTime, Number.isFinite(activeVideo.duration) ? activeVideo.duration : playbackTime)
           } catch (_) {}
         }
       }, { once: true })
@@ -606,6 +724,12 @@ function closeOverlay() {
   if (!overlay) return
   overlay._cancelUpgrade?.()
   document.removeEventListener("keydown", overlay._closeOnEscape)
+  const videos = overlay.querySelectorAll("video")
+  videos.forEach(v => {
+    v.pause()
+    v.removeAttribute("src")
+    v.load()
+  })
   overlay.remove()
   overlay = null
   state.selectedRoute = null
