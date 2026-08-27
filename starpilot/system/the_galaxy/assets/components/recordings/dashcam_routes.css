@@ -1244,13 +1244,43 @@
   display: none;
 }
 
-.dashcam-segment-bar {
+.dashcam-player-title-row {
+  align-items: center;
+  display: flex;
+  gap: var(--gap-xs);
+}
+
+.dashcam-title-rename {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  line-height: 1;
+  padding: 0.25rem;
+}
+
+.dashcam-title-rename:hover {
+  color: var(--text-color);
+}
+
+/* Cameras left, segments centred, actions right - the side columns stay equal so the
+   segment controls sit in the true centre regardless of how wide either side is. */
+.dashcam-player-toolbar {
   align-items: center;
   background: var(--sidebar-bg);
   border-bottom: var(--border-width-thin) solid var(--sidebar-border-color);
+  display: grid;
+  gap: var(--gap-sm);
+  grid-template-columns: 1fr auto 1fr;
+  padding: 0.65rem var(--padding-lg);
+}
+
+.dashcam-segment-bar {
+  align-items: center;
   display: flex;
   gap: var(--gap-xs);
-  padding: 0.65rem var(--padding-lg);
+  justify-self: center;
 }
 
 .dashcam-segment-bar .segment-step {
@@ -1284,18 +1314,30 @@
 
 .dashcam-camera-selector {
   gap: var(--gap-xs);
-  padding: var(--padding-base) var(--padding-lg) 0;
+  justify-self: start;
 }
 
-.dashcam-camera-selector button,
-.dashcam-player-actions button {
+.dashcam-camera-selector button {
   background: var(--input-bg);
   border: var(--border-width-thin) solid var(--sidebar-border-color);
   border-radius: var(--border-radius-md);
   color: var(--text-color);
   cursor: pointer;
+  font-size: var(--font-size-sm);
+  padding: 0.35rem 0.7rem;
+}
+
+.dashcam-player-actions button {
+  align-items: center;
+  background: var(--input-bg);
+  border: var(--border-width-thin) solid var(--sidebar-border-color);
+  border-radius: var(--border-radius-md);
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
   font-size: var(--font-size-base);
-  padding: 0.65rem 1rem;
+  justify-content: center;
+  padding: 0.35rem 0.6rem;
 }
 
 .dashcam-camera-selector button.active {
@@ -1304,18 +1346,21 @@
 }
 
 .dashcam-player-actions {
-  flex-wrap: wrap;
-  gap: var(--gap-sm);
-  padding: var(--padding-base) var(--padding-lg) var(--padding-lg);
+  gap: var(--gap-xs);
+  justify-self: end;
 }
 
-.dashcam-player-actions .action-download {
+.dashcam-player-actions .action-download:not(:disabled) {
   background: var(--color-confirm);
+}
+
+.dashcam-player-actions button:disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .dashcam-player-actions .action-delete {
   background: var(--danger-bg);
-  margin-left: auto;
 }
 
 /* Responsive Adaptations */
@@ -1385,20 +1430,19 @@
   }
 
   .dashcam-player-header,
-  .dashcam-segment-bar,
-  .dashcam-camera-selector,
-  .dashcam-player-actions {
+  .dashcam-player-toolbar {
     padding-left: var(--padding-base);
     padding-right: var(--padding-base);
   }
 
-  .dashcam-camera-selector,
-  .dashcam-player-actions {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+  /* Too narrow for three columns: stack them and centre each row. */
+  .dashcam-player-toolbar {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 
-  .dashcam-player-actions .action-delete {
-    margin-left: 0;
+  .dashcam-camera-selector,
+  .dashcam-player-actions {
+    justify-self: center;
   }
 }

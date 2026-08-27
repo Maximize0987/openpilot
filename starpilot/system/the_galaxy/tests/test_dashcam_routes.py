@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import io
 import os
 from pathlib import Path
+import subprocess
 import threading
 import time
 
@@ -480,35 +481,162 @@ def test_route_metadata_never_probes_segments_with_ffprobe(monkeypatch, tmp_path
   assert metadata.get_json()["total_duration"] == 180
 
 
-def test_low_quality_serves_qcamera_without_touching_ffmpeg(monkeypatch, tmp_path):
+def test_low_quality_serves_the_wrapped_qcamera_preview(monkeypatch, tmp_path):
+  """qcamera.ts is tiny, but it still needs the mp4 wrap - MPEG-TS will not play in a <video>."""
   segment = _make_segment(tmp_path, segment_num=0)
   (segment / "fcamera.hevc").write_bytes(b"hevc")
-  (segment / "qcamera.ts").write_bytes(b"qcamera-bytes")
+  (segment / "qcamera.ts").write_bytes(b"ts")
 
-  def explode(path):
-    raise AssertionError(f"the low quality tier must not remux: {path}")
+  preview_mp4 = tmp_path / "preview.mp4"
+  preview_mp4.write_bytes(b"preview-video")
+  full_mp4 = tmp_path / "full.mp4"
+  full_mp4.write_bytes(b"full-video")
 
-  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", explode)
+  wrapped = []
+  def wrap(path):
+    wrapped.append(os.path.basename(str(path)))
+    return preview_mp4 if str(path).endswith("qcamera.ts") else full_mp4
+
+  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", wrap)
   client = _make_client(monkeypatch, tmp_path)
 
   low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
   assert low.status_code == 200
-  assert low.data == b"qcamera-bytes"
+  assert low.mimetype == "video/mp4"
+  assert low.data == b"preview-video"
+
+  full = client.get(f"/video/{ROUTE_NAME}--0?camera=forward")
+  assert full.data == b"full-video"
+  assert wrapped == ["qcamera.ts", "fcamera.hevc"]
 
 
-def test_low_quality_falls_back_when_qcamera_is_missing(monkeypatch, tmp_path):
+def test_low_quality_falls_through_to_the_full_stream_when_qcamera_is_missing(monkeypatch, tmp_path):
+  """The player always asks for the preview, so a missing one must never be an error."""
   segment = _make_segment(tmp_path, segment_num=0)
   (segment / "fcamera.hevc").write_bytes(b"hevc")
   _stub_remux(monkeypatch, tmp_path)
   client = _make_client(monkeypatch, tmp_path)
 
-  # No qcamera.ts on disk, and the driver camera never has one.
-  assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low").status_code == 404
-  assert client.get(f"/video/{ROUTE_NAME}--0?camera=driver&quality=low").status_code == 404
+  low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
+  assert low.status_code == 200
+  assert low.data == b"wrapped-video"
 
-  full = client.get(f"/video/{ROUTE_NAME}--0?camera=forward")
-  assert full.status_code == 200
-  assert full.data == b"wrapped-video"
+
+def test_low_quality_falls_through_when_the_preview_cannot_be_wrapped(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  (segment / "qcamera.ts").write_bytes(b"ts")
+
+  full_mp4 = tmp_path / "full.mp4"
+  full_mp4.write_bytes(b"full-video")
+
+  def wrap(path):
+    if str(path).endswith("qcamera.ts"):
+      raise ValueError("corrupt preview")
+    return full_mp4
+
+  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", wrap)
+  client = _make_client(monkeypatch, tmp_path)
+
+  low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
+  assert low.status_code == 200
+  assert low.data == b"full-video"
+
+
+def test_only_the_road_camera_has_a_preview(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "ecamera.hevc").write_bytes(b"hevc")
+  (segment / "qcamera.ts").write_bytes(b"ts")
+  _stub_remux(monkeypatch, tmp_path)
+  client = _make_client(monkeypatch, tmp_path)
+
+  wide = client.get(f"/video/{ROUTE_NAME}--0?camera=wide&quality=low")
+  assert wide.data == b"wrapped-video"
+
+
+def test_preview_timeout_does_not_wait_again_for_the_full_stream(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  (segment / "qcamera.ts").write_bytes(b"ts")
+  calls = []
+
+  def not_ready(path):
+    calls.append(Path(path).name)
+    return None
+
+  monkeypatch.setattr(the_galaxy, "_get_or_create_segment_mp4", not_ready)
+  client = _make_client(monkeypatch, tmp_path)
+
+  response = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
+  assert response.status_code == 503
+  assert calls == ["qcamera.ts"]
+
+
+def test_in_progress_segment_is_not_playable(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  (segment / "qcamera.ts").write_bytes(b"ts")
+  (segment / "rlog.lock").touch()
+  client = _make_client(monkeypatch, tmp_path)
+
+  response = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
+  assert response.status_code == 409
+  assert "still being recorded" in response.get_json()["error"]
+
+
+def test_completed_segment_remux_reuses_the_disk_cache(monkeypatch, tmp_path):
+  source = tmp_path / "fcamera.hevc"
+  source.write_bytes(b"hevc")
+  os.utime(source, (1000, 1000))
+  cache = tmp_path / "video_cache"
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_PATH", cache)
+  calls = []
+
+  def wrap(command, check, timeout):
+    calls.append(timeout)
+    Path(command[-1]).write_bytes(b"mp4")
+
+  monkeypatch.setattr(utilities.subprocess, "run", wrap)
+  first = utilities.ffmpeg_mp4_wrap_to_path(source)
+  second = utilities.ffmpeg_mp4_wrap_to_path(source)
+
+  assert first == second
+  assert len(calls) == 1
+  assert 0 < calls[0] <= utilities.VIDEO_REMUX_TIMEOUT_SECONDS
+
+
+def test_segment_remux_timeout_is_bounded_and_removes_partial_output(monkeypatch, tmp_path):
+  source = tmp_path / "fcamera.hevc"
+  source.write_bytes(b"hevc")
+  cache = tmp_path / "video_cache"
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_PATH", cache)
+  timeouts = []
+
+  def timeout(command, check, timeout):
+    timeouts.append(timeout)
+    Path(command[-1]).write_bytes(b"partial")
+    raise subprocess.TimeoutExpired(command, timeout)
+
+  monkeypatch.setattr(utilities.subprocess, "run", timeout)
+
+  with pytest.raises(ValueError, match="Timed out processing video file"):
+    utilities.ffmpeg_mp4_wrap_to_path(source)
+
+  assert len(timeouts) == 1
+  assert 0 < timeouts[0] <= utilities.VIDEO_REMUX_TIMEOUT_SECONDS
+  assert not list(cache.glob("*.mp4"))
+
+
+def test_segment_video_falls_back_across_cameras(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  _stub_remux(monkeypatch, tmp_path)
+  client = _make_client(monkeypatch, tmp_path)
+
+  assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward").data == b"wrapped-video"
+  # No ecamera.hevc on disk for this segment.
+  assert client.get(f"/video/{ROUTE_NAME}--0?camera=wide").status_code == 404
+  assert client.get("/video/not-a-segment?camera=forward").status_code == 400
 
 
 def test_segment_video_supports_range_requests(monkeypatch, tmp_path):
@@ -524,6 +652,18 @@ def test_segment_video_supports_range_requests(monkeypatch, tmp_path):
 
   # A malformed range used to raise inside the hand-rolled parser.
   assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=abc"}).status_code in (200, 416)
+
+
+def test_head_request_prepares_full_quality_without_sending_the_body(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  _stub_remux(monkeypatch, tmp_path)
+  client = _make_client(monkeypatch, tmp_path)
+
+  prepared = client.head(f"/video/{ROUTE_NAME}--0?camera=forward")
+  assert prepared.status_code == 200
+  assert prepared.mimetype == "video/mp4"
+  assert prepared.data == b""
 
 
 def test_concurrent_requests_for_one_segment_share_a_single_remux(monkeypatch, tmp_path):

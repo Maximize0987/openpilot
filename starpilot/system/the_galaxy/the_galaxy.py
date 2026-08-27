@@ -1225,8 +1225,9 @@ ROUTE_THUMBNAIL_CACHE_SECONDS = 7 * 24 * 60 * 60
 ROUTE_THUMBNAIL_WAIT_SECONDS = 25
 # One minute per segment, matching loggerd's segment length.
 SEGMENT_DURATION_SECONDS = 60
-# Only ever remux one segment at a time; the driving stack needs the headroom.
-VIDEO_REMUX_WAIT_SECONDS = 25
+# Only ever remux one segment at a time; the driving stack needs the headroom. The
+# subprocess timeout is the hard bound, with a small allowance for executor handoff.
+VIDEO_REMUX_WAIT_SECONDS = utilities.VIDEO_REMUX_TIMEOUT_SECONDS + 5
 # Segment media never changes once loggerd has closed it, so let the browser keep it.
 VIDEO_CACHE_SECONDS = 7 * 24 * 60 * 60
 _VIDEO_REMUX_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="video-remux")
@@ -8990,19 +8991,26 @@ def setup(app):
     camera = request.args.get("camera")
     filename = {"driver": "dcamera.hevc", "wide": "ecamera.hevc"}.get(camera, "fcamera.hevc")
 
-    # loggerd writes qcamera.ts as H.264 in MPEG-TS, so it plays with no ffmpeg at
-    # all. It exists for the road camera only, so other views skip this tier.
+    # qcamera.ts is a 526x330 companion to the road camera, so wrapping it costs a
+    # fraction of the full stream. It still needs the mp4 wrap - a bare MPEG-TS will
+    # not play in a <video>. Anything missing falls through to the full stream.
     if request.args.get("quality") == "low" and filename == "fcamera.hevc":
       for footage_path in FOOTAGE_PATHS:
         preview_path = os.path.join(footage_path, path, "qcamera.ts")
-        if os.path.isfile(preview_path):
-          return send_file(
-            preview_path,
-            mimetype="video/mp2t",
-            conditional=True,
-            max_age=VIDEO_CACHE_SECONDS,
-          )
-      return {"error": "Low quality video not available"}, 404
+        if not os.path.isfile(preview_path):
+          continue
+        try:
+          preview_mp4 = _get_or_create_segment_mp4(preview_path)
+        except (FileNotFoundError, ValueError):
+          break
+        if preview_mp4 is None:
+          return {"error": "Preview video is still being prepared"}, 503
+        return send_file(
+          preview_mp4,
+          mimetype="video/mp4",
+          conditional=True,
+          max_age=VIDEO_CACHE_SECONDS,
+        )
 
     for footage_path in FOOTAGE_PATHS:
       filepath = os.path.join(footage_path, path, filename)

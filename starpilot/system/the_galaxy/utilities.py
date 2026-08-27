@@ -669,6 +669,9 @@ FFPROBE_BIN = _resolve_ffmpeg_binary("ffprobe")
 # Bound the cache by its own size rather than reacting to free space: loggerd already
 # keeps the disk near full, so the old policy wiped every mp4 on almost every request.
 VIDEO_CACHE_MAX_BYTES = 512 * 1024 * 1024
+# A malformed or truncated segment must not occupy the Galaxy's only remux worker
+# forever. Stream-copy normally finishes in seconds; this also bounds the fallback.
+VIDEO_REMUX_TIMEOUT_SECONDS = 60
 
 
 def _prune_video_cache(keep_path=None):
@@ -772,15 +775,31 @@ def ffmpeg_mp4_wrap_to_path(filename):
     return cache_path
 
   _prune_video_cache(keep_path=cache_path)
+  deadline = time.monotonic() + VIDEO_REMUX_TIMEOUT_SECONDS
+
+  def remaining_time():
+    return max(0.1, deadline - time.monotonic())
 
   try:
-    subprocess.run([FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(input_path), "-c", "copy", "-movflags", "faststart", "-y", str(cache_path)], check=True)
+    subprocess.run(
+      [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(input_path),
+       "-c", "copy", "-movflags", "faststart", "-y", str(cache_path)],
+      check=True,
+      timeout=remaining_time(),
+    )
+  except subprocess.TimeoutExpired:
+    cache_path.unlink(missing_ok=True)
+    raise ValueError(f"Timed out processing video file: {input_path}")
   except subprocess.CalledProcessError:
     try:
-      subprocess.run([FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(input_path), "-c:v", "libx264", "-movflags", "faststart", "-y", str(cache_path)], check=True)
-    except subprocess.CalledProcessError:
-      if cache_path.exists():
-        cache_path.unlink()
+      subprocess.run(
+        [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(input_path),
+         "-c:v", "libx264", "-movflags", "faststart", "-y", str(cache_path)],
+        check=True,
+        timeout=remaining_time(),
+      )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+      cache_path.unlink(missing_ok=True)
       raise ValueError(f"Cannot process video file: {input_path}")
 
   return cache_path

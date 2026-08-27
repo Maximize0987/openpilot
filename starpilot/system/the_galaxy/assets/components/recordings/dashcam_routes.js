@@ -7,6 +7,7 @@ import {
   computeRouteStats,
   formatApproxDuration,
   getSegmentOptions,
+  shouldUpgradeFromHeight,
   supportsLowQuality,
   groupRoutesForView,
   MAX_RENDERED_ROUTES,
@@ -33,10 +34,10 @@ let routesRequestToken = 0
 let seenRouteNames = new Set()
 let overlay = null
 const routeLogsCache = new Map()
-const FULL_QUALITY_RETRIES = 3
-const FULL_QUALITY_RETRY_MS = 4000
-// Wait for the viewer to settle, so scrubbing never queues a remux per segment.
-const FULL_QUALITY_SETTLE_MS = 1500
+const FULL_QUALITY_RETRIES = 2
+const FULL_QUALITY_RETRY_MS = 1000
+// Only ask for the full stream once the viewer settles, so scrubbing queues no remuxes.
+const FULL_QUALITY_SETTLE_MS = 1200
 
 function routeLabel(route) {
   return route.displayName || route.displayDate || route.name
@@ -289,28 +290,35 @@ async function openOverlay(route) {
   overlay.innerHTML = `
     <section class="media-player-content dashcam-player" role="dialog" aria-modal="true" aria-label="Route player">
       <header class="dashcam-player-header">
-        <div><p class="dashcam-player-eyebrow">Dashcam route</p><h2 class="media-player-title-text">${escapeHtml(routeLabel(route))}</h2></div>
+        <div class="dashcam-player-heading">
+          <p class="dashcam-player-eyebrow">Dashcam route</p>
+          <div class="dashcam-player-title-row">
+            <h2 class="media-player-title-text">${escapeHtml(routeLabel(route))}</h2>
+            <button class="dashcam-title-rename action-rename" type="button" title="Rename route" aria-label="Rename route"><i class="bi bi-pencil"></i></button>
+          </div>
+        </div>
         <button class="dashcam-player-close action-close" type="button" aria-label="Close player">&times;</button>
       </header>
       <div class="dashcam-video-shell">
         <video controls muted playsinline preload="metadata"></video>
         <div class="dashcam-player-state" role="status">Loading route metadata&hellip;</div>
       </div>
-      <div class="dashcam-segment-bar" hidden>
-        <button class="segment-step action-prev-segment" type="button" title="Previous segment (Shift + \u2190)" aria-label="Previous segment"><i class="bi bi-skip-start-fill"></i></button>
-        <select class="segment-select" aria-label="Jump to segment"></select>
-        <button class="segment-step action-next-segment" type="button" title="Next segment (Shift + \u2192)" aria-label="Next segment"><i class="bi bi-skip-end-fill"></i></button>
-      </div>
-      <div class="dashcam-camera-selector" aria-label="Camera selector">
-        <button class="camera-button" data-camera="forward" type="button" disabled hidden>Forward</button>
-        <button class="camera-button" data-camera="wide" type="button" disabled hidden>Wide</button>
-        <button class="camera-button" data-camera="driver" type="button" disabled hidden>Driver</button>
-      </div>
-      <div class="dashcam-player-actions">
-        <button class="action-download" type="button" disabled><i class="bi bi-download"></i> Download</button>
-        <button class="action-logs" type="button"><i class="bi bi-file-earmark-arrow-down"></i> Logs</button>
-        <button class="action-rename" type="button"><i class="bi bi-pencil"></i> Rename</button>
-        <button class="action-delete" type="button"><i class="bi bi-trash"></i> Delete</button>
+      <div class="dashcam-player-toolbar">
+        <div class="dashcam-camera-selector" aria-label="Camera selector">
+          <button class="camera-button" data-camera="forward" type="button" disabled hidden>Forward</button>
+          <button class="camera-button" data-camera="wide" type="button" disabled hidden>Wide</button>
+          <button class="camera-button" data-camera="driver" type="button" disabled hidden>Driver</button>
+        </div>
+        <div class="dashcam-segment-bar" hidden>
+          <button class="segment-step action-prev-segment" type="button" title="Previous segment (Shift + \u2190)" aria-label="Previous segment"><i class="bi bi-skip-start-fill"></i></button>
+          <select class="segment-select" aria-label="Jump to segment"></select>
+          <button class="segment-step action-next-segment" type="button" title="Next segment (Shift + \u2192)" aria-label="Next segment"><i class="bi bi-skip-end-fill"></i></button>
+        </div>
+        <div class="dashcam-player-actions">
+          <button class="action-download" type="button" disabled title="Download route" aria-label="Download route"><i class="bi bi-download"></i></button>
+          <button class="action-logs" type="button" title="View &amp; download logs" aria-label="View and download logs"><i class="bi bi-file-earmark-arrow-down"></i></button>
+          <button class="action-delete" type="button" title="Delete route" aria-label="Delete route"><i class="bi bi-trash"></i></button>
+        </div>
       </div>
     </section>`
   document.body.appendChild(overlay)
@@ -328,8 +336,10 @@ async function openOverlay(route) {
   let current = 0
   let selectedCamera = null
   let logsData = null
+  let showingPreview = false
+  let wantsPlayback = true
   let qualityToken = 0
-  let warmedSegment = null
+  let upgradeController = null
   let upgradeTimer = null
 
   const setPlayerMessage = (message, isError = false) => {
@@ -365,66 +375,71 @@ async function openOverlay(route) {
     video.load()
   }
 
-  // Full-res needs a device-side remux, so wait for it behind playback rather than in front.
+  const cancelUpgrade = () => {
+    qualityToken += 1
+    clearTimeout(upgradeTimer)
+    upgradeTimer = null
+    upgradeController?.abort()
+    upgradeController = null
+  }
+
+  // Prepare the real stream behind the playing preview. Only replace the media source
+  // after the server confirms the remux is ready, so slow device work never blanks it.
   const requestFullQuality = (segmentUrl, camera, attempt = 0) => {
     const token = ++qualityToken
+    upgradeController?.abort()
+    const controller = new AbortController()
+    upgradeController = controller
     const fullUrl = cameraVideoUrl(segmentUrl, camera)
     const stillCurrent = () =>
-      token === qualityToken && segments[current] === segmentUrl && selectedCamera === camera && !!overlay
-    fetch(fullUrl, { method: "HEAD" })
+      token === qualityToken && showingPreview && segments[current] === segmentUrl && selectedCamera === camera && !!overlay
+
+    fetch(fullUrl, { method: "HEAD", signal: controller.signal })
       .then(response => {
         if (!stillCurrent()) return
+        if (upgradeController === controller) upgradeController = null
         if (response.ok) {
+          showingPreview = false
           swapSource(fullUrl)
           return
         }
-        // 503 means the remux is queued behind another one; check back a few times.
         if (response.status === 503 && attempt < FULL_QUALITY_RETRIES) {
-          setTimeout(() => {
+          upgradeTimer = setTimeout(() => {
             if (stillCurrent()) requestFullQuality(segmentUrl, camera, attempt + 1)
           }, FULL_QUALITY_RETRY_MS)
         }
       })
-      .catch(() => {})
+      .catch(error => {
+        if (upgradeController === controller) upgradeController = null
+        if (error?.name !== "AbortError") console.error("Could not prepare full-quality route video:", error)
+      })
   }
 
-  overlay._cancelUpgrade = () => {
-    qualityToken += 1
-    clearTimeout(upgradeTimer)
-  }
-
-  const upgradeToFullQuality = (segmentUrl, camera) => {
-    qualityToken += 1
-    clearTimeout(upgradeTimer)
+  const scheduleUpgrade = (segmentUrl, camera) => {
+    cancelUpgrade()
     upgradeTimer = setTimeout(() => {
-      if (segments[current] === segmentUrl && selectedCamera === camera && overlay) {
-        requestFullQuality(segmentUrl, camera)
-      }
+      if (!showingPreview || segments[current] !== segmentUrl || selectedCamera !== camera) return
+      requestFullQuality(segmentUrl, camera)
     }, FULL_QUALITY_SETTLE_MS)
   }
 
-  const warmNextSegment = () => {
-    const nextUrl = segments[current + 1]
-    if (!nextUrl || !selectedCamera || !supportsLowQuality(selectedCamera)) return
-    if (warmedSegment === nextUrl) return
-    warmedSegment = nextUrl
-    // Only the ffmpeg-free stream is warmed; never transcode a segment nobody watches.
-    fetch(cameraVideoUrl(nextUrl, selectedCamera, "low"), { method: "HEAD" }).catch(() => {})
+  const loadSegment = (autoplay, { message, preview } = {}) => {
+    const segmentUrl = segments[current]
+    const camera = selectedCamera
+    if (!segmentUrl || !camera) return
+    cancelUpgrade()
+    wantsPlayback = autoplay
+    showingPreview = preview === undefined ? supportsLowQuality(camera) : preview
+    setPlayerMessage(message || "Loading video…")
+    video.src = cameraVideoUrl(segmentUrl, camera, showingPreview ? "low" : undefined)
+    video.load()
+    if (autoplay) video.play().catch(() => {})
   }
 
   const playCurrentSegment = (autoplay = true) => {
     if (!segments[current] || !selectedCamera) return
     syncSegmentControls()
-    setPlayerMessage("Loading video…")
-    const segmentUrl = segments[current]
-    const camera = selectedCamera
-    const useLowFirst = supportsLowQuality(camera)
-    qualityToken += 1
-    video.src = cameraVideoUrl(segmentUrl, camera, useLowFirst ? "low" : undefined)
-    video.load()
-    if (autoplay) video.play().catch(() => {})
-    if (useLowFirst) upgradeToFullQuality(segmentUrl, camera)
-    warmNextSegment()
+    loadSegment(autoplay)
   }
   const goToSegment = index => {
     if (!segments.length) return
@@ -435,9 +450,10 @@ async function openOverlay(route) {
     }
     const keepPlaying = video.ended || (!video.paused && !video.error)
     current = target
-    warmedSegment = null
     playCurrentSegment(keepPlaying)
   }
+  overlay._cancelUpgrade = cancelUpgrade
+
   const closeOnEscape = event => {
     if (document.querySelector(".route-logs-dialog")) return
     if (event.key === "Escape") {
@@ -472,10 +488,27 @@ async function openOverlay(route) {
     link.remove()
   }
 
+  video.addEventListener("loadedmetadata", () => {
+    if (!showingPreview) return
+    if (shouldUpgradeFromHeight(video.videoHeight)) {
+      scheduleUpgrade(segments[current], selectedCamera)
+    } else {
+      showingPreview = false
+    }
+  })
   video.addEventListener("loadeddata", () => setPlayerMessage(""))
   video.addEventListener("playing", () => setPlayerMessage(""))
   video.addEventListener("waiting", () => setPlayerMessage("Loading video…"))
-  video.addEventListener("error", () => setPlayerMessage("This segment could not be played.", true))
+  video.addEventListener("error", () => {
+    // A dead preview drops through to the real stream rather than showing an error.
+    if (showingPreview) {
+      showingPreview = false
+      cancelUpgrade()
+      loadSegment(wantsPlayback, { preview: false })
+      return
+    }
+    setPlayerMessage("This segment could not be played.", true)
+  })
   video.addEventListener("ended", () => goToSegment(current + 1))
 
   prevSegmentButton.onclick = () => goToSegment(current - 1)
@@ -487,12 +520,16 @@ async function openOverlay(route) {
       if (button.disabled || button.dataset.camera === selectedCamera || !segments[current]) return
       selectedCamera = button.dataset.camera
       cameraButtons.forEach(candidate => candidate.classList.toggle("active", candidate === button))
-      const segmentUrl = segments[current]
-      const camera = selectedCamera
-      const useLowFirst = supportsLowQuality(camera)
-      qualityToken += 1
-      swapSource(cameraVideoUrl(segmentUrl, camera, useLowFirst ? "low" : undefined), { message: "Switching camera…" })
-      if (useLowFirst) upgradeToFullQuality(segmentUrl, camera)
+      const playbackTime = Number.isFinite(video.currentTime) ? video.currentTime : 0
+      const shouldResume = !video.paused && !video.ended
+      video.addEventListener("loadedmetadata", () => {
+        if (playbackTime > 0) {
+          try {
+            video.currentTime = Math.min(playbackTime, Number.isFinite(video.duration) ? video.duration : playbackTime)
+          } catch (_) {}
+        }
+      }, { once: true })
+      loadSegment(shouldResume, { message: "Switching camera…" })
     })
   }
 

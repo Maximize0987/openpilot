@@ -195,7 +195,13 @@ export function cameraVideoUrl(segmentUrl, camera, quality) {
   return quality ? `${url}&quality=${encodeURIComponent(quality)}` : url
 }
 
-// qcamera.ts only exists for the road camera, so the instant-start tier is forward-only.
+// loggerd only writes qcamera.ts alongside the road camera.
 export function supportsLowQuality(camera) {
   return camera === "forward"
+}
+
+// qcamera is 526x330. Only a positively taller frame proves the real stream is already
+// playing; an unknown height upgrades rather than stranding the viewer on the preview.
+export function shouldUpgradeFromHeight(height) {
+  return !(Number.isFinite(height) && height > 400)
 }

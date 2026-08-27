@@ -229,23 +229,28 @@ def test_hides_segment_status_when_the_stored_number_is_unsafe():
 def test_camera_video_url_carries_an_optional_quality_tier():
   result = evaluate("""
     const segment = "/video/0000006a--9f0a7bdf9c--7"
-    return {
-      full: cameraVideoUrl(segment, "forward"),
-      low: cameraVideoUrl(segment, "forward", "low"),
-      lowWide: cameraVideoUrl(segment, "wide", "low"),
-    }
+    return { full: cameraVideoUrl(segment, "forward"), low: cameraVideoUrl(segment, "forward", "low") }
   """)
 
   assert result["full"] == "/video/0000006a--9f0a7bdf9c--7?camera=forward"
   assert result["low"] == "/video/0000006a--9f0a7bdf9c--7?camera=forward&quality=low"
-  assert result["lowWide"] == "/video/0000006a--9f0a7bdf9c--7?camera=wide&quality=low"
 
 
-def test_only_the_road_camera_has_a_low_quality_tier():
+def test_only_the_road_camera_has_a_preview():
   """loggerd writes qcamera.ts alongside the road camera only."""
+  assert evaluate('return ["forward", "wide", "driver"].map(supportsLowQuality)') == [True, False, False]
+
+
+def test_upgrade_decision_only_trusts_a_positively_tall_frame():
+  """The server falls back to the full stream, so the frame size is what settles it."""
   assert evaluate("""
-    return ["forward", "wide", "driver"].map(supportsLowQuality)
-  """) == [True, False, False]
+    return {
+      qcamera: shouldUpgradeFromHeight(330),
+      full: shouldUpgradeFromHeight(1080),
+      unknown: shouldUpgradeFromHeight(0),
+      missing: shouldUpgradeFromHeight(undefined),
+    }
+  """) == {"qcamera": True, "full": False, "unknown": True, "missing": True}
 
 
 def test_switching_camera_changes_only_the_url_and_not_segment_status():
