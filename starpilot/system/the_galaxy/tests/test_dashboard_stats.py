@@ -1091,6 +1091,28 @@ def test_clear_dashboard_route_history_keeps_durable_records(tmp_path, monkeypat
   assert stats["modelUsage"]["orion"]["drives"] == 3
 
 
+def test_clear_dashboard_route_history_can_retain_preserved_routes(tmp_path, monkeypatch):
+  monkeypatch.setattr(utilities, "DASHBOARD_PARAMS_DIR", tmp_path)
+  params = FakeParams({
+    utilities.DASHBOARD_PERSISTENT_STATS_PARAM: {
+      "routes": {
+        "0000006a--9f0a7bdf9c": {"date": "2026-06-15T08:00:00"},
+        "0000006b--9f0a7bdf9d": {"date": "2026-06-16T08:00:00"},
+      },
+      "ignoredRoutes": ["0000006a--9f0a7bdf9c", "0000006b--9f0a7bdf9d"],
+      "personalRecords": {"cleanDriveStreak": {"drives": 4}},
+    },
+  })
+
+  removed = utilities.clear_dashboard_route_history(params, retained_route_names={"0000006a--9f0a7bdf9c"})
+
+  assert removed == 1
+  stats = utilities._load_dashboard_persistent_stats(params)
+  assert list(stats["routes"]) == ["0000006a--9f0a7bdf9c"]
+  assert stats["ignoredRoutes"] == ["0000006a--9f0a7bdf9c"]
+  assert stats["personalRecords"]["cleanDriveStreak"]["drives"] == 4
+
+
 def test_lightweight_routes_surface_recent_drives_without_log_analysis(monkeypatch):
   utilities._invalidate_dashboard_cache()
   now = utilities.datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)

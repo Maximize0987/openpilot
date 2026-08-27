@@ -393,6 +393,63 @@ def test_preserve_limit_counts_routes_not_segments(monkeypatch, tmp_path):
   assert client.post("/api/routes/00000099--9f0a7bdf9c/preserve").status_code == 400
 
 
+def test_delete_all_non_preserved_keeps_entire_preserved_route_across_roots(monkeypatch, tmp_path):
+  standard = tmp_path / "standard"
+  high_resolution = tmp_path / "high_resolution"
+  preserved_route = ROUTE_NAME
+  ordinary_route = "0000006b--9f0a7bdf9d"
+  preserved_marker = _make_segment(standard, preserved_route, 3)
+  preserved_other_root = _make_segment(high_resolution, preserved_route, 4)
+  ordinary_standard = _make_segment(standard, ordinary_route, 0)
+  ordinary_other_root = _make_segment(high_resolution, ordinary_route, 1)
+  unrelated = high_resolution / "video_cache"
+  unrelated.mkdir()
+
+  client = _make_client(monkeypatch, standard)
+  monkeypatch.setattr(the_galaxy, "FOOTAGE_PATHS", [str(standard), str(high_resolution)])
+  monkeypatch.setattr(utilities, "has_preserve_attr", lambda path: path == str(preserved_marker))
+  monkeypatch.setattr(utilities, "stop_dashboard_background_analysis", lambda: None)
+  monkeypatch.setattr(the_galaxy, "delete_file", lambda path: Path(path).rmdir())
+  history_calls = []
+  monkeypatch.setattr(utilities, "clear_dashboard_route_history", lambda params, retained_route_names=None: history_calls.append(retained_route_names) or 1)
+  factory_delete_calls = []
+  monkeypatch.setattr(the_galaxy, "_run_factory_reset_delete", factory_delete_calls.append)
+
+  response = client.delete("/api/routes/delete_all?include_preserved=false")
+
+  assert response.status_code == 200
+  assert response.get_json()["deletedRoutes"] == 1
+  assert response.get_json()["preservedRoutes"] == 1
+  assert preserved_marker.is_dir()
+  assert preserved_other_root.is_dir()
+  assert not ordinary_standard.exists()
+  assert not ordinary_other_root.exists()
+  assert unrelated.is_dir()
+  assert history_calls == [{preserved_route}]
+  assert factory_delete_calls == []
+
+
+def test_delete_all_including_preserved_keeps_existing_full_wipe_behavior(monkeypatch, tmp_path):
+  first_root = tmp_path / "standard"
+  second_root = tmp_path / "high_resolution"
+  _make_segment(first_root)
+  _make_segment(second_root)
+  client = _make_client(monkeypatch, first_root)
+  monkeypatch.setattr(the_galaxy, "FOOTAGE_PATHS", [str(first_root) + "/", str(second_root), str(first_root)])
+  monkeypatch.setattr(utilities, "stop_dashboard_background_analysis", lambda: None)
+  history_calls = []
+  monkeypatch.setattr(utilities, "clear_dashboard_route_history", lambda params, retained_route_names=None: history_calls.append(retained_route_names) or 2)
+  factory_delete_calls = []
+  monkeypatch.setattr(the_galaxy, "_run_factory_reset_delete", factory_delete_calls.append)
+
+  response = client.delete("/api/routes/delete_all?include_preserved=true")
+
+  assert response.status_code == 200
+  assert factory_delete_calls == [str(first_root), str(second_root)]
+  assert history_calls == [None]
+  assert "including preserved routes" in response.get_json()["message"]
+
+
 def test_video_cache_evicts_oldest_instead_of_wiping_everything(monkeypatch, tmp_path):
   """A tight disk used to delete every cached mp4, so playback re-muxed on every request."""
   cache = tmp_path / "video_cache"

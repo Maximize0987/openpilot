@@ -6390,6 +6390,7 @@ def setup(app):
 
     try:
       utilities.stop_dashboard_background_analysis()
+      include_preserved = request.args.get("include_preserved", "true").strip().lower() not in ("0", "false", "no", "off")
 
       route_paths = []
       seen_paths = set()
@@ -6399,18 +6400,51 @@ def setup(app):
           seen_paths.add(path)
           route_paths.append(path)
 
-      for route_path in route_paths:
-        _run_factory_reset_delete(route_path)
+      preserved_route_names = set()
+      deleted_route_names = set()
+      if include_preserved:
+        for route_path in route_paths:
+          _run_factory_reset_delete(route_path)
+      else:
+        # The preserve xattr lives on one segment, but preservation applies to the
+        # whole route in every footage root.
+        for route_path in route_paths:
+          if not os.path.isdir(route_path):
+            continue
+          for segment in os.listdir(route_path):
+            if utilities.SEGMENT_RE.fullmatch(segment) and utilities.has_preserve_attr(os.path.join(route_path, segment)):
+              preserved_route_names.add(segment.rsplit("--", 1)[0])
 
-      persisted_route_count = utilities.clear_dashboard_route_history(params)
+        for route_path in route_paths:
+          if not os.path.isdir(route_path):
+            continue
+          for segment in os.listdir(route_path):
+            if not utilities.SEGMENT_RE.fullmatch(segment):
+              continue
+            route_name = segment.rsplit("--", 1)[0]
+            if route_name in preserved_route_names:
+              continue
+            delete_file(os.path.join(route_path, segment))
+            deleted_route_names.add(route_name)
+
+      persisted_route_count = utilities.clear_dashboard_route_history(
+        params,
+        retained_route_names=preserved_route_names if not include_preserved else None,
+      )
       _STATS_RESPONSE_CACHE.update({
         "updated_at": 0.0,
         "payload": None,
       })
       return jsonify({
         "success": True,
-        "message": "All local driving routes deleted. Saved personal records were kept.",
-        "deletedPaths": len(route_paths),
+        "message": (
+          "All local driving routes deleted, including preserved routes. Saved personal records were kept."
+          if include_preserved else
+          "All non-preserved local driving routes deleted. Preserved routes were kept."
+        ),
+        "deletedPaths": len(route_paths) if include_preserved else 0,
+        "deletedRoutes": len(deleted_route_names) if not include_preserved else None,
+        "preservedRoutes": len(preserved_route_names) if not include_preserved else 0,
         "clearedDashboardRoutes": persisted_route_count,
       }), 200
     except Exception as exception:

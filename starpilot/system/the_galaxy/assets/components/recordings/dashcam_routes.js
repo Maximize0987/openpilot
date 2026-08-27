@@ -25,7 +25,7 @@ const state = reactive({
   viewMode: "list",
   progress: 0,
   total: 0,
-  showDeleteAllModal: false,
+  deleteMode: null,
   isDeletingAll: false,
 })
 
@@ -129,7 +129,11 @@ function replaceRoute(updatedRoute) {
   const existing = state.routes.find(route => route.name === updatedRoute.name)
   if (existing) Object.assign(existing, updatedRoute)
   const selected = state.selectedRoute
-  if (selected?.name === updatedRoute.name && selected !== existing) Object.assign(selected, updatedRoute)
+  if (selected?.name === updatedRoute.name && selected !== existing) {
+    Object.assign(selected, updatedRoute)
+  }
+  // Reassigning state.routes notifies ArrowJS to re-render views that depend on the routes array
+  state.routes = [...state.routes]
 }
 
 async function deleteRoute(route) {
@@ -749,16 +753,17 @@ async function togglePreserved(route, event) {
   }
 }
 
-async function deleteAllRoutes() {
-  state.showDeleteAllModal = false
+async function deleteAllRoutes(includePreserved) {
+  state.deleteMode = null
   state.isDeletingAll = true
   try {
-    const response = await fetch("/api/routes/delete_all", { method: "DELETE" })
-    if (!response.ok) throw new Error()
+    const response = await fetch(`/api/routes/delete_all?include_preserved=${includePreserved}`, { method: "DELETE" })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error || "Route deletion failed")
     await refresh()
-    showSnackbar("All routes deleted!")
-  } catch (_) {
-    showSnackbar("An error occurred while deleting all routes...", "error")
+    showSnackbar(payload.message || "Routes deleted!")
+  } catch (error) {
+    showSnackbar(error?.message || "An error occurred while deleting routes...", "error")
   } finally {
     state.isDeletingAll = false
   }
@@ -942,16 +947,21 @@ export function RouteRecordings() {
 
         ${() => state.routes.length ? html`
           <footer class="dashcam-danger-zone">
-            <div><strong>Delete all local routes</strong><span>Preserved routes are included.</span></div>
-            <button class="delete-all-button" type="button" @click="${() => { state.showDeleteAllModal = true }}" disabled="${() => state.isDeletingAll || false}">${() => state.isDeletingAll ? "Deleting…" : "Delete All"}</button>
+            <div class="dashcam-danger-copy"><strong>Delete local routes</strong><span>Keep preserved routes, or remove everything.</span></div>
+            <div class="dashcam-danger-actions">
+              <button class="delete-all-button delete-non-preserved-button" type="button" @click="${() => { state.deleteMode = "non-preserved" }}" disabled="${() => state.isDeletingAll || state.routes.every(route => route.is_preserved) || false}">${() => state.isDeletingAll ? "Deleting…" : "Delete Non-Preserved"}</button>
+              <button class="delete-all-button" type="button" @click="${() => { state.deleteMode = "all" }}" disabled="${() => state.isDeletingAll || false}">${() => state.isDeletingAll ? "Deleting…" : "Delete All Including Preserved"}</button>
+            </div>
           </footer>` : ""}
       </section>
-      ${() => state.showDeleteAllModal ? Modal({
-        title: "Confirm Delete All",
-        message: "Are you sure you want to delete all routes? This action cannot be undone...",
-        onConfirm: deleteAllRoutes,
-        onCancel: () => { state.showDeleteAllModal = false },
-        confirmText: "Delete All",
+      ${() => state.deleteMode ? Modal({
+        title: state.deleteMode === "all" ? "Delete All Routes, Including Preserved?" : "Delete All Non-Preserved Routes?",
+        message: state.deleteMode === "all"
+          ? "This permanently deletes every local route, including preserved routes. This action cannot be undone."
+          : "This permanently deletes every non-preserved local route. Preserved routes will be kept.",
+        onConfirm: () => deleteAllRoutes(state.deleteMode === "all"),
+        onCancel: () => { state.deleteMode = null },
+        confirmText: state.deleteMode === "all" ? "Delete Everything" : "Delete Non-Preserved",
       }) : ""}
     </div>`
 }

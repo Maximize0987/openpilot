@@ -1773,12 +1773,30 @@ def _invalidate_dashboard_cache():
   })
 
 
-def clear_dashboard_route_history(params_obj):
-  """Remove route-backed dashboard history while keeping durable records."""
+def clear_dashboard_route_history(params_obj, retained_route_names=None):
+  """Remove route-backed dashboard history while keeping durable records and optional retained routes."""
   stats = _load_dashboard_persistent_stats(params_obj)
-  route_count = len(stats.get("routes", {}))
-  stats["routes"] = {}
-  stats["ignoredRoutes"] = []
+  routes = stats.get("routes", {})
+  retained_routes = None if retained_route_names is None else {
+    str(route_name or "").strip()
+    for route_name in retained_route_names
+    if ROUTE_RE.fullmatch(str(route_name or "").strip())
+  }
+  if retained_routes is None:
+    stats["routes"] = {}
+    stats["ignoredRoutes"] = []
+  else:
+    stats["routes"] = {
+      route_name: entry
+      for route_name, entry in routes.items()
+      if route_name in retained_routes
+    }
+    stats["ignoredRoutes"] = [
+      route_name
+      for route_name in stats.get("ignoredRoutes", [])
+      if route_name in retained_routes
+    ]
+  route_count = len(routes) - len(stats["routes"])
   serialized = json.dumps(stats, separators=(",", ":"))
 
   persisted_to_params = False

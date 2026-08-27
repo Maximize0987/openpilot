@@ -1168,8 +1168,32 @@
 
 .dashcam-danger-zone > div {
   display: flex;
+}
+
+.dashcam-danger-copy {
   flex-direction: column;
   gap: var(--gap-xs);
+}
+
+.dashcam-danger-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  justify-content: flex-end;
+}
+
+.dashcam-danger-actions .delete-all-button {
+  margin: 0;
+}
+
+.delete-all-button.delete-non-preserved-button {
+  background: transparent;
+  border: var(--border-width-thin) solid var(--danger-bg);
+  color: var(--danger-bg);
+}
+
+.delete-all-button.delete-non-preserved-button:hover {
+  background: rgba(224, 85, 119, 0.15);
 }
 
 .dashcam-danger-zone span {
@@ -1392,6 +1416,11 @@
 
   .dashcam-library-header,
   .dashcam-danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashcam-danger-actions {
     align-items: stretch;
     flex-direction: column;
   }
