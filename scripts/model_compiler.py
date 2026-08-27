@@ -48,6 +48,7 @@ MODEL_CONTEXT_FREQ = 5
 REPOSITORY_FILE_LIMIT = 100_000_000
 DEFAULT_MULTIPART_SIZE = 95 * 1024 * 1024
 USBGPU_PROBE_ATTEMPTS = 10
+DEFAULT_SUPERCOMBO_BEHAVIOR_VERSION = "v16"
 
 
 def build_compile_env(*, supercombo: bool = False) -> dict[str, str]:
@@ -278,6 +279,13 @@ def infer_model_version(model_key: str, explicit_version: str | None) -> str:
     except Exception:
       pass
   return ""
+
+
+def resolve_behavior_version(model_key: str, explicit_version: str | None, input_format: str) -> str:
+  version = infer_model_version(model_key, explicit_version)
+  if not version and input_format == "supercombo":
+    return DEFAULT_SUPERCOMBO_BEHAVIOR_VERSION
+  return version
 
 
 def select_input_format(requested: str, files: dict[str, Path]) -> str:
@@ -661,9 +669,7 @@ def main() -> int:
     source_path = Path(source)
     validate_onnx_source(source_path)
     print(f"  source {option.removeprefix('--')}: {source_path} ({source_path.stat().st_size} bytes)")
-  version = infer_model_version(model_key, args.version)
-  if not version and input_format == "supercombo":
-    version = "v15"
+  version = resolve_behavior_version(model_key, args.version, input_format)
   version_label = version or "unspecified behavior"
   will_install = model_key.startswith("local-") and not args.no_install
   target = f"{args.output_dir}" + (f" -> {MODELS_PATH} (auto-install)" if will_install else "")

@@ -50,6 +50,12 @@ def test_behavior_version_does_not_control_artifact_layout():
   assert manager._required_files("example", "split") == []
 
 
+def test_supercombo_defaults_to_v16_without_changing_split_defaults():
+  assert model_compiler.resolve_behavior_version("new-model", None, "supercombo") == "v16"
+  assert model_compiler.resolve_behavior_version("legacy-model", None, "split") == ""
+  assert model_compiler.resolve_behavior_version("new-model", "v15", "supercombo") == "v15"
+
+
 def test_external_gpu_requirement_is_cached_from_manifest(tmp_path, monkeypatch):
   monkeypatch.setattr(model_manager, "MODELS_PATH", tmp_path)
   manager = object.__new__(ModelManager)
