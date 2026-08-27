@@ -10,6 +10,7 @@ import sys
 import sysconfig
 import tarfile
 
+import io
 from io import BytesIO
 from pathlib import Path
 
@@ -1116,6 +1117,24 @@ def _get_toggle_backup_keys():
   return keys
 
 
+def _route_log_files(name):
+  """Full logs for a route as [(segment, filename, path, size)], oldest segment first."""
+  if not utilities.ROUTE_RE.match(name or ""):
+    return []
+
+  for footage_path in FOOTAGE_PATHS:
+    logs = []
+    for segment in sorted(utilities.get_segments_in_route(name, footage_path), key=lambda s: int(s.rsplit("--", 1)[1])):
+      for filename in ROUTE_LOG_CANDIDATES:
+        path = os.path.join(footage_path, segment, filename)
+        if os.path.isfile(path):
+          logs.append((segment, filename, path, os.path.getsize(path)))
+          break
+    if logs:
+      return logs
+  return []
+
+
 def _coerce_toggle_restore_value(key, value):
   value_type = _get_param_key_type(_params_raw, key)
 
@@ -1191,6 +1210,29 @@ except TypeError:
     "/data/media/0/realdata_konik/",
     str(Paths.log_root()),
   ]
+
+# Full drive logs, newest format first. comma only accepts qlog/qcamera uploads, so these come off the device directly.
+ROUTE_LOG_CANDIDATES = ("rlog.zst", "rlog.bz2", "rlog")
+
+
+class _TarBuffer(io.RawIOBase):
+  """Collects tarfile output so a route archive can be streamed out instead of built on disk."""
+
+  def __init__(self):
+    self._chunks = []
+
+  def writable(self):
+    return True
+
+  def write(self, data):
+    self._chunks.append(bytes(data))
+    return len(data)
+
+  def pop(self):
+    data = b"".join(self._chunks)
+    self._chunks.clear()
+    return data
+
 
 KEYS = {
   "amap1": ("amap1", "", "AMapKey1", "AMap / Gaode key #1", 39),
@@ -6272,6 +6314,60 @@ def setup(app):
           "available_cameras": utilities.get_available_cameras(base_path),
         }, 200
     return {"error": "Route not found"}, 404
+
+  @app.route("/api/routes/<name>/logs", methods=["GET"])
+  def list_route_logs(name):
+    logs = _route_log_files(name)
+    if not logs:
+      return jsonify({"error": "No full logs are stored on the device for this route."}), 404
+
+    return jsonify({
+      "name": name,
+      "totalBytes": sum(size for *_, size in logs),
+      "segments": [
+        {
+          "segment": segment,
+          "segmentNum": int(segment.rsplit("--", 1)[1]),
+          "filename": filename,
+          "bytes": size,
+          "url": f"/api/routes/{name}/logs/{int(segment.rsplit('--', 1)[1])}",
+        }
+        for segment, filename, _, size in logs
+      ],
+    }), 200
+
+  @app.route("/api/routes/<name>/logs/<int:segment_num>", methods=["GET"])
+  def download_route_log(name, segment_num):
+    for segment, filename, path, _ in _route_log_files(name):
+      if int(segment.rsplit("--", 1)[1]) == segment_num:
+        return send_file(path, as_attachment=True, download_name=f"{segment}-{filename}")
+    return jsonify({"error": "No full log is stored on the device for this segment."}), 404
+
+  @app.route("/api/routes/<name>/logs/download", methods=["GET"])
+  def download_route_logs_archive(name):
+    logs = _route_log_files(name)
+    if not logs:
+      return jsonify({"error": "No full logs are stored on the device for this route."}), 404
+
+    def generate():
+      buffer = _TarBuffer()
+      # streamed a file at a time so a long route never needs its whole archive in memory
+      with tarfile.open(fileobj=buffer, mode="w|") as archive:
+        for segment, filename, path, _ in logs:
+          try:
+            archive.add(path, arcname=f"{segment}/{filename}")
+          except OSError:
+            continue
+          chunk = buffer.pop()
+          if chunk:
+            yield chunk
+      chunk = buffer.pop()
+      if chunk:
+        yield chunk
+
+    response = Response(generate(), mimetype="application/x-tar")
+    response.headers["Content-Disposition"] = f'attachment; filename="{name}-logs.tar"'
+    return response
 
   @app.route("/api/routes/clear_name", methods=["POST"])
   def clear_route_name():

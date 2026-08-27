@@ -244,6 +244,47 @@
   transform: var(--hover-scale-sm);
 }
 
+.route-logs {
+  margin-top: var(--padding-base);
+  max-height: 40vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.route-logs-message {
+  margin: 0;
+  padding: var(--padding-sm) 0;
+  font-size: var(--font-size-sm);
+}
+
+.route-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-sm);
+  padding-bottom: var(--padding-sm);
+  font-size: var(--font-size-sm);
+}
+
+.route-logs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.route-logs-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-sm);
+  padding: var(--padding-sm) 0;
+  font-size: var(--font-size-sm);
+}
+
+.route-logs a {
+  text-decoration: underline;
+}
+
 @media only screen and (max-width: 768px) and (orientation: portrait) {
   .media-player-content {
     width: 90%;
@@ -265,5 +306,12 @@
     font-size: var(--font-size-sm);
     text-align: center;
     width: 100%;
+  }
+
+  .route-logs-header,
+  .route-logs-list li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
   }
 }

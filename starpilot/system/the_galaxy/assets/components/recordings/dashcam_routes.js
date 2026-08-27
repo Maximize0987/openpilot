@@ -298,8 +298,10 @@ async function openOverlay(route) {
         <button class="close-button camera-button" data-camera="wide">Wide</button>
         <button class="close-button camera-button" data-camera="driver">Driver</button>
         <button class="close-button action-download">Download</button>
+        <button class="close-button action-logs">Logs</button>
         <button class="close-button action-delete">Delete</button>
       </div>
+      <div class="route-logs" hidden></div>
     </div>`;
   document.body.appendChild(overlay);
 
@@ -312,6 +314,50 @@ async function openOverlay(route) {
 
   const vid = overlay.querySelector("video");
   const downloadButton = overlay.querySelector(".action-download");
+  const logsButton = overlay.querySelector(".action-logs");
+  const logsPanel = overlay.querySelector(".route-logs");
+
+  const formatBytes = bytes => {
+    if (!bytes) return "0 MB";
+    const mb = bytes / 1e6;
+    return mb >= 1000 ? `${(mb / 1000).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+  };
+
+  let logsLoaded = false;
+  logsButton.onclick = async () => {
+    if (logsLoaded) {
+      logsPanel.hidden = !logsPanel.hidden;
+      return;
+    }
+
+    logsPanel.hidden = false;
+    logsPanel.innerHTML = `<p class="route-logs-message">Looking for full logs...</p>`;
+    try {
+      const response = await fetch(`/api/routes/${route.name}/logs`);
+      const data = await response.json();
+      if (!response.ok) {
+        logsPanel.innerHTML = `<p class="route-logs-message">${data.error || "Could not read logs."}</p>`;
+        return;
+      }
+
+      // sizes are shown up front so a metered connection is a deliberate choice
+      logsPanel.innerHTML = `
+        <div class="route-logs-header">
+          <span>${data.segments.length} segment${data.segments.length === 1 ? "" : "s"} &middot; ${formatBytes(data.totalBytes)} total</span>
+          <a class="route-logs-all" href="/api/routes/${route.name}/logs/download" download>Download all (.tar)</a>
+        </div>
+        <ul class="route-logs-list">
+          ${data.segments.map(segment => `
+            <li>
+              <span>Segment ${segment.segmentNum} &middot; ${formatBytes(segment.bytes)}</span>
+              <a href="${segment.url}" download>${segment.filename}</a>
+            </li>`).join("")}
+        </ul>`;
+      logsLoaded = true;
+    } catch (error) {
+      logsPanel.innerHTML = `<p class="route-logs-message">Could not reach the device: ${error.message}</p>`;
+    }
+  };
 
   let segments;
   let current = 0;
