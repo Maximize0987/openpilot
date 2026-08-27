@@ -108,6 +108,7 @@ def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
   assert normal_kwargs["env"]["DEV"] == "QCOM"
   assert normal_kwargs["env"]["IMAGE"] == "2"
   assert "--out-of-band" in external_command
+  assert external_kwargs["env"]["DEBUG"] == "1"
   assert external_kwargs["env"]["DEV"] == "USB+AMD:LLVM"
   assert external_kwargs["env"]["WARP_DEV"] == "QCOM"
   assert all(flag not in external_kwargs["env"] for flag in ("IMAGE", "NOLOCALS", "OPENPILOT_HACKS"))

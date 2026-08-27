@@ -553,7 +553,7 @@ def compile_driving(
     for qcom_only_flag in ("IMAGE", "NOLOCALS", "OPENPILOT_HACKS"):
       compile_env.pop(qcom_only_flag, None)
     compile_env.update({
-      "DEBUG": "2",
+      "DEBUG": "1",
       "DEV": "USB+AMD:LLVM",
       "WARP_DEV": "QCOM",
       "FLOAT16": "1",
