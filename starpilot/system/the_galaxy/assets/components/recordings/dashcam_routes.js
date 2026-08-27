@@ -468,26 +468,21 @@ export function RouteRecordings() {
   return html`
     <div class="screen-recordings-wrapper dashcam-routes-wrapper">
       <section class="screen-recordings-widget dashcam-library">
-        ${() => {
-          const stats = computeRouteStats(state.routes)
-          return html`
-            <header class="dashcam-library-header">
-              <div class="dashcam-header-info">
-                <p class="dashcam-library-eyebrow">Local recordings</p>
-                <h1>Dashcam Routes</h1>
-                <div class="dashcam-stats-bar">
-                  <span class="dashcam-stat-chip"><i class="bi bi-car-front-fill"></i> <strong>${stats.count}</strong> ${stats.count === 1 ? "drive" : "drives"}</span>
-                  <span class="dashcam-stat-chip"><i class="bi bi-stopwatch-fill"></i> <strong>${stats.formattedDuration}</strong> total</span>
-                  ${stats.preservedCount > 0 ? html`<span class="dashcam-stat-chip stat-chip-preserved"><i class="bi bi-heart-fill"></i> <strong>${stats.preservedCount}</strong> preserved</span>` : ""}
-                </div>
-              </div>
-              <div class="dashcam-header-controls">
-                <button class="dashcam-refresh-button" type="button" @click="${refresh}" disabled="${() => state.loading || false}" title="Refresh routes">
-                  <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
-              </div>
-            </header>`
-        }}
+        <header class="dashcam-library-header">
+          <div class="dashcam-header-info">
+            <p class="dashcam-library-eyebrow">Local recordings</p>
+            <h1>Dashcam Routes</h1>
+            ${() => {
+              const stats = computeRouteStats(state.routes)
+              return html`<div class="dashcam-stats-bar"><span class="dashcam-stat-chip"><i class="bi bi-car-front-fill"></i> <strong>${stats.count}</strong> ${stats.count === 1 ? "drive" : "drives"}</span><span class="dashcam-stat-chip"><i class="bi bi-stopwatch-fill"></i> <strong>${stats.formattedDuration}</strong> total</span>${stats.preservedCount > 0 ? html`<span class="dashcam-stat-chip stat-chip-preserved"><i class="bi bi-heart-fill"></i> <strong>${stats.preservedCount}</strong> preserved</span>` : ""}</div>`
+            }}
+          </div>
+          <div class="dashcam-header-controls">
+            <button class="dashcam-refresh-button" type="button" @click="${refresh}" disabled="${() => state.loading || false}" title="Refresh routes">
+              <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+          </div>
+        </header>
 
         <div class="dashcam-toolbar">
           <div class="dashcam-search-box">
@@ -498,10 +493,10 @@ export function RouteRecordings() {
             ` : ""}
           </div>
           <div class="dashcam-filter-group">
-            <button class="dashcam-filter-pill ${() => !state.showPreservedOnly ? "active" : ""}" type="button" @click="${() => { state.showPreservedOnly = false }}">
+            <button class="${() => `dashcam-filter-pill ${!state.showPreservedOnly ? "active" : ""}`}" type="button" @click="${() => { state.showPreservedOnly = false }}">
               All Drives
             </button>
-            <button class="dashcam-filter-pill ${() => state.showPreservedOnly ? "active" : ""}" type="button" @click="${() => { state.showPreservedOnly = true }}">
+            <button class="${() => `dashcam-filter-pill ${state.showPreservedOnly ? "active" : ""}`}" type="button" @click="${() => { state.showPreservedOnly = true }}">
               <i class="bi bi-heart-fill"></i> Preserved
             </button>
           </div>
@@ -515,10 +510,10 @@ export function RouteRecordings() {
             </select>
           </label>
           <div class="dashcam-view-toggle" aria-label="Layout view mode">
-            <button class="dashcam-view-btn ${() => state.viewMode === "list" ? "active" : ""}" type="button" title="List View" @click="${() => { state.viewMode = "list" }}">
+            <button class="${() => `dashcam-view-btn ${state.viewMode === "list" ? "active" : ""}`}" type="button" title="List View" @click="${() => { state.viewMode = "list" }}">
               <i class="bi bi-list-ul"></i>
             </button>
-            <button class="dashcam-view-btn ${() => state.viewMode === "grid" ? "active" : ""}" type="button" title="Grid View" @click="${() => { state.viewMode = "grid" }}">
+            <button class="${() => `dashcam-view-btn ${state.viewMode === "grid" ? "active" : ""}`}" type="button" title="Grid View" @click="${() => { state.viewMode = "grid" }}">
               <i class="bi bi-grid-fill"></i>
             </button>
           </div>
