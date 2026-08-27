@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import io
+import os
 from pathlib import Path
 import threading
 import time
@@ -391,19 +392,64 @@ def test_preserve_limit_counts_routes_not_segments(monkeypatch, tmp_path):
   assert client.post("/api/routes/00000099--9f0a7bdf9c/preserve").status_code == 400
 
 
+def test_video_cache_evicts_oldest_instead_of_wiping_everything(monkeypatch, tmp_path):
+  """A tight disk used to delete every cached mp4, so playback re-muxed on every request."""
+  cache = tmp_path / "video_cache"
+  cache.mkdir()
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_PATH", cache)
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_MAX_BYTES", 300)
+
+  for index in range(4):
+    entry = cache / f"{index}.mp4"
+    entry.write_bytes(b"x" * 100)
+    os.utime(entry, (1000 + index, 1000 + index))
+
+  utilities._prune_video_cache()
+
+  survivors = sorted(path.name for path in cache.glob("*.mp4"))
+  # Budget is 300 bytes of 400 used, so only the oldest goes.
+  assert survivors == ["1.mp4", "2.mp4", "3.mp4"]
+
+
+def test_video_cache_never_evicts_the_entry_being_written(monkeypatch, tmp_path):
+  cache = tmp_path / "video_cache"
+  cache.mkdir()
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_PATH", cache)
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_MAX_BYTES", 50)
+
+  for index in range(3):
+    entry = cache / f"{index}.mp4"
+    entry.write_bytes(b"x" * 100)
+    os.utime(entry, (1000 + index, 1000 + index))
+
+  keep = cache / "0.mp4"
+  utilities._prune_video_cache(keep_path=keep)
+
+  assert keep.exists()
+
+
+def _stub_remux(monkeypatch, tmp_path, payload=b"wrapped-video"):
+  """Stand in for the ffmpeg remux, returning a real file so send_file can stream it."""
+  wrapped = tmp_path / "wrapped.mp4"
+  wrapped.write_bytes(payload)
+  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", lambda path: wrapped)
+  return wrapped
+
+
 def test_sparse_route_metadata_and_video_downloads(monkeypatch, tmp_path):
   segments = [_make_segment(tmp_path, segment_num=number) for number in (0, 3, 11)]
   for segment in segments:
     (segment / "fcamera.hevc").write_bytes(b"hevc")
-  monkeypatch.setattr(utilities, "get_video_duration", lambda path: 60)
   monkeypatch.setattr(utilities, "get_route_start_time", lambda path: datetime(2026, 8, 26, tzinfo=timezone.utc))
-  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_process_builder", lambda path: io.BytesIO(b"wrapped-video"))
+  _stub_remux(monkeypatch, tmp_path)
   monkeypatch.setattr(utilities, "ffmpeg_concat_segments_to_mp4", lambda paths, cache_key=None: io.BytesIO(b"combined-video"))
   client = _make_client(monkeypatch, tmp_path)
 
   metadata = client.get(f"/api/routes/{ROUTE_NAME}")
   assert metadata.status_code == 200
   assert metadata.get_json()["segment_urls"] == [f"/video/{ROUTE_NAME}--{number}" for number in (0, 3, 11)]
+  # One minute per segment, without probing each one with ffprobe.
+  assert metadata.get_json()["total_duration"] == 180
 
   segment_video = client.get(f"/video/{ROUTE_NAME}--3?camera=forward")
   assert segment_video.status_code == 200
@@ -414,3 +460,99 @@ def test_sparse_route_metadata_and_video_downloads(monkeypatch, tmp_path):
   assert combined_video.status_code == 200
   assert combined_video.mimetype == "video/mp4"
   assert combined_video.data == b"combined-video"
+
+
+def test_route_metadata_never_probes_segments_with_ffprobe(monkeypatch, tmp_path):
+  """Probing each segment put one subprocess per segment in front of playback."""
+  for number in (0, 1, 2):
+    segment = _make_segment(tmp_path, segment_num=number)
+    (segment / "fcamera.hevc").write_bytes(b"hevc")
+
+  def explode(path):
+    raise AssertionError(f"ffprobe must stay off the route metadata path: {path}")
+
+  monkeypatch.setattr(utilities, "get_video_duration", explode)
+  monkeypatch.setattr(utilities, "get_route_start_time", lambda path: datetime(2026, 8, 26, tzinfo=timezone.utc))
+  client = _make_client(monkeypatch, tmp_path)
+
+  metadata = client.get(f"/api/routes/{ROUTE_NAME}")
+  assert metadata.status_code == 200
+  assert metadata.get_json()["total_duration"] == 180
+
+
+def test_low_quality_serves_qcamera_without_touching_ffmpeg(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  (segment / "qcamera.ts").write_bytes(b"qcamera-bytes")
+
+  def explode(path):
+    raise AssertionError(f"the low quality tier must not remux: {path}")
+
+  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", explode)
+  client = _make_client(monkeypatch, tmp_path)
+
+  low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
+  assert low.status_code == 200
+  assert low.data == b"qcamera-bytes"
+
+
+def test_low_quality_falls_back_when_qcamera_is_missing(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  _stub_remux(monkeypatch, tmp_path)
+  client = _make_client(monkeypatch, tmp_path)
+
+  # No qcamera.ts on disk, and the driver camera never has one.
+  assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low").status_code == 404
+  assert client.get(f"/video/{ROUTE_NAME}--0?camera=driver&quality=low").status_code == 404
+
+  full = client.get(f"/video/{ROUTE_NAME}--0?camera=forward")
+  assert full.status_code == 200
+  assert full.data == b"wrapped-video"
+
+
+def test_segment_video_supports_range_requests(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  _stub_remux(monkeypatch, tmp_path, payload=b"0123456789")
+  client = _make_client(monkeypatch, tmp_path)
+
+  partial = client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=2-5"})
+  assert partial.status_code == 206
+  assert partial.data == b"2345"
+  assert partial.headers["Content-Range"] == "bytes 2-5/10"
+
+  # A malformed range used to raise inside the hand-rolled parser.
+  assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=abc"}).status_code in (200, 416)
+
+
+def test_concurrent_requests_for_one_segment_share_a_single_remux(monkeypatch, tmp_path):
+  segment = _make_segment(tmp_path, segment_num=0)
+  (segment / "fcamera.hevc").write_bytes(b"hevc")
+  wrapped = tmp_path / "wrapped.mp4"
+  wrapped.write_bytes(b"wrapped-video")
+
+  calls = []
+  started = threading.Event()
+
+  def slow_remux(path):
+    calls.append(path)
+    started.set()
+    time.sleep(0.3)
+    return wrapped
+
+  monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", slow_remux)
+  client = _make_client(monkeypatch, tmp_path)
+
+  results = []
+  def fetch():
+    results.append(client.get(f"/video/{ROUTE_NAME}--0?camera=forward").status_code)
+
+  threads = [threading.Thread(target=fetch) for _ in range(4)]
+  for thread in threads:
+    thread.start()
+  for thread in threads:
+    thread.join()
+
+  assert results == [200, 200, 200, 200]
+  assert len(calls) == 1

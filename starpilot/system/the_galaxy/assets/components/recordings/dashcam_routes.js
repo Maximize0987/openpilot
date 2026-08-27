@@ -6,8 +6,9 @@ import {
   cameraVideoUrl,
   computeRouteStats,
   formatApproxDuration,
-  getSegmentStatus,
-  groupRoutesByDate,
+  getSegmentOptions,
+  supportsLowQuality,
+  groupRoutesForView,
   MAX_RENDERED_ROUTES,
   normalizeRoute,
 } from "/assets/components/recordings/dashcam_routes_helpers.js"
@@ -32,6 +33,10 @@ let routesRequestToken = 0
 let seenRouteNames = new Set()
 let overlay = null
 const routeLogsCache = new Map()
+const FULL_QUALITY_RETRIES = 3
+const FULL_QUALITY_RETRY_MS = 4000
+// Wait for the viewer to settle, so scrubbing never queues a remux per segment.
+const FULL_QUALITY_SETTLE_MS = 1500
 
 function routeLabel(route) {
   return route.displayName || route.displayDate || route.name
@@ -119,8 +124,11 @@ function closeDialog(dialog) {
 }
 
 function replaceRoute(updatedRoute) {
-  state.routes = state.routes.map(route => route.name === updatedRoute.name ? updatedRoute : route)
-  if (state.selectedRoute?.name === updatedRoute.name) state.selectedRoute = updatedRoute
+  // Rows bind to this exact object, so replacing it would strand them on the stale one.
+  const existing = state.routes.find(route => route.name === updatedRoute.name)
+  if (existing) Object.assign(existing, updatedRoute)
+  const selected = state.selectedRoute
+  if (selected?.name === updatedRoute.name && selected !== existing) Object.assign(selected, updatedRoute)
 }
 
 async function deleteRoute(route) {
@@ -285,10 +293,14 @@ async function openOverlay(route) {
         <button class="dashcam-player-close action-close" type="button" aria-label="Close player">&times;</button>
       </header>
       <div class="dashcam-video-shell">
-        <video controls muted playsinline></video>
+        <video controls muted playsinline preload="metadata"></video>
         <div class="dashcam-player-state" role="status">Loading route metadata&hellip;</div>
       </div>
-      <div class="dashcam-segment-status" aria-live="polite" hidden></div>
+      <div class="dashcam-segment-bar" hidden>
+        <button class="segment-step action-prev-segment" type="button" title="Previous segment (Shift + \u2190)" aria-label="Previous segment"><i class="bi bi-skip-start-fill"></i></button>
+        <select class="segment-select" aria-label="Jump to segment"></select>
+        <button class="segment-step action-next-segment" type="button" title="Next segment (Shift + \u2192)" aria-label="Next segment"><i class="bi bi-skip-end-fill"></i></button>
+      </div>
       <div class="dashcam-camera-selector" aria-label="Camera selector">
         <button class="camera-button" data-camera="forward" type="button" disabled hidden>Forward</button>
         <button class="camera-button" data-camera="wide" type="button" disabled hidden>Wide</button>
@@ -305,7 +317,10 @@ async function openOverlay(route) {
 
   const video = overlay.querySelector("video")
   const playerState = overlay.querySelector(".dashcam-player-state")
-  const statusStrip = overlay.querySelector(".dashcam-segment-status")
+  const segmentBar = overlay.querySelector(".dashcam-segment-bar")
+  const segmentSelect = overlay.querySelector(".segment-select")
+  const prevSegmentButton = overlay.querySelector(".action-prev-segment")
+  const nextSegmentButton = overlay.querySelector(".action-next-segment")
   const downloadButton = overlay.querySelector(".action-download")
   const logsButton = overlay.querySelector(".action-logs")
   const cameraButtons = [...overlay.querySelectorAll(".camera-button")]
@@ -313,27 +328,130 @@ async function openOverlay(route) {
   let current = 0
   let selectedCamera = null
   let logsData = null
+  let qualityToken = 0
+  let warmedSegment = null
+  let upgradeTimer = null
 
   const setPlayerMessage = (message, isError = false) => {
     playerState.textContent = message
     playerState.hidden = !message
     playerState.classList.toggle("error", isError)
   }
-  const updateSegmentStatus = () => {
-    const status = getSegmentStatus(segments, current)
-    statusStrip.textContent = status
-    statusStrip.hidden = !status
+  const syncSegmentControls = () => {
+    segmentSelect.value = String(current)
+    segmentSelect.disabled = segments.length < 2
+    prevSegmentButton.disabled = current <= 0
+    nextSegmentButton.disabled = current >= segments.length - 1
   }
-  const playCurrentSegment = () => {
-    if (!segments[current] || !selectedCamera) return
-    updateSegmentStatus()
-    setPlayerMessage("Loading video…")
-    video.src = cameraVideoUrl(segments[current], selectedCamera)
+  const buildSegmentPicker = () => {
+    segmentSelect.innerHTML = getSegmentOptions(segments)
+      .map(option => `<option value="${option.index}">${escapeHtml(option.label)}</option>`)
+      .join("")
+    segmentBar.hidden = !segments.length
+  }
+  const swapSource = (url, { message } = {}) => {
+    const playbackTime = Number.isFinite(video.currentTime) ? video.currentTime : 0
+    const shouldResume = !video.paused && !video.ended
+    video.addEventListener("loadedmetadata", () => {
+      if (playbackTime > 0) {
+        try {
+          video.currentTime = Math.min(playbackTime, Number.isFinite(video.duration) ? video.duration : playbackTime)
+        } catch (_) {}
+      }
+      if (shouldResume) video.play().catch(() => {})
+    }, { once: true })
+    if (message) setPlayerMessage(message)
+    video.src = url
     video.load()
-    video.play().catch(() => {})
+  }
+
+  // Full-res needs a device-side remux, so wait for it behind playback rather than in front.
+  const requestFullQuality = (segmentUrl, camera, attempt = 0) => {
+    const token = ++qualityToken
+    const fullUrl = cameraVideoUrl(segmentUrl, camera)
+    const stillCurrent = () =>
+      token === qualityToken && segments[current] === segmentUrl && selectedCamera === camera && !!overlay
+    fetch(fullUrl, { method: "HEAD" })
+      .then(response => {
+        if (!stillCurrent()) return
+        if (response.ok) {
+          swapSource(fullUrl)
+          return
+        }
+        // 503 means the remux is queued behind another one; check back a few times.
+        if (response.status === 503 && attempt < FULL_QUALITY_RETRIES) {
+          setTimeout(() => {
+            if (stillCurrent()) requestFullQuality(segmentUrl, camera, attempt + 1)
+          }, FULL_QUALITY_RETRY_MS)
+        }
+      })
+      .catch(() => {})
+  }
+
+  overlay._cancelUpgrade = () => {
+    qualityToken += 1
+    clearTimeout(upgradeTimer)
+  }
+
+  const upgradeToFullQuality = (segmentUrl, camera) => {
+    qualityToken += 1
+    clearTimeout(upgradeTimer)
+    upgradeTimer = setTimeout(() => {
+      if (segments[current] === segmentUrl && selectedCamera === camera && overlay) {
+        requestFullQuality(segmentUrl, camera)
+      }
+    }, FULL_QUALITY_SETTLE_MS)
+  }
+
+  const warmNextSegment = () => {
+    const nextUrl = segments[current + 1]
+    if (!nextUrl || !selectedCamera || !supportsLowQuality(selectedCamera)) return
+    if (warmedSegment === nextUrl) return
+    warmedSegment = nextUrl
+    // Only the ffmpeg-free stream is warmed; never transcode a segment nobody watches.
+    fetch(cameraVideoUrl(nextUrl, selectedCamera, "low"), { method: "HEAD" }).catch(() => {})
+  }
+
+  const playCurrentSegment = (autoplay = true) => {
+    if (!segments[current] || !selectedCamera) return
+    syncSegmentControls()
+    setPlayerMessage("Loading video…")
+    const segmentUrl = segments[current]
+    const camera = selectedCamera
+    const useLowFirst = supportsLowQuality(camera)
+    qualityToken += 1
+    video.src = cameraVideoUrl(segmentUrl, camera, useLowFirst ? "low" : undefined)
+    video.load()
+    if (autoplay) video.play().catch(() => {})
+    if (useLowFirst) upgradeToFullQuality(segmentUrl, camera)
+    warmNextSegment()
+  }
+  const goToSegment = index => {
+    if (!segments.length) return
+    const target = Math.min(Math.max(index, 0), segments.length - 1)
+    if (target === current) {
+      syncSegmentControls()
+      return
+    }
+    const keepPlaying = video.ended || (!video.paused && !video.error)
+    current = target
+    warmedSegment = null
+    playCurrentSegment(keepPlaying)
   }
   const closeOnEscape = event => {
-    if (event.key === "Escape" && !document.querySelector(".route-logs-dialog")) closeOverlay()
+    if (document.querySelector(".route-logs-dialog")) return
+    if (event.key === "Escape") {
+      closeOverlay()
+      return
+    }
+    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.key === "ArrowLeft") {
+      event.preventDefault()
+      goToSegment(current - 1)
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault()
+      goToSegment(current + 1)
+    }
   }
 
   overlay.addEventListener("click", event => { if (event.target === overlay) closeOverlay() })
@@ -358,30 +476,23 @@ async function openOverlay(route) {
   video.addEventListener("playing", () => setPlayerMessage(""))
   video.addEventListener("waiting", () => setPlayerMessage("Loading video…"))
   video.addEventListener("error", () => setPlayerMessage("This segment could not be played.", true))
-  video.addEventListener("ended", () => {
-    if (current + 1 >= segments.length) return
-    current += 1
-    playCurrentSegment()
-  })
+  video.addEventListener("ended", () => goToSegment(current + 1))
+
+  prevSegmentButton.onclick = () => goToSegment(current - 1)
+  nextSegmentButton.onclick = () => goToSegment(current + 1)
+  segmentSelect.onchange = () => goToSegment(Number(segmentSelect.value))
 
   for (const button of cameraButtons) {
     button.addEventListener("click", () => {
       if (button.disabled || button.dataset.camera === selectedCamera || !segments[current]) return
-      const playbackTime = Number.isFinite(video.currentTime) ? video.currentTime : 0
-      const shouldResume = !video.paused && !video.ended
       selectedCamera = button.dataset.camera
       cameraButtons.forEach(candidate => candidate.classList.toggle("active", candidate === button))
-      video.addEventListener("loadedmetadata", () => {
-        if (playbackTime > 0) {
-          try {
-            video.currentTime = Math.min(playbackTime, Number.isFinite(video.duration) ? video.duration : playbackTime)
-          } catch (_) {}
-        }
-        if (shouldResume) video.play().catch(() => {})
-      }, { once: true })
-      setPlayerMessage("Switching camera…")
-      video.src = cameraVideoUrl(segments[current], selectedCamera)
-      video.load()
+      const segmentUrl = segments[current]
+      const camera = selectedCamera
+      const useLowFirst = supportsLowQuality(camera)
+      qualityToken += 1
+      swapSource(cameraVideoUrl(segmentUrl, camera, useLowFirst ? "low" : undefined), { message: "Switching camera…" })
+      if (useLowFirst) upgradeToFullQuality(segmentUrl, camera)
     })
   }
 
@@ -402,6 +513,7 @@ async function openOverlay(route) {
       button.classList.toggle("active", button.dataset.camera === selectedCamera)
     }
     downloadButton.disabled = false
+    buildSegmentPicker()
     playCurrentSegment()
   } catch (error) {
     cameraButtons.forEach(button => { button.disabled = true })
@@ -411,6 +523,7 @@ async function openOverlay(route) {
 
 function closeOverlay() {
   if (!overlay) return
+  overlay._cancelUpgrade?.()
   document.removeEventListener("keydown", overlay._closeOnEscape)
   overlay.remove()
   overlay = null
@@ -521,8 +634,7 @@ export function RouteRecordings() {
 
         ${() => {
           const view = buildRouteView(state.routes, { preservedOnly: state.showPreservedOnly, searchQuery: state.searchQuery, sortOrder: state.sortOrder })
-          const groups = groupRoutesByDate(view.visible)
-          const isGrid = state.viewMode === "grid"
+          const groups = groupRoutesForView(view.visible, state.sortOrder)
 
           return html`
             <div class="dashcam-results-summary" aria-live="polite">
@@ -540,13 +652,12 @@ export function RouteRecordings() {
                     <h2>${group.label}</h2>
                     <span class="dashcam-date-group-count">${group.routes.length} ${group.routes.length === 1 ? "drive" : "drives"}</span>
                   </div>
-                  ${isGrid ? html`
-                    <div class="screen-recordings-grid dashcam-routes-grid">
+                  ${() => state.viewMode === "grid" ? html`<div class="screen-recordings-grid dashcam-routes-grid">
                       ${group.routes.map(route => html`
-                        <article class="recording-card dashcam-route-card ${route.is_preserved ? "is-preserved" : ""}" @click="${() => { state.selectedRoute = route }}">
+                        <article class="${() => `recording-card dashcam-route-card ${route.is_preserved ? "is-preserved" : ""}`}" @click="${() => { state.selectedRoute = route }}">
                           <div class="dashcam-card-top-bar">
-                            <button class="btn-route-action btn-preserve ${route.is_preserved ? "active" : ""}" type="button" aria-label="${route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${route.is_preserved ? "Preserved (click to unpreserve)" : "Click to preserve"}" @click="${event => togglePreserved(route, event)}">
-                              <i class="bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}"></i>
+                            <button class="${() => `btn-route-action btn-preserve ${route.is_preserved ? "active" : ""}`}" type="button" aria-label="${() => route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${() => route.is_preserved ? "Preserved (click to unpreserve)" : "Click to preserve"}" @click="${event => togglePreserved(route, event)}">
+                              <i class="${() => `bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}`}"></i>
                             </button>
                             <span class="meta-pill id-pill" title="Route ID: ${route.name}"><i class="bi bi-hash"></i>${route.name.split("--").slice(1).join("--") || route.name}</span>
                           </div>
@@ -581,11 +692,9 @@ export function RouteRecordings() {
                             </div>
                           </div>
                         </article>`)}
-                    </div>
-                  ` : html`
-                    <div class="dashcam-routes-list">
+                    </div>` : html`<div class="dashcam-routes-list">
                       ${group.routes.map(route => html`
-                        <article class="dashcam-route-row ${route.is_preserved ? "is-preserved" : ""}" @click="${() => { state.selectedRoute = route }}">
+                        <article class="${() => `dashcam-route-row ${route.is_preserved ? "is-preserved" : ""}`}" @click="${() => { state.selectedRoute = route }}">
                           <div class="dashcam-mini-preview">
                             <span class="dashcam-mini-fallback"><i class="bi bi-camera-video"></i></span>
                             <img src="${route.png}" class="dashcam-mini-img" loading="lazy" alt="" @error="${thumbnailFailed}">
@@ -600,7 +709,7 @@ export function RouteRecordings() {
                             <div class="dashcam-route-meta-pills">
                               <span class="meta-pill duration-pill" title="Estimated duration"><i class="bi bi-clock"></i> ${formatApproxDuration(route.approxDurationSeconds)}</span>
                               <span class="meta-pill segments-pill" title="Segments recorded"><i class="bi bi-collection-play"></i> ${route.segmentCount} segment${route.segmentCount === 1 ? "" : "s"}</span>
-                              ${route.is_preserved ? html`<span class="meta-pill preserved-pill" title="Preserved from deletion"><i class="bi bi-heart-fill"></i> Preserved</span>` : ""}
+                              ${() => route.is_preserved ? html`<span class="meta-pill preserved-pill" title="Preserved from deletion"><i class="bi bi-heart-fill"></i> Preserved</span>` : ""}
                               <span class="meta-pill id-pill" title="Route ID: ${route.name}"><i class="bi bi-hash"></i>${route.name.split("--").slice(1).join("--") || route.name}</span>
                             </div>
                           </div>
@@ -608,8 +717,8 @@ export function RouteRecordings() {
                             <button class="btn-route-action btn-play" type="button" title="Play recording" @click="${() => { state.selectedRoute = route }}">
                               <i class="bi bi-play-fill"></i> <span>Play</span>
                             </button>
-                            <button class="btn-route-action btn-preserve ${route.is_preserved ? "active" : ""}" type="button" aria-label="${route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${route.is_preserved ? "Preserved (click to unpreserve)" : "Click to preserve"}" @click="${event => togglePreserved(route, event)}">
-                              <i class="bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}"></i>
+                            <button class="${() => `btn-route-action btn-preserve ${route.is_preserved ? "active" : ""}`}" type="button" aria-label="${() => route.is_preserved ? "Remove preservation" : "Preserve route"}" title="${() => route.is_preserved ? "Preserved (click to unpreserve)" : "Click to preserve"}" @click="${event => togglePreserved(route, event)}">
+                              <i class="${() => `bi ${route.is_preserved ? "bi-heart-fill" : "bi-heart"}`}"></i>
                             </button>
                             <button class="btn-route-action btn-icon" type="button" title="View & download logs" @click="${event => openLogsFromRow(route, event)}">
                               <i class="bi bi-file-earmark-arrow-down"></i>

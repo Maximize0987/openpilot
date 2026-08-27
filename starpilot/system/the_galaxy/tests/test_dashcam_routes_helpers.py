@@ -143,7 +143,45 @@ def test_filters_preserved_routes_before_applying_the_render_limit():
   assert view["allPreserved"] is True
 
 
-def test_segment_status_uses_stored_sparse_numbers_and_playback_position():
+def test_duration_sorts_render_as_one_flat_group():
+  result = evaluate("""
+    const routes = [
+      { name: "a", _startedAtMs: Date.parse("2026-08-20T10:00:00Z"), approxDurationSeconds: 3000 },
+      { name: "b", _startedAtMs: Date.parse("2026-08-22T10:00:00Z"), approxDurationSeconds: 2700 },
+      { name: "c", _startedAtMs: Date.parse("2026-08-21T10:00:00Z"), approxDurationSeconds: 1800 },
+    ]
+    const view = buildRouteView(routes, { sortOrder: "longest" })
+    const groups = groupRoutesForView(view.visible, "longest", new Date("2026-08-27T12:00:00Z"), "en-US")
+    return { labels: groups.map(g => g.label), order: groups.flatMap(g => g.routes.map(r => r.name)) }
+  """)
+
+  assert result["labels"] == ["Longest first"]
+  assert result["order"] == ["a", "b", "c"]
+
+
+def test_date_sorts_still_group_by_day():
+  labels = evaluate("""
+    const routes = [
+      { name: "a", _startedAtMs: Date.parse("2026-08-20T10:00:00Z"), approxDurationSeconds: 3000 },
+      { name: "b", _startedAtMs: Date.parse("2026-08-22T10:00:00Z"), approxDurationSeconds: 2700 },
+    ]
+    const view = buildRouteView(routes, { sortOrder: "newest" })
+    return groupRoutesForView(view.visible, "newest", new Date("2026-08-27T12:00:00Z"), "en-US").map(g => g.label)
+  """)
+
+  assert labels == ["August 22, 2026", "August 20, 2026"]
+
+
+def test_grouping_an_empty_list_yields_no_groups():
+  assert evaluate("""
+    return [
+      groupRoutesForView([], "longest").length,
+      groupRoutesForView([], "newest").length,
+    ]
+  """) == [0, 0]
+
+
+def test_segment_status_reports_the_stored_segment_number():
   statuses = evaluate('''
     const segments = [
       "/video/0000006a--9f0a7bdf9c--0",
@@ -153,11 +191,27 @@ def test_segment_status_uses_stored_sparse_numbers_and_playback_position():
     return segments.map((_, index) => getSegmentStatus(segments, index))
   ''')
 
-  assert statuses == [
-    "Segment 0 · 1 of 3",
-    "Segment 3 · 2 of 3",
-    "Segment 11 · 3 of 3",
+  assert statuses == ["Segment 0", "Segment 3", "Segment 11"]
+
+
+def test_segment_options_label_every_clip_for_the_jump_picker():
+  options = evaluate("""
+    return getSegmentOptions([
+      "/video/0000006a--9f0a7bdf9c--12",
+      "/video/0000006a--9f0a7bdf9c--13",
+      "/video/not-a-segment",
+    ])
+  """)
+
+  assert options == [
+    {"index": 0, "label": "Segment 12"},
+    {"index": 1, "label": "Segment 13"},
+    {"index": 2, "label": "Clip 3"},
   ]
+
+
+def test_segment_options_tolerate_a_missing_segment_list():
+  assert evaluate("return [getSegmentOptions(undefined), getSegmentOptions([])]") == [[], []]
 
 
 def test_hides_segment_status_when_the_stored_number_is_unsafe():
@@ -170,6 +224,28 @@ def test_hides_segment_status_when_the_stored_number_is_unsafe():
   ''')
 
   assert results == [None, "", ""]
+
+
+def test_camera_video_url_carries_an_optional_quality_tier():
+  result = evaluate("""
+    const segment = "/video/0000006a--9f0a7bdf9c--7"
+    return {
+      full: cameraVideoUrl(segment, "forward"),
+      low: cameraVideoUrl(segment, "forward", "low"),
+      lowWide: cameraVideoUrl(segment, "wide", "low"),
+    }
+  """)
+
+  assert result["full"] == "/video/0000006a--9f0a7bdf9c--7?camera=forward"
+  assert result["low"] == "/video/0000006a--9f0a7bdf9c--7?camera=forward&quality=low"
+  assert result["lowWide"] == "/video/0000006a--9f0a7bdf9c--7?camera=wide&quality=low"
+
+
+def test_only_the_road_camera_has_a_low_quality_tier():
+  """loggerd writes qcamera.ts alongside the road camera only."""
+  assert evaluate("""
+    return ["forward", "wide", "driver"].map(supportsLowQuality)
+  """) == [True, False, False]
 
 
 def test_switching_camera_changes_only_the_url_and_not_segment_status():

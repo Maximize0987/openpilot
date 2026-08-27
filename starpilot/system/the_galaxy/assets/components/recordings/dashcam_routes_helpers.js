@@ -147,6 +147,16 @@ export function groupRoutesByDate(routes, now = new Date(), locale) {
   return groups
 }
 
+export function groupRoutesForView(routes, sortOrder = "newest", now, locale) {
+  // Date headers would scramble a duration sort, so show one flat group instead.
+  if (sortOrder === "longest" || sortOrder === "shortest") {
+    const list = Array.isArray(routes) ? [...routes] : []
+    if (!list.length) return []
+    return [{ key: sortOrder, label: sortOrder === "longest" ? "Longest first" : "Shortest first", routes: list }]
+  }
+  return groupRoutesByDate(routes, now, locale)
+}
+
 export function formatApproxDuration(seconds) {
   const minutes = Math.max(0, Math.round(Number(seconds) / 60) || 0)
   if (minutes < 1) return "Less than 1 min"
@@ -168,10 +178,24 @@ export function getSegmentStatus(segmentUrls, playbackIndex) {
   if (!Array.isArray(segmentUrls) || !Number.isInteger(playbackIndex) || playbackIndex < 0 || playbackIndex >= segmentUrls.length) return ""
   const segmentNumber = parseStoredSegmentNumber(segmentUrls[playbackIndex])
   if (segmentNumber == null) return ""
-  return `Segment ${segmentNumber} · ${playbackIndex + 1} of ${segmentUrls.length}`
+  return `Segment ${segmentNumber}`
 }
 
-export function cameraVideoUrl(segmentUrl, camera) {
+export function getSegmentOptions(segmentUrls) {
+  if (!Array.isArray(segmentUrls)) return []
+  return segmentUrls.map((_, index) => ({
+    index,
+    label: getSegmentStatus(segmentUrls, index) || `Clip ${index + 1}`,
+  }))
+}
+
+export function cameraVideoUrl(segmentUrl, camera, quality) {
   const separator = String(segmentUrl).includes("?") ? "&" : "?"
-  return `${segmentUrl}${separator}camera=${encodeURIComponent(camera)}`
+  const url = `${segmentUrl}${separator}camera=${encodeURIComponent(camera)}`
+  return quality ? `${url}&quality=${encodeURIComponent(quality)}` : url
+}
+
+// qcamera.ts only exists for the road camera, so the instant-start tier is forward-only.
+export function supportsLowQuality(camera) {
+  return camera === "forward"
 }

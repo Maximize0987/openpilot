@@ -650,6 +650,57 @@ def encode_parameters(params_dict):
   encoded_data = base64.b64encode(obfuscated_data.encode("utf-8")).decode("utf-8")
   return encoded_data
 
+# The venv ships ffmpeg/ffprobe as console scripts that exec the real binary only
+# after a full CPython startup. Resolve past the shim once and skip that per call.
+def _resolve_ffmpeg_binary(name):
+  try:
+    import ffmpeg as ffmpeg_package
+    candidate = Path(ffmpeg_package.__file__).parent / "install" / "bin" / name
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+      return str(candidate)
+  except Exception:
+    pass
+  return shutil.which(name) or name
+
+
+FFMPEG_BIN = _resolve_ffmpeg_binary("ffmpeg")
+FFPROBE_BIN = _resolve_ffmpeg_binary("ffprobe")
+
+# Bound the cache by its own size rather than reacting to free space: loggerd already
+# keeps the disk near full, so the old policy wiped every mp4 on almost every request.
+VIDEO_CACHE_MAX_BYTES = 512 * 1024 * 1024
+
+
+def _prune_video_cache(keep_path=None):
+  """Evict oldest-first until the cache fits its budget."""
+  try:
+    entries = []
+    for cache_file in VIDEO_CACHE_PATH.glob("*.mp4"):
+      try:
+        stat = cache_file.stat()
+      except OSError:
+        continue
+      entries.append((stat.st_mtime, stat.st_size, cache_file))
+  except OSError:
+    return
+
+  total = sum(size for _, size, _ in entries)
+  if total <= VIDEO_CACHE_MAX_BYTES:
+    return
+
+  keep = str(keep_path) if keep_path else None
+  for _, size, cache_file in sorted(entries):
+    if total <= VIDEO_CACHE_MAX_BYTES:
+      break
+    if keep and str(cache_file) == keep:
+      continue
+    try:
+      cache_file.unlink()
+      total -= size
+    except OSError:
+      pass
+
+
 def ffmpeg_concat_segments_to_mp4(input_files, cache_key=None):
   if not input_files:
     raise ValueError("No input files provided for concatenation")
@@ -665,6 +716,8 @@ def ffmpeg_concat_segments_to_mp4(input_files, cache_key=None):
   if cache_path.exists() and all(cache_path.stat().st_mtime > Path(f).stat().st_mtime for f in input_files):
     return open(cache_path, "rb")
 
+  _prune_video_cache(keep_path=cache_path)
+
   list_file = VIDEO_CACHE_PATH / f"{file_hash}.txt"
   with open(list_file, "w") as f:
     for seg in input_files:
@@ -672,14 +725,14 @@ def ffmpeg_concat_segments_to_mp4(input_files, cache_key=None):
 
   try:
     subprocess.run(
-      ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
+      [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
        "-i", str(list_file), "-c", "copy", "-movflags", "faststart", "-y", str(cache_path)],
       check=True
     )
   except subprocess.CalledProcessError:
     try:
       subprocess.run(
-        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
+        [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
          "-i", str(list_file), "-c:v", "libx264", "-movflags", "faststart", "-y", str(cache_path)],
         check=True
       )
@@ -693,7 +746,11 @@ def ffmpeg_concat_segments_to_mp4(input_files, cache_key=None):
 
   return open(cache_path, "rb")
 
-def ffmpeg_mp4_wrap_process_builder(filename):
+def ffmpeg_mp4_wrap_to_path(filename):
+  """Remux one raw .hevc segment to mp4 and return the cache path.
+
+  Callers get a path, not a handle, so send_file can stream it without reading it all.
+  """
   input_path = Path(filename)
 
   if not input_path.exists():
@@ -708,31 +765,29 @@ def ffmpeg_mp4_wrap_process_builder(filename):
 
   VIDEO_CACHE_PATH.mkdir(exist_ok=True)
 
-  total, used, free = shutil.disk_usage(VIDEO_CACHE_PATH)
-  if free < 500 * 1024 * 1024:
-    for cache_file in VIDEO_CACHE_PATH.glob("*.mp4"):
-      try:
-        cache_file.unlink()
-      except:
-        pass
-
   file_hash = hashlib.md5(str(input_path).encode()).hexdigest()
   cache_path = VIDEO_CACHE_PATH / f"{file_hash}.mp4"
 
   if cache_path.exists() and cache_path.stat().st_mtime > input_path.stat().st_mtime:
-    return open(cache_path, "rb")
+    return cache_path
+
+  _prune_video_cache(keep_path=cache_path)
 
   try:
-    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(input_path), "-c", "copy", "-movflags", "faststart", "-y", str(cache_path)], check=True)
+    subprocess.run([FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(input_path), "-c", "copy", "-movflags", "faststart", "-y", str(cache_path)], check=True)
   except subprocess.CalledProcessError:
     try:
-      subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(input_path), "-c:v", "libx264", "-movflags", "faststart", "-y", str(cache_path)], check=True)
+      subprocess.run([FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(input_path), "-c:v", "libx264", "-movflags", "faststart", "-y", str(cache_path)], check=True)
     except subprocess.CalledProcessError:
       if cache_path.exists():
         cache_path.unlink()
       raise ValueError(f"Cannot process video file: {input_path}")
 
-  return open(cache_path, "rb")
+  return cache_path
+
+
+def ffmpeg_mp4_wrap_process_builder(filename):
+  return open(ffmpeg_mp4_wrap_to_path(filename), "rb")
 
 def format_git_date(raw_date: str):
   date_object = datetime.strptime(raw_date.split()[1], "%Y-%m-%d")
@@ -2983,7 +3038,7 @@ def get_segments_in_route(route_time_str, footage_path):
 def get_video_duration(input_path):
   try:
     result = subprocess.run([
-      "ffprobe", "-v", "error", "-show_entries", "format=duration",
+      FFPROBE_BIN, "-v", "error", "-show_entries", "format=duration",
       "-of", "default=noprint_wrappers=1:nokey=1", str(input_path)
     ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
     return float(result.stdout)
@@ -3074,7 +3129,7 @@ VIDEO_TO_PNG_TIMEOUT_SECONDS = 20
 def video_to_png(input_path, output_path):
   try:
     subprocess.run([
-      "ffmpeg", "-hide_banner", "-loglevel", "error",
+      FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
       "-ss", "1",
       "-i", str(input_path),
       "-frames:v", "1",

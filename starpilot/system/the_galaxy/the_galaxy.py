@@ -1223,6 +1223,15 @@ ROUTE_THUMBNAIL_CACHE_SECONDS = 7 * 24 * 60 * 60
 # Browsers only allow a handful of connections per origin, so a request must never
 # park on the preview queue: give up and let the card fall back, the job keeps running.
 ROUTE_THUMBNAIL_WAIT_SECONDS = 25
+# One minute per segment, matching loggerd's segment length.
+SEGMENT_DURATION_SECONDS = 60
+# Only ever remux one segment at a time; the driving stack needs the headroom.
+VIDEO_REMUX_WAIT_SECONDS = 25
+# Segment media never changes once loggerd has closed it, so let the browser keep it.
+VIDEO_CACHE_SECONDS = 7 * 24 * 60 * 60
+_VIDEO_REMUX_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="video-remux")
+_VIDEO_REMUX_FUTURES = {}
+_VIDEO_REMUX_LOCK = threading.Lock()
 _ROUTE_THUMBNAIL_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="route-thumbnail")
 _ROUTE_THUMBNAIL_FUTURES = {}
 _ROUTE_THUMBNAIL_LOCK = threading.Lock()
@@ -1322,6 +1331,36 @@ def _generate_route_thumbnail(preview_path):
     if source_path.resolve().parent == preview_path.parent and source_path.is_file() and utilities.video_to_png(source_path, preview_path) and preview_path.is_file():
       return preview_path
   return None
+
+
+def _remove_video_remux_future(key, future):
+  with _VIDEO_REMUX_LOCK:
+    if _VIDEO_REMUX_FUTURES.get(key) is future:
+      _VIDEO_REMUX_FUTURES.pop(key, None)
+
+
+def _get_or_create_segment_mp4(source_path):
+  """Remuxed mp4 for one segment, or None if it is not ready in time.
+
+  Concurrent requests share one ffmpeg run instead of racing to write the same file.
+  """
+  key = str(source_path)
+  created = False
+  with _VIDEO_REMUX_LOCK:
+    future = _VIDEO_REMUX_FUTURES.get(key)
+    if future is None:
+      future = _VIDEO_REMUX_EXECUTOR.submit(utilities.ffmpeg_mp4_wrap_to_path, source_path)
+      _VIDEO_REMUX_FUTURES[key] = future
+      created = True
+
+  if created:
+    future.add_done_callback(lambda completed: _remove_video_remux_future(key, completed))
+
+  try:
+    return future.result(timeout=VIDEO_REMUX_WAIT_SECONDS)
+  except TimeoutError:
+    # The callback keeps the running job deduplicated, then evicts it when done.
+    return None
 
 
 def _remove_route_thumbnail_future(key, future):
@@ -6449,14 +6488,13 @@ def setup(app):
       if segments:
         base_path = os.path.join(footage_path, segments[0])
         segment_urls = [f"/video/{segment}" for segment in segments]
-        total_duration = sum(
-          utilities.get_video_duration(os.path.join(footage_path, segment, "fcamera.hevc"))
-          for segment in segments
-        )
+        # Probing each segment cost an ffprobe before playback could even start,
+        # and segments are a fixed minute anyway.
+        total_duration = len(segments) * SEGMENT_DURATION_SECONDS
         return {
           "name": name,
           "segment_urls": segment_urls,
-          "total_duration": round(total_duration),
+          "total_duration": total_duration,
           "date": utilities.get_route_start_time(base_path),
           "available_cameras": utilities.get_available_cameras(base_path),
         }, 200
@@ -8946,65 +8984,43 @@ def setup(app):
 
   @app.route("/video/<path>", methods=["GET"])
   def get_video(path):
+    if not utilities.SEGMENT_RE.fullmatch(path or ""):
+      return {"error": "Invalid segment name"}, 400
+
     camera = request.args.get("camera")
     filename = {"driver": "dcamera.hevc", "wide": "ecamera.hevc"}.get(camera, "fcamera.hevc")
+
+    # loggerd writes qcamera.ts as H.264 in MPEG-TS, so it plays with no ffmpeg at
+    # all. It exists for the road camera only, so other views skip this tier.
+    if request.args.get("quality") == "low" and filename == "fcamera.hevc":
+      for footage_path in FOOTAGE_PATHS:
+        preview_path = os.path.join(footage_path, path, "qcamera.ts")
+        if os.path.isfile(preview_path):
+          return send_file(
+            preview_path,
+            mimetype="video/mp2t",
+            conditional=True,
+            max_age=VIDEO_CACHE_SECONDS,
+          )
+      return {"error": "Low quality video not available"}, 404
+
     for footage_path in FOOTAGE_PATHS:
-      filepath = f"{footage_path}{path}/{filename}"
+      filepath = os.path.join(footage_path, path, filename)
       if os.path.exists(filepath):
-        file_handle = utilities.ffmpeg_mp4_wrap_process_builder(filepath)
+        try:
+          cache_path = _get_or_create_segment_mp4(filepath)
+        except (FileNotFoundError, ValueError) as error:
+          return {"error": str(error)}, 409
+        if cache_path is None:
+          return {"error": "Video is still being prepared"}, 503
 
-        file_handle.seek(0, 2)
-        file_size = file_handle.tell()
-        file_handle.seek(0)
-
-        range_header = request.headers.get('Range', None)
-        if range_header:
-          byte_start = 0
-          byte_end = file_size - 1
-
-          if range_header.startswith('bytes='):
-            range_spec = range_header[6:]
-            if '-' in range_spec:
-              start, end = range_spec.split('-', 1)
-              if start:
-                byte_start = max(0, int(start))
-              if end:
-                byte_end = min(file_size - 1, int(end))
-
-          if byte_start >= file_size:
-            file_handle.close()
-            return Response("Requested Range Not Satisfiable", 416)
-
-          byte_end = max(byte_start, byte_end)
-
-          file_handle.seek(byte_start)
-          read_length = byte_end - byte_start + 1
-          data = file_handle.read(read_length)
-
-          response = Response(
-            data,
-            206,
-            headers={
-              'Content-Range': f'bytes {byte_start}-{byte_end}/{file_size}',
-              'Accept-Ranges': 'bytes',
-              'Content-Length': str(len(data)),
-              'Content-Type': 'video/mp4'
-            }
-          )
-        else:
-          data = file_handle.read()
-          response = Response(
-            data,
-            200,
-            headers={
-              'Accept-Ranges': 'bytes',
-              'Content-Length': str(file_size),
-              'Content-Type': 'video/mp4'
-            }
-          )
-
-        file_handle.close()
-        return response
+        # send_file streams from disk and handles Range and ETag itself.
+        return send_file(
+          cache_path,
+          mimetype="video/mp4",
+          conditional=True,
+          max_age=VIDEO_CACHE_SECONDS,
+        )
     return {"error": "Video not found"}, 404
 
 def main():
