@@ -301,7 +301,6 @@ async function openOverlay(route) {
         <button class="close-button action-logs">Logs</button>
         <button class="close-button action-delete">Delete</button>
       </div>
-      <div class="route-logs" hidden></div>
     </div>`;
   document.body.appendChild(overlay);
 
@@ -315,7 +314,6 @@ async function openOverlay(route) {
   const vid = overlay.querySelector("video");
   const downloadButton = overlay.querySelector(".action-download");
   const logsButton = overlay.querySelector(".action-logs");
-  const logsPanel = overlay.querySelector(".route-logs");
 
   const formatBytes = bytes => {
     if (!bytes) return "0 MB";
@@ -323,39 +321,84 @@ async function openOverlay(route) {
     return mb >= 1000 ? `${(mb / 1000).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
   };
 
-  let logsLoaded = false;
+  let logsData = null;
   logsButton.onclick = async () => {
-    if (logsLoaded) {
-      logsPanel.hidden = !logsPanel.hidden;
-      return;
-    }
+    const logsDialog = openDialog(`
+      <section class="dialog-box route-logs-dialog" role="dialog" aria-modal="true" aria-labelledby="route-logs-title">
+        <header class="route-logs-toolbar">
+          <div>
+            <p class="route-logs-eyebrow">Route data</p>
+            <h2 id="route-logs-title">Full logs</h2>
+          </div>
+          <button class="route-logs-close" type="button" aria-label="Close full logs">&times;</button>
+        </header>
+        <div class="route-logs-content" aria-live="polite">
+          <p class="route-logs-message">Looking for full logs&hellip;</p>
+        </div>
+      </section>`);
+    const logsContent = logsDialog.querySelector(".route-logs-content");
+    const logsCloseButton = logsDialog.querySelector(".route-logs-close");
 
-    logsPanel.hidden = false;
-    logsPanel.innerHTML = `<p class="route-logs-message">Looking for full logs...</p>`;
-    try {
-      const response = await fetch(`/api/routes/${route.name}/logs`);
-      const data = await response.json();
-      if (!response.ok) {
-        logsPanel.innerHTML = `<p class="route-logs-message">${data.error || "Could not read logs."}</p>`;
-        return;
-      }
+    const closeLogsDialog = () => {
+      document.removeEventListener("keydown", handleLogsKeydown);
+      closeDialog(logsDialog);
+      logsButton.focus();
+    };
+    const handleLogsKeydown = event => {
+      if (event.key === "Escape") closeLogsDialog();
+    };
+    logsCloseButton.onclick = closeLogsDialog;
+    logsDialog.addEventListener("click", event => {
+      if (event.target === logsDialog) closeLogsDialog();
+    });
+    document.addEventListener("keydown", handleLogsKeydown);
+    logsCloseButton.focus();
 
-      // sizes are shown up front so a metered connection is a deliberate choice
-      logsPanel.innerHTML = `
-        <div class="route-logs-header">
-          <span>${data.segments.length} segment${data.segments.length === 1 ? "" : "s"} &middot; ${formatBytes(data.totalBytes)} total</span>
-          <a class="route-logs-all" href="/api/routes/${route.name}/logs/download" download>Download all (.tar)</a>
+    const renderLogs = data => {
+      logsContent.innerHTML = `
+        <div class="route-logs-summary">
+          <div>
+            <strong>${data.segments.length} segment${data.segments.length === 1 ? "" : "s"}</strong>
+            <span>${formatBytes(data.totalBytes)} total download</span>
+          </div>
+          <a class="route-logs-download-all" href="/api/routes/${route.name}/logs/download" download>
+            Download all <span>.tar</span>
+          </a>
         </div>
         <ul class="route-logs-list">
           ${data.segments.map(segment => `
             <li>
-              <span>Segment ${segment.segmentNum} &middot; ${formatBytes(segment.bytes)}</span>
-              <a href="${segment.url}" download>${segment.filename}</a>
+              <div class="route-log-details">
+                <strong>Segment ${segment.segmentNum}</strong>
+                <span>${formatBytes(segment.bytes)} &middot; ${segment.filename}</span>
+              </div>
+              <a class="route-log-download" href="${segment.url}" download>Download</a>
             </li>`).join("")}
         </ul>`;
-      logsLoaded = true;
+    };
+
+    if (logsData) {
+      renderLogs(logsData);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/routes/${route.name}/logs`);
+      const data = await response.json();
+      if (!response.ok) {
+        if (logsContent.isConnected) {
+          logsContent.innerHTML = `<p class="route-logs-message route-logs-error">${data.error || "Could not read logs."}</p>`;
+        }
+        return;
+      }
+
+      // sizes are shown up front so a metered connection is a deliberate choice
+      logsData = data;
+      if (logsContent.isConnected) renderLogs(data);
     } catch (error) {
-      logsPanel.innerHTML = `<p class="route-logs-message">Could not reach the device: ${error.message}</p>`;
+      if (logsContent.isConnected) {
+        logsContent.innerHTML = `<p class="route-logs-message route-logs-error">Could not reach the device: ${error.message}</p>`;
+      }
     }
   };
 
