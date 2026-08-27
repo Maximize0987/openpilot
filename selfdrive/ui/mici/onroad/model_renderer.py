@@ -365,12 +365,13 @@ class ModelRenderer(Widget):
   def _lane_centering_direction(self) -> int:
     toggles = ui_state.starpilot_toggles
     sm = ui_state.sm
-    if not sm.valid.get("modelV2", False) or not sm.valid.get("carState", False):
+    if (sm.recv_frame.get("modelV2", 0) < ui_state.started_frame or
+        sm.recv_frame.get("carState", 0) < ui_state.started_frame):
       return 0
 
     car_state = sm["carState"]
     applied_correction = None
-    if sm.valid.get("controlsState", False):
+    if sm.recv_frame.get("controlsState", 0) >= ui_state.started_frame:
       try:
         applied_correction = sm["controlsState"].desiredCurvature - sm["modelV2"].action.desiredCurvature
       except (AttributeError, TypeError, ValueError):

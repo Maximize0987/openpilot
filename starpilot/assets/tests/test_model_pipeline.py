@@ -64,6 +64,32 @@ def test_external_gpu_requirement_is_cached_from_manifest(tmp_path, monkeypatch)
   assert not model_manager.model_uses_external_gpu("missing")
 
 
+def test_local_gpu_compile_persists_runtime_metadata(tmp_path, monkeypatch):
+  models_path = tmp_path / "models"
+  compiled_path = tmp_path / "compiled" / "local-large_driving_tinygrad.pkl"
+  models_path.mkdir()
+  compiled_path.parent.mkdir()
+  compiled_path.write_bytes(b"artifact")
+  monkeypatch.setattr(model_compiler, "MODELS_PATH", models_path)
+
+  model_compiler.install_local_artifact(compiled_path, "local-large", "v16", external_gpu=True)
+
+  sidecar = json.loads((models_path / "local-large.json").read_text())
+  metadata = json.loads((models_path / model_manager.ARTIFACT_METADATA_CACHE).read_text())
+  assert sidecar["uses_external_gpu"] is True
+  assert metadata["local-large"]["uses_external_gpu"] is True
+
+  monkeypatch.setattr(model_manager, "MODELS_PATH", models_path)
+  manager = object.__new__(ModelManager)
+  assert manager._discover_local_models()[0]["uses_external_gpu"] is True
+
+  model_compiler.install_local_artifact(compiled_path, "local-large", "v16", external_gpu=False)
+  sidecar = json.loads((models_path / "local-large.json").read_text())
+  metadata = json.loads((models_path / model_manager.ARTIFACT_METADATA_CACHE).read_text())
+  assert sidecar["uses_external_gpu"] is False
+  assert metadata["local-large"]["uses_external_gpu"] is False
+
+
 def test_external_gpu_compilation_is_opt_in(tmp_path, monkeypatch):
   invocations = []
   monkeypatch.setattr(model_compiler, "build_compile_env", lambda **_: {

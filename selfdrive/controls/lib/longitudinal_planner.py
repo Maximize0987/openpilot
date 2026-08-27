@@ -37,8 +37,11 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_honda_crv_5g_stopped_lead_obstacle_bias,
   get_honda_crv_5g_low_speed_stopped_lead_cap,
   allow_honda_crv_5g_vision_gap_settle,
+  get_honda_crv_5g_early_radar_follow_cap,
   get_standstill_gap_settle_max_extra_gap,
   get_standstill_stopped_lead_guard_distance_margin,
+  get_standstill_stopped_lead_guard_max_lead_speed,
+  get_tracked_lead_catchup_headway_margins,
 )
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
 from openpilot.selfdrive.car.cruise import V_CRUISE_UNSET
@@ -560,6 +563,7 @@ class LongitudinalPlanner:
     self.output_should_stop = False
     self.far_follow_brake_slew_rate, self.far_follow_release_slew_rate = get_far_follow_output_slew_rates(CP)
     self.untracked_slow_lead_decel_scale = get_untracked_slow_lead_decel_scale(CP)
+    self.tracked_lead_catchup_headway_margins = get_tracked_lead_catchup_headway_margins(CP)
     self.far_follow_output_slew_active = False
     self.model_launch_armed = False
     self.model_launch_stop_seen = False
@@ -1638,13 +1642,16 @@ class LongitudinalPlanner:
 
     lead_speed = max(float(getattr(lead, "vLead", 0.0)), 0.0)
     lead_delta = lead_speed - float(v_ego)
+    max_lead_speed = get_standstill_stopped_lead_guard_max_lead_speed(
+      self.CP, STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_SPEED,
+    )
     max_distance = max(
       STANDSTILL_STOPPED_LEAD_GUARD_MIN_DISTANCE,
       float(stop_distance) + get_standstill_stopped_lead_guard_distance_margin(self.CP),
     )
     if (
       float(getattr(lead, "dRel", float("inf"))) > max_distance or
-      lead_speed > STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_SPEED or
+      lead_speed > max_lead_speed or
       lead_delta > STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_DELTA
     ):
       return None
@@ -1652,7 +1659,7 @@ class LongitudinalPlanner:
     distance_factor = float(np.clip((max_distance - float(lead.dRel)) /
                                     max(max_distance - STANDSTILL_STOPPED_LEAD_GUARD_MIN_DISTANCE, 0.1),
                                     0.0, 1.0))
-    speed_factor = float(np.clip(lead_speed / max(STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_SPEED, 0.1), 0.0, 1.0))
+    speed_factor = float(np.clip(lead_speed / max(max_lead_speed, 0.1), 0.0, 1.0))
     delta_factor = float(np.clip((STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_DELTA - lead_delta) /
                                  max(STANDSTILL_STOPPED_LEAD_GUARD_MAX_LEAD_DELTA, 0.1),
                                  0.0, 1.0))
@@ -2261,7 +2268,8 @@ class LongitudinalPlanner:
                     stop_x=force_stop_x,
                     silverado_early_follow=early_truck_follow,
                     modelV2=sm['modelV2'],
-                    lead_obstacle_bias=stopped_lead_obstacle_bias)
+                    lead_obstacle_bias=stopped_lead_obstacle_bias,
+                    tracked_lead_catchup_headway_margins=self.tracked_lead_catchup_headway_margins)
 
     self.a_desired_trajectory_full = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
@@ -2350,6 +2358,22 @@ class LongitudinalPlanner:
       ]
       if approach_lift_caps:
         raw_approach_lift_cap = min(approach_lift_caps)
+
+      if not experimental_mode:
+        early_radar_caps = [
+          cap for cap in (
+            get_honda_crv_5g_early_radar_follow_cap(
+              self.CP, self.lead_one, v_ego, vision_cap_accel_min,
+            ),
+            get_honda_crv_5g_early_radar_follow_cap(
+              self.CP, self.lead_two, v_ego, vision_cap_accel_min,
+            ),
+          ) if cap is not None
+        ]
+        if early_radar_caps:
+          early_radar_cap = min(early_radar_caps)
+          self.a_desired = min(self.a_desired, early_radar_cap)
+          output_a_target = min(output_a_target, early_radar_cap)
 
       pretracking_vision_caps = []
       for lead in (self.lead_one, self.lead_two):

@@ -20,7 +20,7 @@ from opendbc.car.gm.values import CAR as GM_CAR, EV_CAR as GM_EV_CAR, GMFlags
 from opendbc.car.hyundai.values import CAR as HYUNDAI_CAR, EV_CAR as HYUNDAI_EV_CAR, HyundaiFlags, HyundaiStarPilotSafetyFlags
 from opendbc.car.interfaces import TORQUE_SUBSTITUTE_PATH, CarInterfaceBase, GearShifter
 from opendbc.car.mock.values import CAR as MOCK
-from opendbc.car.subaru.values import SubaruFlags
+from opendbc.car.subaru.values import CAR as SUBARU_CAR, SubaruFlags
 from opendbc.car.tesla.values import CAR as TESLA_CAR
 from opendbc.car.toyota.values import CAR as TOYOTA_CAR, ToyotaStarPilotFlags
 from openpilot.common.basedir import BASEDIR
@@ -621,6 +621,14 @@ class StarPilotVariables:
 
     alpha_longitudinal = CP.alphaLongitudinalAvailable
     toggle.car_make = CP.brand
+    toggle.ford_lateral_mode = self.get_value(
+      "FordLateralMode",
+      cast=int,
+      condition=toggle.car_make == "ford",
+      default=1,
+      min=0,
+      max=2,
+    )
     migrate_ford_lkas_button_default(toggle.car_make, self.params)
     toggle.car_model = CP.carFingerprint
     toggle.disable_openpilot_long = self.get_value("DisableOpenpilotLongitudinal", condition=not alpha_longitudinal)
@@ -1479,6 +1487,9 @@ class StarPilotVariables:
     toggle.subaru_sng = self.get_value("SubaruSNG", condition=toggle.car_make == "subaru" and
                                        not (CP.flags & (SubaruFlags.GLOBAL_GEN2 | SubaruFlags.HYBRID | SubaruFlags.LKAS_ANGLE)))
     toggle.subaru_sng_manual_parking_brake = self.get_value("SubaruSNGManualParkingBrake", condition=toggle.subaru_sng)
+    toggle.subaru_stop_start_off = self.get_value(
+      "SubaruStopStartOff", condition=toggle.car_model == SUBARU_CAR.SUBARU_OUTBACK_2023,
+    )
 
     toggle.jeep_brake_hold = self.get_value(
       "JeepBrakeHold",

@@ -571,6 +571,7 @@ class ModelManager:
         "released": str(info.get("released") or "2100-01-01").strip(),
         "community_favorite": False,
         "artifact_format": UNIFIED_ARTIFACT_FORMAT,
+        "uses_external_gpu": bool(info.get("uses_external_gpu", False)),
       }
 
     return list(discovered.values())

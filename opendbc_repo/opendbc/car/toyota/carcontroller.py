@@ -72,6 +72,11 @@ def should_bypass_toyota_long_pid(CP, starpilot_toggles=None) -> bool:
   ) or highlander_sdsu)
 
 
+def get_steer_rate_limit_frames(car_fingerprint) -> int:
+  return (TOYOTA_HIGHLANDER_TSS2_MAX_STEER_RATE_FRAMES
+          if car_fingerprint == CAR.TOYOTA_HIGHLANDER_TSS2 else MAX_STEER_RATE_FRAMES)
+
+
 def get_long_tune(CP, params):
   kiBP = [2., 5.]
   kiV = [0.5, 0.25]
@@ -223,6 +228,7 @@ class CarController(CarControllerBase):
     self.standstill_req = False
     self.permit_braking = True
     self.steer_rate_counter = 0
+    self.steer_rate_limit_frames = get_steer_rate_limit_frames(self.CP.carFingerprint)
     self.distance_button = 0
 
     # *** start long control state ***
@@ -345,8 +351,10 @@ class CarController(CarControllerBase):
     apply_torque = apply_meas_steer_torque_limits(new_torque, self.last_torque, CS.out.steeringTorqueEps, self.params)
 
     # >100 degree/sec steering fault prevention
-    self.steer_rate_counter, apply_steer_req = common_fault_avoidance(abs(CS.out.steeringRateDeg) >= MAX_STEER_RATE, lat_active,
-                                                                      self.steer_rate_counter, MAX_STEER_RATE_FRAMES)
+    self.steer_rate_counter, apply_steer_req = common_fault_avoidance(
+      abs(CS.out.steeringRateDeg) >= MAX_STEER_RATE, lat_active,
+      self.steer_rate_counter, self.steer_rate_limit_frames,
+    )
 
     if not lat_active:
       apply_torque = 0

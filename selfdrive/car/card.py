@@ -85,7 +85,8 @@ class Car:
   def __init__(self, CI=None, RI=None) -> None:
     self.can_sock = messaging.sub_sock('can', timeout=20)
     self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'onroadEvents', 'radarState', 'longitudinalPlan'])
-    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'liveTracks', 'gpsLocationExternal'])
+    self.pm = messaging.PubMaster(['sendcan', 'carState', 'carParams', 'carOutput', 'liveTracks'])
+    self.gps_pm = None
 
     self.can_rcv_cum_timeout_counter = 0
     self._last_car_gps_timestamp_nanos = 0
@@ -138,7 +139,10 @@ class Car:
       self.CI, self.CP, self.FPCP = CI, CI.CP, CI.FPCP
       self.RI = RI
 
-    self.params.put_bool("CarGpsAvailable", bool(getattr(self.CI.CS, 'car_gps_supported', False)))
+    car_gps_supported = bool(getattr(self.CI.CS, 'car_gps_supported', False))
+    self.params.put_bool("CarGpsAvailable", car_gps_supported)
+    if car_gps_supported:
+      self.gps_pm = messaging.PubMaster(['gpsLocationExternal'])
 
     interface_alternative_experience = self.CP.alternativeExperience
     self.CP.alternativeExperience = interface_alternative_experience
@@ -364,7 +368,8 @@ class Car:
       gps.speedAccuracy = car_gps['speedAccuracy']
       gps.hasFix = car_gps['hasFix']
       gps.satelliteCount = car_gps['satelliteCount']
-      self.pm.send('gpsLocationExternal', gps_send)
+      assert self.gps_pm is not None
+      self.gps_pm.send('gpsLocationExternal', gps_send)
       self._last_car_gps_publish_monotonic = now
 
     # carParams - logged every 50 seconds (> 1 per segment)

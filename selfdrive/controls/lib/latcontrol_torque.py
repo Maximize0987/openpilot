@@ -108,6 +108,7 @@ class LatControlTorque(LatControl):
     self.is_genesis_gv70 = CP.carFingerprint in GENESIS_GV70_CARS
     self.is_palisade = CP.carFingerprint in PALISADE_CARS
     self.is_prius = CP.carFingerprint in PRIUS_CARS
+    self.is_standard_prius = CP.carFingerprint == TOYOTA_CAR.TOYOTA_PRIUS
     self.is_camry = CP.carFingerprint in CAMRY_CARS
     self.is_rav4_tss2 = CP.carFingerprint in RAV4_TSS2_CARS
     self.is_rav4_prime = CP.carFingerprint in RAV4_PRIME_CARS
@@ -610,7 +611,9 @@ class LatControlTorque(LatControl):
         output_torque *= get_toyota_corolla_tss2_center_output_scale(setpoint, CS.vEgo)
       elif prius_active:
         output_torque *= prius_center_taper
-        output_torque *= get_prius_high_speed_output_taper_scale(setpoint, CS.vEgo)
+        prius_taper_max = (PRIUS_STANDARD_HIGH_SPEED_OUTPUT_TAPER_MAX if self.is_standard_prius
+                           else PRIUS_HIGH_SPEED_OUTPUT_TAPER_MAX)
+        output_torque *= get_prius_high_speed_output_taper_scale(setpoint, CS.vEgo, prius_taper_max)
       elif volt_standard_test_active:
         output_torque *= volt_standard_center_taper
       elif volt_plexy_test_active:

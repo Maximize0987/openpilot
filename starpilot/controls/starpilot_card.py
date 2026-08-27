@@ -86,7 +86,7 @@ class StarPilotCard:
     elif getattr(starpilot_toggles, f"force_coast_via_{key}"):
       self.force_coast = not self.force_coast
     elif getattr(starpilot_toggles, f"pulse_and_glide_via_{key}"):
-      if getattr(sm["carControl"], "longActive", False):
+      if getattr(sm["carControl"], "longActive", False) or self.pulse_and_glide:
         self.pulse_and_glide = not self.pulse_and_glide
         return True
     elif getattr(starpilot_toggles, f"pause_lateral_via_{key}"):
@@ -137,9 +137,12 @@ class StarPilotCard:
     self.switchback_mode_enabled = self.params_memory.get_bool("SwitchbackModeEnabled")
     self._handle_favorite_traffic_mode_action(sm)
 
-    pulse_glide_cancel_override = bool(getattr(sm["carControl"], "longActive", False)) and any(
-      getattr(starpilot_toggles, f"pulse_and_glide_via_cancel{suffix}", False)
-      for suffix in ("", "_long", "_very_long")
+    pulse_glide_cancel_override = (
+      (bool(getattr(sm["carControl"], "longActive", False)) or self.pulse_and_glide) and
+      any(
+        getattr(starpilot_toggles, f"pulse_and_glide_via_cancel{suffix}", False)
+        for suffix in ("", "_long", "_very_long")
+      )
     )
     cancel_pressed = bool(getattr(starpilotCarState, "cancelPressed", False))
     if pulse_glide_cancel_override:
@@ -155,8 +158,9 @@ class StarPilotCard:
       self._button_type_raw(be) == int(ButtonType.lkas) and be.pressed
       for be in carState.buttonEvents
     )
-    pulse_glide_lkas_override = bool(getattr(sm["carControl"], "longActive", False)) and getattr(
-      starpilot_toggles, "pulse_and_glide_via_lkas", False
+    pulse_glide_lkas_override = (
+      (bool(getattr(sm["carControl"], "longActive", False)) or self.pulse_and_glide) and
+      getattr(starpilot_toggles, "pulse_and_glide_via_lkas", False)
     )
     if pulse_glide_lkas_override:
       carState.buttonEvents = [
@@ -368,8 +372,6 @@ class StarPilotCard:
 
     if not getattr(starpilot_toggles, "pulse_and_glide_available", False):
       self.pulse_and_glide = False
-    self.pulse_and_glide &= bool(getattr(sm["carControl"], "longActive", False))
-    self.pulse_and_glide &= not (carState.brakePressed or carState.gasPressed)
     self.force_coast &= not (carState.brakePressed or carState.gasPressed)
 
     starpilotCarState.accelPressed = self.accel_pressed

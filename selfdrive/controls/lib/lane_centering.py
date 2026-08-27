@@ -14,6 +14,7 @@ _MAX_OFFSET = 0.3
 _MIN_CENTER_TO_LINE = 1.1
 _MAX_RAW_CORRECTION = 0.004
 _MAX_GAIN = 0.30
+_VISUAL_CORRECTION_EPSILON = 1e-6
 _SMOOTH_TAU = 0.4
 _SIGNAL_RELEASE_TAU = 0.20
 _CONFIDENCE_RELEASE_TAU = 0.20
@@ -183,8 +184,9 @@ def get_lane_centering_visual_direction(model_v2, v_ego: float, offset: float, e
   )
   if not valid or not np.isfinite(correction):
     return 0
-  if correction == 0.0:
-    if applied_correction is None or not np.isfinite(applied_correction) or applied_correction == 0.0:
-      return 0
-    correction = applied_correction
+  if applied_correction is not None and np.isfinite(applied_correction) and \
+      abs(applied_correction) > _VISUAL_CORRECTION_EPSILON:
+    correction = float(applied_correction)
+  if abs(correction) <= _VISUAL_CORRECTION_EPSILON:
+    return 0
   return 1 if correction > 0.0 else -1

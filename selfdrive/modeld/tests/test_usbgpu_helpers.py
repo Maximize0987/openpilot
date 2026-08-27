@@ -69,46 +69,6 @@ def test_native_amd_signal_keeps_existing_short_wait_behavior():
   assert sleeps == [200]
 
 
-def test_external_gpu_power_must_be_stable_after_vehicle_start():
-  panda_type = modeld.log.PandaState.PandaType.tres
-
-  def panda_state(voltage):
-    return SimpleNamespace(pandaType=panda_type, voltage=voltage)
-
-  ready, stable_since, voltage = modeld._external_gpu_power_ready([panda_state(12800)], 10.0, None)
-  assert not ready
-  assert stable_since is None
-  assert voltage == 12800
-
-  ready, stable_since, voltage = modeld._external_gpu_power_ready([panda_state(14100)], 11.0, stable_since)
-  assert not ready
-  assert stable_since == 11.0
-  assert voltage == 14100
-
-  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(14100)], 13.9, stable_since)
-  assert not ready
-  assert stable_since == 11.0
-
-  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(11900)], 14.0, stable_since)
-  assert not ready
-  assert stable_since is None
-
-  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(14100)], 15.0, stable_since)
-  assert not ready
-  ready, stable_since, _ = modeld._external_gpu_power_ready([panda_state(14100)], 18.0, stable_since)
-  assert ready
-  assert stable_since == 15.0
-
-
-def test_external_gpu_power_ignores_unknown_pandas():
-  panda_states = [
-    SimpleNamespace(pandaType=modeld.log.PandaState.PandaType.unknown, voltage=15000),
-    SimpleNamespace(pandaType=modeld.log.PandaState.PandaType.tres, voltage=0),
-  ]
-
-  assert modeld._external_gpu_power_ready(panda_states, 10.0, None) == (False, None, None)
-
-
 def test_external_gpu_wait_timeout_updates_tinygrad_cache(monkeypatch):
   from tinygrad.helpers import getenv
 
@@ -178,7 +138,6 @@ def test_external_gpu_load_finishes_before_native_model_can_start(monkeypatch):
     def warmup(self):
       calls.append("warmup")
 
-  monkeypatch.setattr(modeld, "wait_for_external_gpu_power_ready", lambda: calls.append("power"))
   monkeypatch.setattr(modeld, "wait_usbgpu_link", lambda: calls.append("link"))
   monkeypatch.setattr(modeld, "_set_hcq_wait_timeout", lambda timeout: calls.append(("timeout", timeout)))
   monkeypatch.setattr(modeld, "_close_tinygrad_disk_cache_connection", lambda: calls.append("close_cache"))
@@ -193,7 +152,6 @@ def test_external_gpu_load_finishes_before_native_model_can_start(monkeypatch):
 
   assert isinstance(loaded, FakeModelState)
   assert calls == [
-    "power",
     ("timeout", modeld.BIG_MODEL_LOAD_WAIT_TIMEOUT_MS),
     "link",
     ("model", 1928, 1208, True, "big-model", False),

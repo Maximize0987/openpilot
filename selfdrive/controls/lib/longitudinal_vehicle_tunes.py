@@ -14,6 +14,10 @@ GM_SILVERADO_EARLY_FOLLOW_MAX_LATERAL_OFFSET = 1.2
 DEFAULT_FOLLOW_PREBRAKE_MIN_HEADWAY = 1.25
 GM_SILVERADO_FOLLOW_PREBRAKE_MIN_HEADWAY = 1.25
 FORD_LIGHTNING_FOLLOW_PREBRAKE_MIN_HEADWAY = 1.0
+FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN = 0.20
+FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN = 0.45
+FORD_LIGHTNING_STANDSTILL_GUARD_DISTANCE_MARGIN = 5.0
+FORD_LIGHTNING_STANDSTILL_GUARD_MAX_LEAD_SPEED = 0.60
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_EGO_SPEED = 2.0
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_LEAD_SPEED = 0.45
 TOYOTA_SIENNA_POST_DEPARTURE_RESTOP_MAX_LEAD_DELTA = 0.35
@@ -67,6 +71,14 @@ HONDA_CRV_5G_LOW_SPEED_STOP_MAX_DECEL = 0.45
 HONDA_CRV_5G_LOW_SPEED_STOP_MIN_DECEL = 0.12
 HONDA_CRV_5G_GAP_SETTLE_MAX_EXTRA_GAP = 7.0
 HONDA_CRV_5G_GUARD_DISTANCE_MARGIN = 1.5
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MIN_EGO_SPEED = 8.0
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_EGO_SPEED = 22.0
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_LEAD_SPEED = 8.0
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MIN_CLOSING_SPEED = 7.0
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_TTC = 8.0
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_DISTANCE_TIME = 5.0
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MIN_MODEL_PROB = 0.80
+HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_LATERAL_OFFSET = 1.0
 TOYOTA_CAMRY_TSS2_FORCE_STOP_HANDOFF_M = 4.5
 # The Camry's force-stop path otherwise consumes the model endpoint before the
 # normal MPC stop-distance margin can be applied. Keep it within the forward
@@ -111,6 +123,50 @@ def is_honda_crv_5g(CP):
     getattr(CP, "brand", "") == "honda" and
     str(getattr(CP, "carFingerprint", "")) == "HONDA_CRV_5G"
   )
+
+
+def is_honda_crv_5g_early_radar_follow_lead(CP, lead, v_ego):
+  """Admit a credible, rapidly closing CR-V radar lead before model tracking catches up."""
+  if (
+    not is_honda_crv_5g(CP) or
+    lead is None or not bool(getattr(lead, "status", False)) or
+    not bool(getattr(lead, "radar", False)) or
+    not HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MIN_EGO_SPEED <= float(v_ego) <= \
+      HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_EGO_SPEED or
+    float(getattr(lead, "modelProb", 0.0)) < HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MIN_MODEL_PROB or
+    abs(float(getattr(lead, "yRel", 0.0))) > HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_LATERAL_OFFSET
+  ):
+    return False
+
+  lead_speed = max(float(getattr(lead, "vLead", 0.0)), 0.0)
+  closing_speed = float(v_ego) - lead_speed
+  distance = float(getattr(lead, "dRel", float("inf")))
+  if (
+    lead_speed > HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_LEAD_SPEED or
+    closing_speed < HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MIN_CLOSING_SPEED or
+    distance <= 0.0 or
+    distance > HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_DISTANCE_TIME * float(v_ego)
+  ):
+    return False
+
+  return distance / max(closing_speed, 0.1) <= HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_TTC
+
+
+def get_honda_crv_5g_early_radar_follow_cap(CP, lead, v_ego, accel_min):
+  """Start a mild CR-V radar response before the normal lead handoff."""
+  if not is_honda_crv_5g_early_radar_follow_lead(CP, lead, v_ego):
+    return None
+
+  lead_speed = max(float(getattr(lead, "vLead", 0.0)), 0.0)
+  closing_speed = float(v_ego) - lead_speed
+  distance = float(getattr(lead, "dRel", float("inf")))
+  ttc = distance / max(closing_speed, 0.1)
+  urgency = float(np.clip(
+    (HONDA_CRV_5G_RADAR_EARLY_FOLLOW_MAX_TTC - ttc) / 4.0,
+    0.0, 1.0,
+  ))
+  cap = 0.25 + 0.25 * urgency
+  return max(float(accel_min), -cap)
 
 
 def get_honda_crv_5g_stopped_lead_obstacle_bias(CP, lead, v_ego):
@@ -189,7 +245,31 @@ def get_standstill_gap_settle_max_extra_gap(CP):
 def get_standstill_stopped_lead_guard_distance_margin(CP):
   if is_honda_crv_5g(CP):
     return HONDA_CRV_5G_GUARD_DISTANCE_MARGIN
+  if is_ford_f150_lightning(CP):
+    return FORD_LIGHTNING_STANDSTILL_GUARD_DISTANCE_MARGIN
   return 3.0
+
+
+def get_standstill_stopped_lead_guard_max_lead_speed(CP, default):
+  if is_ford_f150_lightning(CP):
+    return FORD_LIGHTNING_STANDSTILL_GUARD_MAX_LEAD_SPEED
+  return float(default)
+
+
+def get_tracked_lead_catchup_headway_margins(CP):
+  if is_ford_f150_lightning(CP):
+    return (
+      FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN,
+      FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN,
+    )
+  return None
+
+
+def is_ford_f150_lightning(CP):
+  return (
+    getattr(CP, "brand", "") == "ford" and
+    str(getattr(CP, "carFingerprint", "")) == "FORD_F_150_LIGHTNING_MK1"
+  )
 
 
 def is_toyota_rav4_tss2_post_departure_tune(CP):

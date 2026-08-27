@@ -255,6 +255,22 @@ def test_honda_pid_scale_controls_use_galaxy_fine_granularity():
     assert setting["settings_tier"] == "advanced"
 
 
+def test_ford_angle_controls_use_galaxy_fine_granularity():
+  lateral = _params_by_section(_layout())["Lateral (Steering)"]
+
+  for key in (
+    "FordAngleBlend",
+    "FordAngleLowSpeedFactor",
+    "FordAngleHighSpeedFactor",
+    "FordAngleHighSpeedDamping",
+    "FordAngleLaneChangeFactor",
+  ):
+    setting = lateral[key]
+    assert setting["step"] == 0.01
+    assert setting["precision"] == 2
+    assert setting["galaxy_only"]
+
+
 def test_hidden_feature_defaults_remain_enabled():
   assert _declared_default("GalaxyDeveloperMode") == "0"
   assert _declared_default("NavDesiresAllowed") == "1"

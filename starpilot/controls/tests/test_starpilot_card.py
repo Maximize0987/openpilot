@@ -123,7 +123,38 @@ def test_pulse_and_glide_requires_developer_access_and_active_longitudinal(monke
 
   car_state = make_car_state(gas_pressed=True)
   result = card.update(car_state, starpilot_car_state, sm, toggles)
+  assert result.pulseAndGlide is True
+
+
+def test_pulse_and_glide_survives_temporary_disengagement(monkeypatch, tmp_path):
+  monkeypatch.setattr(spc, "Params", FakeParams)
+  monkeypatch.setattr(spc, "ERROR_LOGS_PATH", tmp_path)
+
+  card = spc.StarPilotCard(SimpleNamespace(brand="gm"), SimpleNamespace(alternativeExperience=0))
+  sm = make_sm()
+  sm["carControl"].longActive = True
+  toggles = make_toggles(
+    pulse_and_glide_available=True,
+    pulse_and_glide_via_lkas=True,
+  )
+  starpilot_car_state = SimpleNamespace(distancePressed=False)
+
+  card.handle_button_event("lkas", sm, toggles)
+  assert card.pulse_and_glide is True
+
+  sm["carControl"].longActive = False
+  result = card.update(make_car_state(brake_pressed=True), starpilot_car_state, sm, toggles)
+  assert result.pulseAndGlide is True
+
+  sm["carControl"].longActive = True
+  result = card.update(make_car_state(), starpilot_car_state, sm, toggles)
+  assert result.pulseAndGlide is True
+
+  sm["carControl"].longActive = False
+  off_press = make_car_state(button_events=[SimpleNamespace(type=spc.ButtonType.lkas, pressed=True)])
+  result = card.update(off_press, starpilot_car_state, sm, toggles)
   assert result.pulseAndGlide is False
+  assert off_press.buttonEvents == []
 
 
 def test_pulse_and_glide_consumes_native_cancel_when_mapped(monkeypatch, tmp_path):

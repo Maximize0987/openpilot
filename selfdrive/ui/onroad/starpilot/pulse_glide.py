@@ -11,7 +11,12 @@ DEEP_GLIDE_BORDER_COLOR = rl.Color(24, 72, 150, 255)
 
 def get_pulse_glide_border_color(sm, default_color: rl.Color) -> rl.Color:
   """Use a deep-blue outer border only while developer P&G is gliding."""
-  if not sm.valid.get("starpilotCarState", False) or not sm.valid.get("starpilotPlan", False):
+  if (
+    not sm.valid.get("starpilotCarState", False) or
+    not sm.valid.get("starpilotPlan", False) or
+    not sm.valid.get("carControl", False) or
+    not bool(getattr(sm["carControl"], "longActive", False))
+  ):
     return default_color
 
   car_state = sm["starpilotCarState"]

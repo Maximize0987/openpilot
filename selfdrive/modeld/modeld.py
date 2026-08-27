@@ -77,9 +77,6 @@ def _should_publish_model_output(model_output, vipc_dropped_frames: int, externa
 MIN_LAT_CONTROL_SPEED = 0.3
 BIG_MODEL_LOAD_WAIT_TIMEOUT_MS = 30000
 BIG_MODEL_RUN_WAIT_TIMEOUT_MS = 3000
-EXTERNAL_GPU_POWER_READY_MV = 13000
-EXTERNAL_GPU_POWER_STABLE_SECONDS = 3.0
-EXTERNAL_GPU_POWER_LOG_INTERVAL_SECONDS = 10.0
 LAT_SMOOTH_BP = [2.0, 8.0]
 
 
@@ -90,40 +87,6 @@ def _set_hcq_wait_timeout(timeout_ms: int) -> None:
   # in effect for the lifetime of modeld.
   from tinygrad.helpers import getenv
   getenv.cache_clear()
-
-
-def _external_gpu_power_ready(panda_states, now: float, stable_since: float | None) -> tuple[bool, float | None, int | None]:
-  voltages = [
-    int(state.voltage) for state in panda_states
-    if state.pandaType != log.PandaState.PandaType.unknown and int(state.voltage) > 0
-  ]
-  voltage = max(voltages, default=None)
-  if voltage is None or voltage < EXTERNAL_GPU_POWER_READY_MV:
-    return False, None, voltage
-
-  stable_since = now if stable_since is None else stable_since
-  return now - stable_since >= EXTERNAL_GPU_POWER_STABLE_SECONDS, stable_since, voltage
-
-
-def wait_for_external_gpu_power_ready() -> None:
-  """Wait until the vehicle's 12 V rail is in its post-start charging state."""
-  sm = SubMaster(["pandaStates"])
-  stable_since = None
-  last_log = 0.0
-
-  while True:
-    sm.update(1000)
-    now = time.monotonic()
-    ready, stable_since, voltage = _external_gpu_power_ready(sm["pandaStates"], now, stable_since)
-    if ready:
-      cloudlog.warning(f"vehicle power stable at {voltage / 1000:.2f} V; starting external GPU load")
-      return
-
-    if now - last_log >= EXTERNAL_GPU_POWER_LOG_INTERVAL_SECONDS:
-      detail = "unavailable" if voltage is None else f"{voltage / 1000:.2f} V"
-      cloudlog.warning(f"external GPU load deferred: vehicle power is {detail}; waiting for " +
-                       f"{EXTERNAL_GPU_POWER_READY_MV / 1000:.1f} V to remain stable")
-      last_log = now
 
 
 def get_lateral_smooth_seconds(v_ego: float, maximum: float = 0.0) -> float:
@@ -666,14 +629,10 @@ def _load_model_state(cam_w: int, cam_h: int, selected_model: str, external_gpu_
     return ModelState(cam_w, cam_h, False)
 
 
-def _load_external_gpu_model(cam_w: int, cam_h: int, selected_model: str,
-                             demo: bool = False) -> ModelState | None:
+def _load_external_gpu_model(cam_w: int, cam_h: int, selected_model: str) -> ModelState | None:
   """Load and warm the USB-GPU model without running another tinygrad model concurrently."""
   candidate = None
   try:
-    if not demo:
-      wait_for_external_gpu_power_ready()
-
     _set_hcq_wait_timeout(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
     wait_usbgpu_link()
     candidate = ModelState(
@@ -748,7 +707,6 @@ def main(demo=False):
       vipc_client_main.width,
       vipc_client_main.height,
       selected_model,
-      demo,
     )
 
     small_model = ModelState(

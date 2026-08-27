@@ -39,6 +39,7 @@ const VEHICLE_SETTING_MAKES = {
   JeepBrakeHold: ["Jeep"],
   SubaruSNG: ["Subaru"],
   SubaruSNGManualParkingBrake: ["Subaru"],
+  SubaruStopStartOff: ["Subaru"],
   ClusterOffset: ["Lexus", "Toyota"],
   SNGHack: ["Lexus", "Toyota"],
   ToyotaAutoHold: ["Lexus", "Toyota"],

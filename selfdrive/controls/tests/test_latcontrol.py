@@ -1,3 +1,4 @@
+import math
 import pytest
 from parameterized import parameterized
 from types import SimpleNamespace
@@ -17,7 +18,11 @@ from opendbc.car.hyundai.values import CAR as HYUNDAI
 from opendbc.car.subaru.values import CAR as SUBARU
 from opendbc.car.vehicle_model import VehicleModel
 from openpilot.common.realtime import DT_CTRL
-from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle, _ascent_angle_tracking_target
+from openpilot.selfdrive.controls.lib.latcontrol_angle import (
+  LatControlAngle,
+  _ascent_angle_tracking_target,
+  _ford_angle_tracking_saturated,
+)
 from openpilot.selfdrive.controls.lib.latcontrol_pid import (
   LatControlPID,
   get_civic_bosch_modified_pid_output_alpha,
@@ -192,6 +197,41 @@ class TestLatControl:
     assert _ascent_angle_tracking_target(40.0, 0.0, 20.0, False) == pytest.approx(48.0)
     assert _ascent_angle_tracking_target(10.0, 0.0, 4.0, False) == pytest.approx(10.0)
     assert _ascent_angle_tracking_target(10.0, 0.0, 20.0, True) == pytest.approx(10.0)
+
+  def test_ford_angle_tracking_does_not_report_a_responsive_eps_as_saturated(self):
+    assert not _ford_angle_tracking_saturated(12.0, 12.0)
+    assert not _ford_angle_tracking_saturated(-12.0, -12.0)
+    assert _ford_angle_tracking_saturated(16.0, 12.0)
+    assert _ford_angle_tracking_saturated(12.0, -12.0)
+
+  def test_ford_angle_tracking_still_reports_a_stalled_eps(self):
+    assert _ford_angle_tracking_saturated(3.0, 0.0)
+    assert not _ford_angle_tracking_saturated(2.5, 0.0)
+
+  def test_ford_angle_handoff_saturation_waits_for_eps_response(self):
+    CP = SimpleNamespace(
+      steerLimitTimer=1.0,
+      brand="ford",
+      carFingerprint="FORD_MUSTANG_MACH_E_MK1",
+    )
+    controller = LatControlAngle(CP, None, DT_CTRL)
+    target = [12.0]
+    VM = SimpleNamespace(get_steer_from_curvature=lambda *_args: math.radians(target[0]))
+    CS = car.CarState.new_message(vEgo=10.0, steeringPressed=False)
+    params = log.LiveParametersData.new_message(angleOffsetDeg=0.0, roll=0.0)
+    toggles = SimpleNamespace(ford_lateral_mode=2)
+
+    for frame in range(round(2.0 / DT_CTRL)):
+      CS.steeringAngleDeg = frame * 12.0 * DT_CTRL
+      target[0] = CS.steeringAngleDeg + 12.0
+      _, _, angle_log = controller.update(
+        True, CS, VM, params, False, 0.0, False, 0.0, None, None, toggles)
+      assert not angle_log.saturated
+
+    for _ in range(round(2.0 / DT_CTRL)):
+      _, _, angle_log = controller.update(
+        True, CS, VM, params, False, 0.0, False, 0.0, None, None, toggles)
+    assert angle_log.saturated
 
   def test_torque_log_exposes_friction_controller_state(self):
     controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(GM.CHEVROLET_BOLT_ACC_2022_2023)

@@ -10,6 +10,8 @@ from cereal import log
 from opendbc.car.honda.interface import CarInterface
 from opendbc.car.honda.values import CAR
 from opendbc.car.gm.values import CAR as GM_CAR, GMFlags
+from opendbc.car.ford.interface import CarInterface as FordCarInterface
+from opendbc.car.ford.values import CAR as FORD_CAR
 from opendbc.car.toyota.interface import CarInterface as ToyotaCarInterface
 from opendbc.car.toyota.values import CAR as TOYOTA_CAR
 import openpilot.selfdrive.controls.lib.longitudinal_planner as longitudinal_planner_module
@@ -31,7 +33,12 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_honda_crv_5g_stopped_lead_obstacle_bias,
   get_honda_crv_5g_low_speed_stopped_lead_cap,
   allow_honda_crv_5g_vision_gap_settle,
+  is_honda_crv_5g_early_radar_follow_lead,
+  get_honda_crv_5g_early_radar_follow_cap,
   get_standstill_gap_settle_max_extra_gap,
+  get_standstill_stopped_lead_guard_distance_margin,
+  get_standstill_stopped_lead_guard_max_lead_speed,
+  get_tracked_lead_catchup_headway_margins,
   get_toyota_prius_stopped_lead_obstacle_bias,
   get_toyota_rav4_tss2_lead_departure_tune,
   get_toyota_rav4_tss2_early_lead_cap,
@@ -137,6 +144,43 @@ def test_honda_crv_5g_stopped_lead_tune_is_vehicle_specific():
   assert allow_honda_crv_5g_vision_gap_settle(crv)
   assert not allow_honda_crv_5g_vision_gap_settle(civic)
   assert get_standstill_gap_settle_max_extra_gap(crv) > get_standstill_gap_settle_max_extra_gap(civic)
+
+
+def test_honda_crv_5g_early_radar_follow_admits_high_closing_centered_lead():
+  crv = CarInterface.get_non_essential_params(CAR.HONDA_CRV_5G)
+  lead = make_lead(
+    status=True, d_rel=77.0, v_lead=2.8, radar=True, model_prob=0.87, y_rel=0.56,
+  )
+
+  assert is_honda_crv_5g_early_radar_follow_lead(crv, lead, v_ego=16.2)
+  assert get_honda_crv_5g_early_radar_follow_cap(
+    crv, lead, v_ego=16.2, accel_min=-3.5,
+  ) == pytest.approx(-0.39, abs=0.01)
+
+
+@pytest.mark.parametrize("kwargs", [
+  {"radar": False},
+  {"model_prob": 0.79},
+  {"y_rel": 1.01},
+  {"v_lead": 8.1},
+  {"d_rel": 90.0},
+])
+def test_honda_crv_5g_early_radar_follow_rejects_unreliable_or_nonurgent_lead(kwargs):
+  crv = CarInterface.get_non_essential_params(CAR.HONDA_CRV_5G)
+  lead_kwargs = {
+    "d_rel": 77.0, "v_lead": 2.8, "radar": True, "model_prob": 0.87, "y_rel": 0.56,
+  }
+  lead_kwargs.update(kwargs)
+  lead = make_lead(status=True, **lead_kwargs)
+
+  assert not is_honda_crv_5g_early_radar_follow_lead(crv, lead, v_ego=16.2)
+
+
+def test_honda_crv_5g_early_radar_follow_is_vehicle_specific():
+  civic = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  lead = make_lead(status=True, d_rel=77.0, v_lead=2.8, radar=True, model_prob=0.87, y_rel=0.56)
+
+  assert not is_honda_crv_5g_early_radar_follow_lead(civic, lead, v_ego=16.2)
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
@@ -677,6 +721,18 @@ def test_prebrake_floor_is_vehicle_specific():
   assert get_follow_prebrake_min_headway(silverado, 1.0) == pytest.approx(1.25)
   assert get_follow_prebrake_min_headway(lightning, 0.75) == pytest.approx(1.0)
   assert get_follow_prebrake_min_headway(honda, 1.0) == pytest.approx(1.25)
+
+
+def test_lightning_stopped_lead_guard_tune_is_vehicle_specific():
+  lightning = FordCarInterface.get_non_essential_params(FORD_CAR.FORD_F_150_LIGHTNING_MK1)
+  civic = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+
+  assert get_standstill_stopped_lead_guard_distance_margin(lightning) == pytest.approx(5.0)
+  assert get_standstill_stopped_lead_guard_distance_margin(civic) == pytest.approx(3.0)
+  assert get_standstill_stopped_lead_guard_max_lead_speed(lightning, 0.45) == pytest.approx(0.60)
+  assert get_standstill_stopped_lead_guard_max_lead_speed(civic, 0.45) == pytest.approx(0.45)
+  assert get_tracked_lead_catchup_headway_margins(lightning) == pytest.approx((0.20, 0.45))
+  assert get_tracked_lead_catchup_headway_margins(civic) is None
 
 
 def test_silverado_vision_follow_hold_survives_nonurgent_far_lead_crossover():
@@ -2330,6 +2386,37 @@ def test_standstill_stopped_lead_guard_blocks_false_release_at_longer_gap(model_
 
   assert planner.output_should_stop
   assert planner.output_a_target <= 0.0
+
+
+def test_lightning_stopped_lead_guard_holds_ambiguous_creep_then_releases():
+  CP = FordCarInterface.get_non_essential_params(FORD_CAR.FORD_F_150_LIGHTNING_MK1)
+  planner = LongitudinalPlanner(CP, init_v=0.17)
+  sm = make_sm(
+    0.17,
+    desired_accel=0.17,
+    min_accel=-0.5,
+    experimental_mode=False,
+    tracking_lead=True,
+    lead_one=make_lead(status=True, d_rel=9.5, v_lead=0.46, a_lead=0.02, radar=True, model_prob=1.0),
+  )
+  sm["starpilotPlan"].vCruise = 10.0
+  sm["modelV2"].action.shouldStop = False
+
+  planner.update(sm, make_toggles("v15"))
+
+  assert planner.output_should_stop
+  assert planner.output_a_target <= 0.0
+
+  sm["carState"].vEgo = 0.0
+  sm["carState"].vEgoCluster = 0.0
+  sm["carState"].standstill = True
+  sm["radarState"].leadOne.dRel = 9.9
+  sm["radarState"].leadOne.vLead = 0.71
+  sm["radarState"].leadOne.vLeadK = 0.71
+  sm["radarState"].leadOne.aLeadK = 0.22
+  planner.update(sm, make_toggles("v15"))
+
+  assert not planner.output_should_stop
 
 
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
