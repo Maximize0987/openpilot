@@ -3,6 +3,7 @@ from types import MethodType
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from openpilot.selfdrive.modeld import modeld
 from openpilot.selfdrive.modeld.helpers import dump_oob, load_oob, tinygrad_dev_config
@@ -37,17 +38,18 @@ def test_external_gpu_uses_a_longer_load_watchdog():
   assert modeld.BIG_MODEL_RUN_WAIT_TIMEOUT_MS == 3000
 
 
-def test_external_gpu_signal_wait_matches_upstream_busy_poll():
+def test_external_gpu_signal_wait_yields_between_usb_polls(monkeypatch):
   from tinygrad.runtime import ops_amd
 
   sleeps = []
+  monkeypatch.setattr(ops_amd.time, "sleep", sleeps.append)
   signal = ops_amd.AMDSignal.__new__(ops_amd.AMDSignal)
   signal.should_return = False
-  signal.owner = SimpleNamespace(is_usb=lambda: True, iface=SimpleNamespace(sleep=sleeps.append))
+  signal.owner = SimpleNamespace(is_usb=lambda: True, iface=SimpleNamespace(sleep=lambda _: None))
 
   signal._sleep(0)
 
-  assert sleeps == []
+  assert sleeps == [ops_amd.AMD_USB_POLL_US / 1e6]
 
 
 def test_native_amd_signal_keeps_existing_short_wait_behavior():
@@ -201,7 +203,7 @@ def test_external_gpu_load_finishes_before_native_model_can_start(monkeypatch):
   ]
 
 
-def test_external_gpu_nonfinite_outputs_are_dropped_without_escalating(monkeypatch):
+def test_external_gpu_nonfinite_outputs_trigger_fallback(monkeypatch):
   class FakeTensor:
     @staticmethod
     def from_blob(*_args, **_kwargs):
@@ -235,13 +237,7 @@ def test_external_gpu_nonfinite_outputs_are_dropped_without_escalating(monkeypat
   state.image_history_pipeline = modeld.IMAGE_HISTORY_IN_POLICY
   state.warp_enqueue = lambda **_kwargs: object()
   state.run_policy = lambda **_kwargs: (FakeOutput(),)
-  state._reset_state = MethodType(
-    lambda self: (_ for _ in ()).throw(AssertionError("upstream does not reset or escalate transient non-finite output")),
-    state,
-  )
-
   monkeypatch.setattr(modeld, "Tensor", FakeTensor)
-  monkeypatch.setattr(modeld.cloudlog, "error", lambda *_args, **_kwargs: None)
   buffers = {
     "img": SimpleNamespace(data=bytearray(4)),
     "big_img": SimpleNamespace(data=bytearray(4)),
@@ -252,8 +248,10 @@ def test_external_gpu_nonfinite_outputs_are_dropped_without_escalating(monkeypat
   }
   inputs = {"desire_pulse": np.zeros(8, dtype=np.float32)}
 
-  for _ in range(10):
-    assert state.run(buffers, transforms, inputs, False) is None
+  callbacks = []
+  with pytest.raises(RuntimeError, match="external GPU model output not finite"):
+    state.run(buffers, transforms, inputs, False, lambda: callbacks.append("sent"))
+  assert callbacks == ["sent"]
 
 
 def test_out_of_band_artifact_round_trip():

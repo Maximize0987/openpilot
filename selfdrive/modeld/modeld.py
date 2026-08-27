@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from collections.abc import Callable
+import ctypes
 from functools import cached_property
 import os
 import struct
@@ -159,8 +161,10 @@ class ChestnutState:
     if self.big and "AMD" in Device._opened_devices and self.sends % 100 == 1:
       try:
         smu = Device["AMD"].iface.dev_impl.smu
+        metrics_t = smu.smu_mod.SmuMetricsExternal_t
         smu._send_msg(smu.smu_mod.PPSMC_MSG_TransferTableSmu2Dram, smu.smu_mod.TABLE_SMU_METRICS, timeout=100)
-        metrics = smu.read_table(smu.smu_mod.SmuMetricsExternal_t, smu.smu_mod.TABLE_SMU_METRICS).SmuMetrics
+        metrics_buf = bytearray(smu.adev.vram.view(smu.driver_table_paddr, ctypes.sizeof(metrics_t))[:])
+        metrics = metrics_t.from_buffer(metrics_buf).SmuMetrics
         self.metrics = {
           "tempC": metrics.AvgTemperature[smu.smu_mod.TEMP_HOTSPOT],
           "memoryTempC": metrics.AvgTemperature[smu.smu_mod.TEMP_MEM],
@@ -569,7 +573,8 @@ class ModelState:
     self._reset_state()
 
   def run(self, bufs: dict[str, VisionBuf], transforms: dict[str, np.ndarray],
-          inputs: dict[str, np.ndarray], prepare_only: bool) -> dict[str, np.ndarray] | None:
+          inputs: dict[str, np.ndarray], prepare_only: bool,
+          after_enqueue: Callable[[], None] | None = None) -> dict[str, np.ndarray] | None:
     frames: dict[str, Tensor] = {}
     for key, buf in bufs.items():
       ptr = np.frombuffer(buf.data, dtype=np.uint8).ctypes.data
@@ -615,11 +620,12 @@ class ModelState:
         img=img,
         big_img=big_img,
       )
+    if after_enqueue is not None:
+      after_enqueue()
     outputs = [output.numpy().flatten() for output in output_tensors]
 
     if self.uses_external_gpu and any(not np.isfinite(output).all() for output in outputs):
-      cloudlog.error("external GPU model output not finite, dropping frame")
-      return None
+      raise RuntimeError("external GPU model output not finite")
 
     if self.model_type == "supercombo":
       model_output = outputs[0]
@@ -921,7 +927,17 @@ def main(demo=False):
 
     mt1 = time.perf_counter()
     try:
-      model_output = model.run(bufs, transforms, inputs, prepare_only)
+      send_chestnut = (
+        chestnut_state is not None and
+        run_count % round(ModelConstants.MODEL_FREQ / SERVICE_LIST["chestnutState"].frequency) == 0
+      )
+      model_output = model.run(
+        bufs,
+        transforms,
+        inputs,
+        prepare_only,
+        chestnut_state.send if send_chestnut else None,
+      )
     except Exception:
       if not external_gpu_active or small_model is None:
         raise
@@ -983,9 +999,6 @@ def main(demo=False):
     # Update planner-driven parameters
     if sm.updated['starpilotPlan']:
       starpilot_toggles = get_starpilot_toggles(sm)
-
-    if chestnut_state is not None and run_count % round(ModelConstants.MODEL_FREQ / SERVICE_LIST["chestnutState"].frequency) == 0:
-      chestnut_state.send()
 
 if __name__ == "__main__":
   try:
