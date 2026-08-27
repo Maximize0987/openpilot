@@ -540,7 +540,7 @@ async function openOverlay(route) {
     cancelUpgrade()
     wantsPlayback = autoplay
     showingPreview = preview === undefined ? supportsLowQuality(camera) : preview
-    setPlayerMessage(message || "Loading video…")
+    if (message) setPlayerMessage(message)
 
     stagingVideo.pause()
     stagingVideo.removeAttribute("src")
@@ -623,9 +623,7 @@ async function openOverlay(route) {
   const handlePlaying = event => {
     if (event.target === activeVideo) setPlayerMessage("")
   }
-  const handleWaiting = event => {
-    if (event.target === activeVideo && !isUpgrading) setPlayerMessage("Loading video…")
-  }
+  const handleWaiting = () => {}
   const handleError = event => {
     if (event.target !== activeVideo) return
     // A dead preview drops through to the real stream rather than showing an error.
