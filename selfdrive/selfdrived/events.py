@@ -504,6 +504,15 @@ def no_lane_available_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.S
 
 
 
+def big_model_loading_alert(CP: car.CarParams, CS: car.CarState, sm: messaging.SubMaster, metric: bool, soft_disable_time: int, personality, starpilot_toggles: SimpleNamespace) -> Alert:
+  if HARDWARE.get_device_type() == 'mici':
+    return EmptyAlert
+  voltages = [s.voltage for s in sm['pandaStates'] if s.voltage > 0] if sm.seen['pandaStates'] else []
+  v = max(voltages) if voltages else 0
+  subtitle = f"Waiting for 13.0V ({v / 1000:.1f}V)" if 0 < v < 13000 else "Warming Up..."
+  return NormalPermanentAlert("Big Model Loading", subtitle)
+
+
 EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   # ********** events with no alerts **********
 
@@ -524,6 +533,7 @@ EVENTS: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventName.bigModelLoading: {
+    ET.PERMANENT: big_model_loading_alert,
     ET.NO_ENTRY: NoEntryAlert("Big Model Loading"),
   },
 
