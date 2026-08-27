@@ -300,6 +300,30 @@ class TestCarInterfaces:
     )
     assert fp_car_params.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.AOL_LKAS_ON_ENGAGE.value
 
+  def test_hyundai_elantra_hev_auto_aol_sets_lkas_on_engage_flag(self):
+    toggles = get_test_starpilot_toggles()
+    toggles.always_on_lateral_main = True
+    fingerprint = {bus: {} for bus in range(8)}
+
+    car_params = HyundaiCarInterface.get_params(
+      HYUNDAI_CAR.HYUNDAI_ELANTRA_HEV_2024,
+      fingerprint,
+      [],
+      alpha_long=True,
+      is_release=False,
+      docs=False,
+      starpilot_toggles=toggles,
+    )
+    fp_car_params = HyundaiCarInterface.get_starpilot_params(
+      HYUNDAI_CAR.HYUNDAI_ELANTRA_HEV_2024,
+      fingerprint,
+      [],
+      car_params,
+      toggles,
+    )
+
+    assert fp_car_params.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.AOL_LKAS_ON_ENGAGE.value
+
   def test_toyota_disable_openpilot_long_sets_stock_long_safety_flag(self):
     CarInterface = interfaces[TOYOTA_CAR.TOYOTA_PRIUS_TSS2]
     fingerprint = {bus: {} for bus in range(8)}

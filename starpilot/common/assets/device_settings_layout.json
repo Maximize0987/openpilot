@@ -1044,6 +1044,30 @@
         "settings_tier": "simple"
       },
       {
+        "key": "CalibratedLateralAcceleration",
+        "label": "Calibrated Lateral Accel",
+        "description": "The learned lateral acceleration from collected driving data. Higher values allow faster cornering.",
+        "picker_description": "Learned cornering comfort from your driving data.",
+        "data_type": "float",
+        "ui_type": "readout",
+        "precision": 2,
+        "unit": " m/s²",
+        "parent_key": "CurveSpeedController",
+        "settings_tier": "simple"
+      },
+      {
+        "key": "CalibrationProgress",
+        "label": "Calibration Progress",
+        "description": "How much curve data has been collected. Normal for the value to stay low.",
+        "picker_description": "How much curve data has been collected.",
+        "data_type": "float",
+        "ui_type": "readout",
+        "precision": 2,
+        "unit": "%",
+        "parent_key": "CurveSpeedController",
+        "settings_tier": "simple"
+      },
+      {
         "key": "ResetCurveData",
         "label": "Reset Curve Data",
         "description": "Clear learned Curve Speed Controller data and begin training again from the default lateral acceleration.",

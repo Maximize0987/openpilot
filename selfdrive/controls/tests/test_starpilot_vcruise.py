@@ -260,6 +260,23 @@ def test_curve_speed_controller_learns_when_speed_is_manually_controlled(long_ac
   assert not vcruise.csc_controlling_speed
 
 
+def test_curve_speed_controller_learns_when_longitudinal_override_event_is_active():
+  planner, vcruise = make_vcruise(road_curvature=0.02)
+  sm = make_sm(standstill=False)
+  sm["onroadEvents"] = [SimpleNamespace(overrideLongitudinal=True)]
+  toggles = make_toggles()
+  toggles.curve_speed_controller = True
+  planner.driving_in_curve = True
+  planner.road_curvature_detected = True
+  planner.lateral_acceleration = 2.4
+  vcruise.csc.training_timer = PLANNER_TIME
+
+  update_vcruise(vcruise, sm, toggles, now=50.0, v_ego=20.0)
+
+  assert vcruise.csc.enable_training
+  assert vcruise.csc.curvature_data["0.02"]["count"] == 1
+
+
 def test_curve_speed_controller_persists_data_after_leaving_curve():
   planner, vcruise = make_vcruise(road_curvature=0.02)
   sm = make_sm(standstill=False)

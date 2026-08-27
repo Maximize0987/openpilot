@@ -5654,6 +5654,9 @@ def setup(app):
     params.put("CalibratedLateralAcceleration", 2.0)
     params.remove("CalibrationProgress")
     params.remove("CurvatureData")
+    params_memory.put("CalibratedLateralAcceleration", 2.0)
+    params_memory.put("CalibrationProgress", 0.0)
+    params_memory.remove("CurvatureData")
 
     return jsonify({
       "message": "Curve Speed Controller data reset. Training will restart on the next drive.",
@@ -5681,6 +5684,12 @@ def setup(app):
     result["VehicleParked"] = _get_vehicle_parked()
     result["AlphaLongitudinalAvailable"] = _get_alpha_longitudinal_available()
     result["HasRivianAngleHarness"] = _get_has_rivian_angle_harness()
+
+    for key in ("CalibratedLateralAcceleration", "CalibrationProgress"):
+      try:
+        result[key] = _get_current_param_value(key, float, defaults_lookup)
+      except Exception:
+        result[key] = None
 
     return jsonify(_sanitize_json_value(result)), 200
 

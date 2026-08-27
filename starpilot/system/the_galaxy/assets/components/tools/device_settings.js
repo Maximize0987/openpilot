@@ -53,6 +53,8 @@ let flmWorkspaceInflight = null
 let lastFlmWorkspaceFetch = 0
 let favoritePollInflight = null
 let favoritePollTimer = null
+let cscCalibrationPollInflight = null
+let cscCalibrationPollTimer = null
 const DYNAMIC_DEFAULT_DEP_KEYS = new Set(["AccelerationProfile", "EVTuning", "TruckTuning"])
 const PANDA_FIRMWARE_TOGGLE_KEYS = new Set(["IgnoreIgnitionLine", "RemoteStartBootsComma", "HKGRemoteStartBootsComma"])
 const FLM_ADVANCED_LATERAL_KEYS = new Set([
@@ -479,6 +481,16 @@ function formatSliderValue(val, stepStr, precisionInt, key) {
   return Number(v.toFixed(dec)).toString()
 }
 
+function formatReadoutValue(p) {
+  const raw = state.values[p.key]
+  const value = parseFloat(raw)
+  if (raw === undefined || raw === null || Number.isNaN(value)) return "--"
+
+  const precision = p.precision !== undefined && p.precision !== null ? Number(p.precision) : 2
+  const formatted = Number(value.toFixed(Math.max(0, precision))).toString()
+  return p.unit ? `${formatted}${p.unit}` : formatted
+}
+
 function formatNumericForInput(value, precision) {
   const n = Number(value)
   if (!Number.isFinite(n)) return ""
@@ -670,6 +682,51 @@ function ensureFavoriteValuePolling() {
     }
     if (document.visibilityState === "visible") {
       refreshFavoriteValues()
+    }
+  }, 1000)
+}
+
+async function refreshCscCalibrationValues() {
+  if (cscCalibrationPollInflight || state.loadingValues) return cscCalibrationPollInflight
+
+  cscCalibrationPollInflight = Promise.all(
+    ["CalibratedLateralAcceleration", "CalibrationProgress"].map(async key => {
+      const response = await fetch(`/api/params_memory?key=${encodeURIComponent(key)}`, { cache: "no-store" })
+      if (!response.ok) return [key, null]
+      const raw = (await response.text()).trim()
+      const value = Number(raw)
+      return [key, Number.isFinite(value) && raw !== "" ? value : null]
+    }),
+  ).then(entries => {
+    const nextValues = { ...state.values }
+    let changed = false
+    for (const [key, value] of entries) {
+      if (value === null || nextValues[key] === value) continue
+      nextValues[key] = value
+      changed = true
+    }
+    if (changed) {
+      state.values = nextValues
+      scheduleSyncInputs()
+    }
+  }).catch(() => {}).finally(() => {
+    cscCalibrationPollInflight = null
+  })
+
+  return cscCalibrationPollInflight
+}
+
+function ensureCscCalibrationPolling() {
+  if (cscCalibrationPollTimer !== null) return
+
+  cscCalibrationPollTimer = setInterval(() => {
+    if (!window.location.pathname.startsWith("/device_settings")) {
+      clearInterval(cscCalibrationPollTimer)
+      cscCalibrationPollTimer = null
+      return
+    }
+    if (document.visibilityState === "visible") {
+      refreshCscCalibrationValues()
     }
   }, 1000)
 }
@@ -1493,6 +1550,7 @@ function renderSettingRow(p) {
   const isText = p.ui_type === "text"
   const isColor = p.ui_type === "color"
   const isAction = p.ui_type === "action"
+  const isReadout = p.ui_type === "readout"
   const isGroup = isGroupParam(p)
   const isChild = p.parent_key ? "ds-child-modifier" : ""
   const lockReason = () => getSettingLockReason(p)
@@ -1643,7 +1701,7 @@ function renderSettingRow(p) {
           @click="${() => resetColorParam(p)}">Stock</button>
       </div>
     `
-  } else if (!isGroup) {
+  } else if (!isGroup && !isReadout) {
     if (p.key === "IsRHD") {
       rowControl = html`
         <div style="display:flex; align-items:center; gap:0.75rem;">
@@ -1713,8 +1771,9 @@ function renderSettingRow(p) {
             </div>
           ` : ""}
         </div>
-        ${(isNumeric || isColor) ? html`<span class="ds-row-value" id="ds-display-${p.key}">${() => {
+        ${(isNumeric || isColor || isReadout) ? html`<span class="ds-row-value ${isReadout ? "ds-row-readout" : ""}" id="ds-display-${p.key}">${() => {
             if (isColor) return formatColorDisplayValue(p)
+            if (isReadout) return formatReadoutValue(p)
             const currentValue = state.sliderPreviewValues[p.key] ?? state.values[p.key]
             const bounds = numericBounds(p)
             return currentValue !== undefined ? formatSliderValue(currentValue, String(bounds.step), p.precision, p.key) : ".."
@@ -1769,6 +1828,7 @@ export function DeviceSettings({ params }) {
 
   fetchFlmWorkspace()
   ensureFavoriteValuePolling()
+  ensureCscCalibrationPolling()
 
   if (!state.fetched) {
     state.fetched = true
