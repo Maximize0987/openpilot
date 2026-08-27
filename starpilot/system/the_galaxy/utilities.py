@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List
 from urllib.parse import quote
@@ -2962,19 +2962,23 @@ def get_routes_names(footage_path):
   route_times = {segment.route_name.time_str for segment in segments}
   return sorted(route_times, reverse=True)
 
-def get_routes_with_segment_counts(footage_path):
-  route_counts = {}
+def get_routes_with_segment_details(footage_path):
+  route_details = {}
   for segment in get_all_segment_names(footage_path):
     route_name = segment.route_name.time_str
-    route_counts[route_name] = route_counts.get(route_name, 0) + 1
-  return sorted(route_counts.items(), reverse=True)
+    segment_num = int(getattr(segment, "segment_num", 0))
+    details = route_details.setdefault(route_name, {"segmentCount": 0, "firstSegmentNum": segment_num})
+    details["segmentCount"] += 1
+    details["firstSegmentNum"] = min(details["firstSegmentNum"], segment_num)
+  return sorted(route_details.items(), reverse=True)
 
 def get_segments_in_route(route_time_str, footage_path):
-  return [
+  segments = [
     f"{segment.time_str}--{segment.segment_num}"
     for segment in get_all_segment_names(footage_path)
     if segment.time_str == route_time_str
   ]
+  return sorted(segments, key=lambda segment: int(segment.rsplit("--", 1)[1]))
 
 def get_video_duration(input_path):
   try:
@@ -2987,7 +2991,10 @@ def get_video_duration(input_path):
     return 60
 
 def has_preserve_attr(path: str):
-  return PRESERVE_ATTR_NAME in os.listxattr(path) and os.getxattr(path, PRESERVE_ATTR_NAME) == PRESERVE_ATTR_VALUE
+  try:
+    return PRESERVE_ATTR_NAME in os.listxattr(path) and os.getxattr(path, PRESERVE_ATTR_NAME) == PRESERVE_ATTR_VALUE
+  except (AttributeError, OSError):
+    return False
 
 def list_file(path):
   return sorted(os.listdir(path), reverse=True)
@@ -3004,30 +3011,35 @@ def normalize_theme_name(name, for_path=False):
     return f"{normalized_parts[0]} ({' '.join(normalized_parts[1:])})".replace(" Week", "")
   return ' '.join(normalized_parts).replace(" Week", "")
 
-def process_route(footage_path, route_name, segment_count=0):
-  segment_path = f"{footage_path}{route_name}--0"
-  qcamera_path = f"{segment_path}/qcamera.ts"
+def is_route_marker_file(filename):
+  """A renamed route stores its display name as an empty marker file in the segment."""
+  return not filename.endswith((".hevc", ".ts", ".png", ".gif")) and filename not in LOG_CANDIDATES
 
-  png_output_path = os.path.join(segment_path, "preview.png")
-  if not os.path.exists(png_output_path):
-    video_to_png(qcamera_path, png_output_path)
+def _utc_rfc3339(value):
+  if value is None:
+    return None
+  # Naive values come off the filesystem in local time; astimezone reads them that way.
+  return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
+def process_route(footage_path, route_name, segment_count=0, first_segment_num=0):
+  segment_name = f"{route_name}--{max(0, int(first_segment_num))}"
+  segment_path = os.path.join(footage_path, segment_name)
   custom_name = None
   if os.path.isdir(segment_path):
     for item in os.listdir(segment_path):
-      if not item.endswith((".hevc", ".ts", ".png", ".gif")) and item not in LOG_CANDIDATES:
+      if is_route_marker_file(item):
         custom_name = item
         break
 
-  route_timestamp_str = custom_name
-  if not custom_name:
-    route_timestamp_dt = get_route_start_time(segment_path)
-    route_timestamp_str = route_timestamp_dt.isoformat() if route_timestamp_dt else None
+  route_timestamp_dt = get_route_start_time(segment_path)
+  route_timestamp_str = custom_name or (route_timestamp_dt.isoformat() if route_timestamp_dt else None)
 
   return {
     "name": route_name,
-    "png": f"/thumbnails/{route_name}--0/preview.png",
+    "png": f"/thumbnails/{segment_name}/preview.png",
     "timestamp": route_timestamp_str,
+    "startedAt": _utc_rfc3339(route_timestamp_dt),
+    "isCustomName": custom_name is not None,
     "is_preserved": has_preserve_attr(segment_path),
     "segmentCount": max(0, int(segment_count)),
     "approxDurationSeconds": max(0, int(segment_count)) * 60,
@@ -3057,6 +3069,8 @@ def segment_to_segment_name(data_dir, segment):
   full_path = os.path.join(data_dir, f"FakeDongleID1337|{segment}")
   return SegmentName(full_path)
 
+VIDEO_TO_PNG_TIMEOUT_SECONDS = 20
+
 def video_to_png(input_path, output_path):
   try:
     subprocess.run([
@@ -3066,11 +3080,17 @@ def video_to_png(input_path, output_path):
       "-frames:v", "1",
       "-y",
       str(output_path)
-    ], capture_output=True, check=True, text=True)
-  except subprocess.CalledProcessError as e:
+    ], capture_output=True, check=True, text=True, timeout=VIDEO_TO_PNG_TIMEOUT_SECONDS)
+    return os.path.isfile(output_path)
+  except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
     print(f"Failed to generate PNG for {input_path}")
-    if e.stderr:
+    if getattr(e, "stderr", None):
       print(e.stderr)
+    try:
+      Path(output_path).unlink(missing_ok=True)
+    except OSError:
+      pass
+    return False
 
 def xor_encrypt_decrypt(data, key):
   return "".join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(data))

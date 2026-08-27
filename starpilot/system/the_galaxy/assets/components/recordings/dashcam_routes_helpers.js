@@ -1,0 +1,129 @@
+export const MAX_RENDERED_ROUTES = 250
+
+function validDate(value) {
+  if (!value) return null
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+export function formatRouteDate(value, locale) {
+  const date = validDate(value)
+  if (!date) return "Unknown date"
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(date)
+}
+
+export function normalizeRoute(route, locale) {
+  const timestamp = route?.timestamp == null ? null : String(route.timestamp)
+  const startedAtDate = validDate(route?.startedAt)
+  const timestampDate = validDate(timestamp)
+  const displayDate = formatRouteDate(startedAtDate || timestampDate, locale)
+  const isCustomName = Boolean(route?.isCustomName) || Boolean(timestamp && !timestampDate)
+
+  return {
+    ...route,
+    name: String(route?.name || ""),
+    timestamp,
+    startedAt: route?.startedAt || null,
+    isCustomName,
+    displayDate,
+    displayName: isCustomName ? timestamp : displayDate,
+    _startedAtMs: startedAtDate?.getTime() ?? timestampDate?.getTime() ?? null,
+  }
+}
+
+export function sortRoutes(routes, sortOrder = "newest") {
+  const direction = sortOrder === "oldest" ? 1 : -1
+  return [...routes].sort((left, right) => {
+    const leftTime = left?._startedAtMs
+    const rightTime = right?._startedAtMs
+    if (leftTime == null && rightTime == null) return String(left?.name || "").localeCompare(String(right?.name || ""))
+    if (leftTime == null) return 1
+    if (rightTime == null) return -1
+    if (leftTime !== rightTime) return (leftTime - rightTime) * direction
+    return String(left?.name || "").localeCompare(String(right?.name || "")) * -direction
+  })
+}
+
+export function routeMatchesSearch(route, searchQuery) {
+  const query = String(searchQuery || "").trim().toLocaleLowerCase()
+  if (!query) return true
+  return [route?.name, route?.timestamp, route?.displayName, route?.displayDate]
+    .filter(Boolean)
+    .some(value => String(value).toLocaleLowerCase().includes(query))
+}
+
+export function buildRouteView(routes, options = {}) {
+  const matching = sortRoutes(
+    routes.filter(route => (!options.preservedOnly || route.is_preserved) && routeMatchesSearch(route, options.searchQuery)),
+    options.sortOrder,
+  )
+  return {
+    matching,
+    visible: matching.slice(0, MAX_RENDERED_ROUTES),
+    truncated: matching.length > MAX_RENDERED_ROUTES,
+  }
+}
+
+function localDayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+export function groupRoutesByDate(routes, now = new Date(), locale) {
+  const today = validDate(now) || new Date()
+  today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const groups = []
+  const byKey = new Map()
+
+  for (const route of routes) {
+    const routeDate = route?._startedAtMs == null ? null : new Date(route._startedAtMs)
+    const key = routeDate ? localDayKey(routeDate) : "unknown"
+    let group = byKey.get(key)
+    if (!group) {
+      let label = "Unknown date"
+      if (routeDate) {
+        if (key === localDayKey(today)) label = "Today"
+        else if (key === localDayKey(yesterday)) label = "Yesterday"
+        else label = new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(routeDate)
+      }
+      group = { key, label, routes: [] }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+    group.routes.push(route)
+  }
+  return groups
+}
+
+export function formatApproxDuration(seconds) {
+  const minutes = Math.max(0, Math.round(Number(seconds) / 60) || 0)
+  if (minutes < 1) return "Less than 1 min"
+  if (minutes < 60) return `About ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const remaining = minutes % 60
+  return `About ${hours} hr${remaining ? ` ${remaining} min` : ""}`
+}
+
+export function parseStoredSegmentNumber(segmentUrl) {
+  const cleanPath = String(segmentUrl || "").split(/[?#]/, 1)[0]
+  const match = cleanPath.match(/--(\d+)\/?$/)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isSafeInteger(value) ? value : null
+}
+
+export function getSegmentStatus(segmentUrls, playbackIndex) {
+  if (!Array.isArray(segmentUrls) || !Number.isInteger(playbackIndex) || playbackIndex < 0 || playbackIndex >= segmentUrls.length) return ""
+  const segmentNumber = parseStoredSegmentNumber(segmentUrls[playbackIndex])
+  if (segmentNumber == null) return ""
+  return `Segment ${segmentNumber} · ${playbackIndex + 1} of ${segmentUrls.length}`
+}
+
+export function cameraVideoUrl(segmentUrl, camera) {
+  const separator = String(segmentUrl).includes("?") ? "&" : "?"
+  return `${segmentUrl}${separator}camera=${encodeURIComponent(camera)}`
+}

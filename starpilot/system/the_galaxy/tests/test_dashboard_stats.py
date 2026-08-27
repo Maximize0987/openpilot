@@ -59,6 +59,8 @@ sys.modules.setdefault("openpilot.starpilot.assets.theme_manager", theme_manager
 
 import utilities
 
+_REAL_COMMON_PARAMS_MODULE = sys.modules.get("openpilot.common.params")
+
 for _module_name, _module in _INITIAL_MODULES.items():
   if _module is None:
     sys.modules.pop(_module_name, None)
@@ -86,6 +88,8 @@ def _simple_module(name, **attrs):
 
 
 def _install_server_import_stubs():
+  if _REAL_COMMON_PARAMS_MODULE is not None:
+    sys.modules["openpilot.common.params"] = _REAL_COMMON_PARAMS_MODULE
   sys.modules["openpilot.system.loggerd.config"] = loggerd_config
   sys.modules["openpilot.system.loggerd.deleter"] = loggerd_deleter
   sys.modules["openpilot.system.loggerd.uploader"] = loggerd_uploader
@@ -130,6 +134,14 @@ def _install_server_import_stubs():
   )
 
   sys.modules["openpilot.common.realtime"] = _simple_module("openpilot.common.realtime", DT_HW=0.01)
+  sys.modules["openpilot.common.swaglog"] = _simple_module(
+    "openpilot.common.swaglog",
+    cloudlog=SimpleNamespace(
+      error=lambda *args, **kwargs: None,
+      exception=lambda *args, **kwargs: None,
+      info=lambda *args, **kwargs: None,
+    ),
+  )
   sys.modules["openpilot.common.time_helpers"] = _simple_module("openpilot.common.time_helpers", system_time_valid=lambda: True)
   sys.modules["openpilot.system.hardware"] = _simple_module(
     "openpilot.system.hardware",
@@ -149,6 +161,15 @@ def _install_server_import_stubs():
     get_longitudinal_maneuver_support=lambda *args, **kwargs: {},
   )
   sys.modules["panda"] = _simple_module("panda", Panda=lambda *args, **kwargs: SimpleNamespace(can_send=lambda *send_args, **send_kwargs: None))
+  msgq_module = _simple_module("msgq")
+  msgq_visionipc = _simple_module(
+    "msgq.visionipc",
+    VisionIpcClient=lambda *args, **kwargs: SimpleNamespace(connect=lambda *connect_args: False),
+    VisionStreamType=SimpleNamespace(VISION_STREAM_DRIVER=0),
+  )
+  msgq_module.visionipc = msgq_visionipc
+  sys.modules["msgq"] = msgq_module
+  sys.modules["msgq.visionipc"] = msgq_visionipc
 
   model_manager.is_builtin_model_key = lambda value: False
   model_manager.model_key_aliases = lambda value: [value]
@@ -337,17 +358,16 @@ class FakeDashboardAnalyzerProcess:
 
 
 def test_route_inventory_counts_segments_without_video_probing(monkeypatch):
-  segments = [
-    SimpleNamespace(route_name=SimpleNamespace(time_str="route-new")),
-    SimpleNamespace(route_name=SimpleNamespace(time_str="route-new")),
-    SimpleNamespace(route_name=SimpleNamespace(time_str="route-new")),
-    SimpleNamespace(route_name=SimpleNamespace(time_str="route-old")),
-  ]
+  def segment(time_str, segment_num):
+    return SimpleNamespace(route_name=SimpleNamespace(time_str=time_str), segment_num=segment_num)
+
+  # route-new has aged out of its first two segments, so it no longer starts at --0.
+  segments = [segment("route-new", 4), segment("route-new", 2), segment("route-new", 3), segment("route-old", 0)]
   monkeypatch.setattr(utilities, "get_all_segment_names", lambda _path: segments)
 
-  assert utilities.get_routes_with_segment_counts("/tmp/routes") == [
-    ("route-old", 1),
-    ("route-new", 3),
+  assert utilities.get_routes_with_segment_details("/tmp/routes") == [
+    ("route-old", {"segmentCount": 1, "firstSegmentNum": 0}),
+    ("route-new", {"segmentCount": 3, "firstSegmentNum": 2}),
   ]
 
 
