@@ -81,6 +81,24 @@ def test_select_ui_uses_c3_for_all_big_routes():
   assert onroad_config.select_ui_target(None) == "c3"
 
 
+def test_replay_gpu_state_reconstructs_loading_failure_and_restart():
+  state = onroad_config.ReplayGpuState()
+
+  assert state.update(present=True) == (True, False, False, False)
+  assert state.update(event_names=("selfdriveInitializing", "bigModelLoading")) == (True, True, True, False)
+  assert state.update(event_names=("bigModelFailed",), model_updated=True) == (True, True, False, False)
+  assert state.update(model_updated=True) == (True, True, False, False)
+  assert state.update(event_names=("bigModelLoading",)) == (True, True, True, False)
+  assert state.update(model_updated=True) == (True, True, False, True)
+
+
+def test_replay_gpu_state_detects_active_later_segment():
+  state = onroad_config.ReplayGpuState()
+
+  assert state.update(present=True, model_updated=True) == (True, True, False, True)
+  assert state.update(present=False) == (False, False, False, False)
+
+
 def test_seed_onroad_params_uses_logged_disabled_bool_and_desktop_overrides(monkeypatch):
   monkeypatch.setenv("SP_ONROAD_NAV_DEMO", "1")
   params = FakeParams()
