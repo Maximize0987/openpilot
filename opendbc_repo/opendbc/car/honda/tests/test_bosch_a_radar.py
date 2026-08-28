@@ -1107,6 +1107,15 @@ def test_crv_5g_bosch_a_radar_dbc_wired_for_parser_unit_tests():
   assert ri.rcp.bus == CanBus(cp).camera
 
 
+def test_accord_bosch_a_radar_dbc_wired_for_parser_unit_tests():
+  cp = CarInterface.get_non_essential_params(CAR.HONDA_ACCORD)
+  assert cp.radarUnavailable is False
+  ri = CarInterface.RadarInterface(cp)
+  assert ri.bosch_a_radar is True
+  assert ri.rcp is not None
+  assert ri.rcp.bus == CanBus(cp).camera
+
+
 def test_civic_bosch_object_feed_uses_camera_side_acc_can():
   ri = make_radar_interface()
   can = CanBus(CP)
@@ -1127,7 +1136,7 @@ _EXPECTED_BOSCH_A_CARS = frozenset({
   CAR.HONDA_E,
   CAR.HONDA_E_ADVANCE,
 })
-_VERIFIED_BOSCH_A_CARS = frozenset({CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G})
+_VERIFIED_BOSCH_A_CARS = frozenset({CAR.HONDA_ACCORD, CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G})
 
 _EXCLUDED_BOSCH_CARS = [
   CAR.HONDA_CIVIC_2022,
@@ -1159,7 +1168,7 @@ def test_bosch_a_gate_stays_closed_for_non_bosch_a_platforms(car):
 
 
 def test_bosch_a_verified_platform_gate_can_open():
-  for car in (CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G):
+  for car in (CAR.HONDA_ACCORD, CAR.HONDA_CIVIC_BOSCH, CAR.HONDA_CRV_5G):
     cp = CarInterface.get_non_essential_params(car)
     assert cp.radarUnavailable is False
 
@@ -1179,6 +1188,7 @@ def test_bosch_a_toggle_defaults_on_but_allowlist_still_gates_platforms():
   try:
     Params().remove("HondaBoschARadar")
     assert CarInterface.get_non_essential_params(CAR.HONDA_CIVIC_BOSCH).radarUnavailable is False
-    assert CarInterface.get_non_essential_params(CAR.HONDA_ACCORD).radarUnavailable is True
+    assert CarInterface.get_non_essential_params(CAR.HONDA_ACCORD).radarUnavailable is False
+    assert CarInterface.get_non_essential_params(CAR.HONDA_ACCORD_11G).radarUnavailable is True
   finally:
     Params().put_bool("HondaBoschARadar", original)
