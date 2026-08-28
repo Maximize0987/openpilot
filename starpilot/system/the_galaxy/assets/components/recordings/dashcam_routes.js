@@ -340,6 +340,7 @@ async function openOverlay(route) {
   const [videoA, videoB] = overlay.querySelectorAll(".dashcam-video")
   let activeVideo = videoA
   let stagingVideo = videoB
+  const videoShell = overlay.querySelector(".dashcam-video-shell")
   const playerState = overlay.querySelector(".dashcam-player-state")
   const segmentBar = overlay.querySelector(".dashcam-segment-bar")
   const segmentSelect = overlay.querySelector(".segment-select")
@@ -579,6 +580,9 @@ async function openOverlay(route) {
     cancelUpgrade()
     wantsPlayback = autoplay
     showingPreview = preview === undefined ? supportsLowQuality(camera) : preview
+    // qcamera.ts scales the complete road frame to 526x330. Keep that same mapping
+    // after the full stream arrives so its slightly wider aspect ratio is not cropped.
+    videoShell.classList.toggle("qcamera-framing", showingPreview)
     if (message) setPlayerMessage(message)
 
     stagingVideo.pause()

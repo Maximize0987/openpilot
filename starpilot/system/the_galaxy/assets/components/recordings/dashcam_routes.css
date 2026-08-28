@@ -1277,6 +1277,11 @@
   width: 100% !important;
 }
 
+.dashcam-player-overlay .dashcam-player .dashcam-video-shell.qcamera-framing video {
+  /* qcamera.ts is a full-frame, non-uniform scale; mirror it to prevent a crop/FOV jump. */
+  object-fit: fill;
+}
+
 .dashcam-player-overlay .dashcam-player .dashcam-video-shell video.active {
   opacity: 1;
   pointer-events: auto;

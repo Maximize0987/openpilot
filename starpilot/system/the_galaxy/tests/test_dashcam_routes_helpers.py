@@ -97,6 +97,9 @@ def test_player_shell_keeps_both_quality_levels_at_one_fixed_size():
   assert "height: 100% !important;" in source
   assert "width: 100% !important;" in source
   assert "object-fit: cover;" in source
+  assert ".dashcam-video-shell.qcamera-framing video" in source
+  assert "object-fit: fill;" in source
+  assert 'videoShell.classList.toggle("qcamera-framing", showingPreview)' in component
   assert "deferNativeControlsUntilInteraction(stagingVideo)" in component
   assert "stagingVideo.controls = true" not in component
 
