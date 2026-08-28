@@ -177,6 +177,11 @@ export function buildRouteView(routes, options = {}) {
   }
 }
 
+export function routeViewRenderKey(routes, sortOrder = "newest", viewMode = "list") {
+  const routeNames = Array.isArray(routes) ? routes.map(route => String(route?.name || "")).join(",") : ""
+  return `${viewMode}:${sortOrder}:${routeNames}`
+}
+
 function localDayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }

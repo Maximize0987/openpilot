@@ -83,7 +83,7 @@ def test_sort_order_select_and_route_items_are_keyed_and_reactive():
   source = COMPONENT_PATH.read_text(encoding="utf-8")
 
   assert '<select value="${() => state.sortOrder}" @input="${changeSortOrder}" @change="${changeSortOrder}">' in source
-  assert "state.routes = [...state.routes]" in source
+  assert 'data-view-key="${renderKey}"' in source
   assert ".key(group.key)" in source
   assert ".key(route.name)" in source
 
@@ -262,6 +262,19 @@ def test_date_sorts_still_group_by_day():
   """)
 
   assert labels == ["August 22, 2026", "August 20, 2026"]
+
+
+def test_route_view_render_key_changes_with_displayed_order_and_mode():
+  result = evaluate('''
+    const routes = [{ name: "a" }, { name: "b" }]
+    return [
+      routeViewRenderKey(routes, "newest", "list"),
+      routeViewRenderKey([...routes].reverse(), "oldest", "list"),
+      routeViewRenderKey(routes, "newest", "grid"),
+    ]
+  ''')
+
+  assert result == ["list:newest:a,b", "list:oldest:b,a", "grid:newest:a,b"]
 
 
 def test_grouping_an_empty_list_yields_no_groups():

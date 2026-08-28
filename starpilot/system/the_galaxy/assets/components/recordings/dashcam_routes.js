@@ -12,6 +12,7 @@ import {
   groupRoutesForView,
   MAX_RENDERED_ROUTES,
   normalizeRoute,
+  routeViewRenderKey,
 } from "/assets/components/recordings/dashcam_routes_helpers.js"
 
 const state = reactive({
@@ -114,8 +115,6 @@ function changeSortOrder(event) {
   const sortOrder = String(event.target.value || "")
   if (!["newest", "oldest", "longest", "shortest"].includes(sortOrder)) return
   state.sortOrder = sortOrder
-  // Replacing the array forces the keyed route templates to move immediately.
-  state.routes = [...state.routes]
 }
 
 if (!isGalaxyTunnel()) refresh()
@@ -853,6 +852,7 @@ export function RouteRecordings() {
         ${() => {
           const view = buildRouteView(state.routes, { preservedOnly: state.showPreservedOnly, searchQuery: state.searchQuery, sortOrder: state.sortOrder })
           const groups = groupRoutesForView(view.visible, state.sortOrder)
+          const renderKey = routeViewRenderKey(view.visible, state.sortOrder, state.viewMode)
 
           return html`
             <div class="dashcam-results-summary" aria-live="polite">
@@ -863,7 +863,7 @@ export function RouteRecordings() {
             ${state.isDeletingAll ? html`<p class="screen-recordings-message">Deleting routes&hellip;</p>` : ""}
             ${!view.visible.length && state.loading ? html`<div class="dashcam-loading"><span></span><p>Finding local routes&hellip;</p></div>` : ""}
             ${!view.visible.length && !state.loading && !state.isDeletingAll ? html`<div class="dashcam-empty-state"><i class="bi bi-camera-reels"></i><p>${state.routes.length ? "No routes match these filters." : "No routes found."}</p></div>` : ""}
-            <div class="dashcam-date-groups">
+            <div class="dashcam-date-groups" data-view-key="${renderKey}">
               ${groups.map(group => html`
                 <section class="dashcam-date-group">
                   <div class="dashcam-date-group-header">
