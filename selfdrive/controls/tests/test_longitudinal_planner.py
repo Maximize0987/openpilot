@@ -329,8 +329,8 @@ def test_crv_far_follow_output_slew_damps_nonurgent_lead_transition():
   planner.lead_two = make_lead(status=False)
 
   brake_rate, release_rate = get_far_follow_output_slew_rates(CP)
-  assert brake_rate == pytest.approx(2.5)
-  assert release_rate == pytest.approx(1.75)
+  assert brake_rate == pytest.approx(1.5)
+  assert release_rate == pytest.approx(1.0)
 
   initial = planner.get_vehicle_far_follow_slew_target(
     v_ego, prev_target=0.0, target=-0.6, output_should_stop=False, panic_bypass=False,
@@ -341,6 +341,45 @@ def test_crv_far_follow_output_slew_damps_nonurgent_lead_transition():
 
   assert initial == pytest.approx(-0.6)
   assert smoothed == pytest.approx(initial + release_rate * planner.dt)
+
+
+def test_accord_far_follow_output_slew_damps_nonurgent_radar_transition():
+  v_ego = 24.0
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_ACCORD)
+  planner = LongitudinalPlanner(CP, init_v=v_ego)
+  planner.lead_one = make_lead(status=True, d_rel=58.0, v_lead=20.0, radar=True, model_prob=0.99)
+  planner.lead_two = make_lead(status=False)
+
+  brake_rate, release_rate = get_far_follow_output_slew_rates(CP)
+  assert brake_rate == pytest.approx(2.0)
+  assert release_rate == pytest.approx(1.5)
+
+  initial = planner.get_vehicle_far_follow_slew_target(
+    v_ego, prev_target=0.0, target=-0.6, output_should_stop=False, panic_bypass=False,
+  )
+  smoothed = planner.get_vehicle_far_follow_slew_target(
+    v_ego, prev_target=initial, target=0.4, output_should_stop=False, panic_bypass=False,
+  )
+
+  assert initial == pytest.approx(-0.6)
+  assert smoothed == pytest.approx(initial + release_rate * planner.dt)
+
+
+@pytest.mark.parametrize("output_should_stop,panic_bypass", [(True, False), (False, True)])
+def test_accord_far_follow_output_slew_bypasses_urgent_scenes(output_should_stop, panic_bypass):
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_ACCORD)
+  planner = LongitudinalPlanner(CP, init_v=24.0)
+  planner.lead_one = make_lead(status=True, d_rel=58.0, v_lead=20.0, radar=True, model_prob=0.99)
+  planner.lead_two = make_lead(status=False)
+  planner.far_follow_output_slew_active = True
+
+  target = planner.get_vehicle_far_follow_slew_target(
+    24.0, prev_target=0.4, target=-1.0,
+    output_should_stop=output_should_stop, panic_bypass=panic_bypass,
+  )
+
+  assert target == pytest.approx(-1.0)
+  assert not planner.far_follow_output_slew_active
 
 
 @pytest.mark.parametrize("d_rel,v_lead,output_should_stop,panic_bypass", [
@@ -755,6 +794,7 @@ def test_lightning_stopped_lead_guard_tune_is_vehicle_specific():
   assert get_standstill_stopped_lead_guard_distance_margin(civic) == pytest.approx(3.0)
   assert get_standstill_stopped_lead_guard_max_lead_speed(lightning, 0.45) == pytest.approx(0.60)
   assert get_standstill_stopped_lead_guard_max_lead_speed(civic, 0.45) == pytest.approx(0.45)
+  assert get_standstill_gap_settle_max_extra_gap(lightning) == pytest.approx(3.0)
   assert get_tracked_lead_catchup_headway_margins(lightning) == pytest.approx((0.10, 0.25))
   assert get_tracked_lead_catchup_bias_gain(lightning) == pytest.approx(0.65)
   assert get_tracked_lead_catchup_headway_margins(civic) is None

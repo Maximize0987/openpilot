@@ -1176,6 +1176,14 @@ RAV4_TSS2_PID_CENTER_ANGLE = 14.0
 RAV4_TSS2_PID_CENTER_ANGLE_WIDTH = 3.0
 RAV4_TSS2_PID_OUTPUT_SCALE_MIN = 0.62
 RAV4_TSS2_PID_OUTPUT_ALPHA_MIN = 0.28
+
+HONDA_CRV_5G_PID_LOW_SPEED = 18.0 * CV.MPH_TO_MS
+HONDA_CRV_5G_PID_LOW_SPEED_WIDTH = 3.0 * CV.MPH_TO_MS
+HONDA_CRV_5G_PID_CENTER_ANGLE = 14.0
+HONDA_CRV_5G_PID_CENTER_ANGLE_WIDTH = 3.0
+HONDA_CRV_5G_PID_OUTPUT_SCALE_MIN = 0.62
+HONDA_CRV_5G_PID_OUTPUT_ALPHA_MIN = 0.28
+
 RAV4_TSS2_CENTER_FRICTION_THRESHOLD_GAIN = 0.14
 RAV4_TSS2_CENTER_FRICTION_LAT = 0.30
 RAV4_TSS2_CENTER_FRICTION_LAT_WIDTH = 0.08
@@ -1804,6 +1812,21 @@ def get_rav4_tss2_pid_output(output_torque: float, prev_output_torque: float,
 
   output_scale = 1.0 - ((1.0 - RAV4_TSS2_PID_OUTPUT_SCALE_MIN) * envelope)
   output_alpha = 1.0 - ((1.0 - RAV4_TSS2_PID_OUTPUT_ALPHA_MIN) * envelope)
+  limited_output = output_torque * output_scale
+  return float(prev_output_torque + output_alpha * (limited_output - prev_output_torque))
+
+
+def get_honda_crv_5g_pid_output(output_torque: float, prev_output_torque: float,
+                                desired_angle_deg: float, v_ego: float) -> float:
+  """Damp low-speed CR-V 5G center reversals without blunting real turns."""
+  speed_weight = _sigmoid((HONDA_CRV_5G_PID_LOW_SPEED - max(v_ego, 0.0)) /
+                          HONDA_CRV_5G_PID_LOW_SPEED_WIDTH)
+  center_weight = _sigmoid((HONDA_CRV_5G_PID_CENTER_ANGLE - abs(desired_angle_deg)) /
+                           HONDA_CRV_5G_PID_CENTER_ANGLE_WIDTH)
+  envelope = speed_weight * center_weight
+
+  output_scale = 1.0 - ((1.0 - HONDA_CRV_5G_PID_OUTPUT_SCALE_MIN) * envelope)
+  output_alpha = 1.0 - ((1.0 - HONDA_CRV_5G_PID_OUTPUT_ALPHA_MIN) * envelope)
   limited_output = output_torque * output_scale
   return float(prev_output_torque + output_alpha * (limited_output - prev_output_torque))
 

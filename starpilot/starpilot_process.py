@@ -203,7 +203,7 @@ def transition_onroad(error_log):
     error_log.unlink()
 
 def update_checks(now, model_manager, theme_manager, thread_manager, params, params_memory, starpilot_toggles, boot_run=False):
-  while not (is_url_pingable("https://github.com") or is_url_pingable("https://gitlab.com")):
+  while not (is_url_pingable("https://huggingface.co") or is_url_pingable("https://github.com")):
     time.sleep(60)
 
   model_manager.update_models(boot_run)

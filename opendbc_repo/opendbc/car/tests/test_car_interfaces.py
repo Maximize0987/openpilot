@@ -323,6 +323,7 @@ class TestCarInterfaces:
     )
 
     assert fp_car_params.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.AOL_LKAS_ON_ENGAGE.value
+    assert fp_car_params.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.AOL_MAIN_LKAS_ON_ENGAGE.value
 
   def test_toyota_disable_openpilot_long_sets_stock_long_safety_flag(self):
     CarInterface = interfaces[TOYOTA_CAR.TOYOTA_PRIUS_TSS2]
