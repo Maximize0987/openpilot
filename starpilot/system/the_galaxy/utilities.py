@@ -12,6 +12,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -748,6 +749,50 @@ def ffmpeg_concat_segments_to_mp4(input_files, cache_key=None):
       list_file.unlink()
 
   return open(cache_path, "rb")
+
+
+def ffmpeg_stream_concatenated_mp4(input_files, chunk_size=256 * 1024):
+  """Stream-copy camera segments as fragmented MP4 without building a full cache file."""
+  if not input_files:
+    raise ValueError("No input files provided for concatenation")
+
+  VIDEO_CACHE_PATH.mkdir(exist_ok=True)
+  with tempfile.NamedTemporaryFile("w", suffix=".txt", prefix="route-download-", dir=VIDEO_CACHE_PATH, delete=False) as list_file:
+    list_path = Path(list_file.name)
+    for segment in input_files:
+      list_file.write(f"file '{Path(segment)}'\n")
+
+  process = None
+  try:
+    process = subprocess.Popen(
+      [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
+       "-i", str(list_path), "-c", "copy", "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+       "-f", "mp4", "pipe:1"],
+      stdout=subprocess.PIPE,
+      stderr=subprocess.DEVNULL,
+    )
+    while True:
+      chunk = process.stdout.read(chunk_size)
+      if not chunk:
+        break
+      yield chunk
+    if process.wait() != 0:
+      raise ValueError("Could not stream the combined route video")
+  finally:
+    if process is not None:
+      if process.stdout is not None:
+        process.stdout.close()
+      if process.poll() is None:
+        process.terminate()
+        try:
+          process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+          process.kill()
+          process.wait()
+    try:
+      list_path.unlink()
+    except OSError:
+      pass
 
 def ffmpeg_mp4_wrap_to_path(filename):
   """Remux one raw .hevc segment to mp4 and return the cache path.

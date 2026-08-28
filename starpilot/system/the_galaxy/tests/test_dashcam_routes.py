@@ -487,6 +487,46 @@ def test_video_cache_never_evicts_the_entry_being_written(monkeypatch, tmp_path)
   assert keep.exists()
 
 
+def test_combined_video_streams_fragmented_mp4_without_a_full_cache_file(monkeypatch, tmp_path):
+  cache = tmp_path / "video_cache"
+  first = tmp_path / "first.hevc"
+  second = tmp_path / "second.hevc"
+  first.write_bytes(b"first")
+  second.write_bytes(b"second")
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_PATH", cache)
+  captured = {}
+
+  class FakeProcess:
+    def __init__(self):
+      self.stdout = io.BytesIO(b"streamed-video")
+      self.returncode = None
+
+    def wait(self, timeout=None):
+      self.returncode = 0
+      return 0
+
+    def poll(self):
+      return self.returncode
+
+  def popen(command, **kwargs):
+    captured["command"] = command
+    list_path = Path(command[command.index("-i") + 1])
+    captured["list_path"] = list_path
+    captured["list_contents"] = list_path.read_text()
+    return FakeProcess()
+
+  monkeypatch.setattr(utilities.subprocess, "Popen", popen)
+
+  payload = b"".join(utilities.ffmpeg_stream_concatenated_mp4([first, second], chunk_size=4))
+
+  assert payload == b"streamed-video"
+  assert "frag_keyframe+empty_moov+default_base_moof" in captured["command"]
+  assert captured["command"][-1] == "pipe:1"
+  assert captured["list_contents"] == f"file '{first}'\nfile '{second}'\n"
+  assert not captured["list_path"].exists()
+  assert not list(cache.glob("*.mp4"))
+
+
 def _stub_remux(monkeypatch, tmp_path, payload=b"wrapped-video"):
   """Stand in for the ffmpeg remux, returning a real file so send_file can stream it."""
   wrapped = tmp_path / "wrapped.mp4"
@@ -501,7 +541,7 @@ def test_sparse_route_metadata_and_video_downloads(monkeypatch, tmp_path):
     (segment / "fcamera.hevc").write_bytes(b"hevc")
   monkeypatch.setattr(utilities, "get_route_start_time", lambda path: datetime(2026, 8, 26, tzinfo=timezone.utc))
   _stub_remux(monkeypatch, tmp_path)
-  monkeypatch.setattr(utilities, "ffmpeg_concat_segments_to_mp4", lambda paths, cache_key=None: io.BytesIO(b"combined-video"))
+  monkeypatch.setattr(utilities, "ffmpeg_stream_concatenated_mp4", lambda paths: iter((b"combined-", b"video")))
   client = _make_client(monkeypatch, tmp_path)
 
   metadata = client.get(f"/api/routes/{ROUTE_NAME}")
@@ -519,6 +559,7 @@ def test_sparse_route_metadata_and_video_downloads(monkeypatch, tmp_path):
   assert combined_video.status_code == 200
   assert combined_video.mimetype == "video/mp4"
   assert combined_video.data == b"combined-video"
+  assert combined_video.headers["X-Accel-Buffering"] == "no"
 
 
 def test_route_metadata_never_probes_segments_with_ffprobe(monkeypatch, tmp_path):

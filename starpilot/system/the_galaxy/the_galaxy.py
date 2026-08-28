@@ -6506,8 +6506,10 @@ def setup(app):
         if not input_files:
           return {"error": "No video files found"}, 404
 
-        mp4_file = utilities.ffmpeg_concat_segments_to_mp4(input_files, cache_key=f"{name}-{camera}")
-        return send_file(mp4_file, mimetype="video/mp4")
+        response = Response(utilities.ffmpeg_stream_concatenated_mp4(input_files), mimetype="video/mp4")
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Accel-Buffering"] = "no"
+        return response
 
     return {"error": "Route not found"}, 404
 
