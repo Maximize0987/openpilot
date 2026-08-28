@@ -15,6 +15,7 @@ import pytest
 
 HELPERS_PATH = Path(__file__).resolve().parent.parent / "assets" / "components" / "recordings" / "dashcam_routes_helpers.js"
 COMPONENT_PATH = HELPERS_PATH.with_name("dashcam_routes.js")
+COMPONENT_CSS_PATH = HELPERS_PATH.with_name("dashcam_routes.css")
 
 # node infers ESM from `export` syntax in a bare .js file from 22.7 on, so the helpers
 # need no package.json and stay a normal asset next to the component that imports them.
@@ -78,6 +79,12 @@ def test_route_titles_and_custom_name_badges_are_reactive():
   assert source.count('${() => route.isCustomName ? html`') >= 4
 
 
+def test_player_shell_matches_low_quality_video_aspect_ratio():
+  source = COMPONENT_CSS_PATH.read_text(encoding="utf-8")
+
+  assert "aspect-ratio: 526 / 330;" in source
+
+
 def test_groups_routes_into_today_yesterday_dates_and_unknown():
   groups = evaluate('''
     const routes = [
@@ -127,6 +134,33 @@ def test_searches_custom_names_displayed_dates_and_route_ids():
   ''')
 
   assert matches == [1, 1, 1, 0]
+
+
+def test_search_matches_partial_title_tokens_and_friendly_dates_as_the_user_types():
+  result = evaluate('''
+    const routes = [
+      route("0000006a--9f0a7bdf9c", "2026-08-27T08:00:00Z", { timestamp: "Test_31", isCustomName: true }),
+      route("0000006b--9f0a7bdf9d", "2026-08-28T08:00:00Z", { timestamp: "Morning drive", isCustomName: true }),
+      route("0000006c--9f0a7bdf9e", "2026-09-27T08:00:00Z", { timestamp: "Test_4", isCustomName: true }),
+    ]
+    return ["test", "test 3", "aug", "aug 2", "aug 27th", "8/27"]
+      .map(searchQuery => buildRouteView(routes, { searchQuery }).matching.map(item => item.name))
+  ''')
+
+  assert result == [
+    ["0000006c--9f0a7bdf9e", "0000006a--9f0a7bdf9c"],
+    ["0000006a--9f0a7bdf9c"],
+    ["0000006b--9f0a7bdf9d", "0000006a--9f0a7bdf9c"],
+    ["0000006b--9f0a7bdf9d", "0000006a--9f0a7bdf9c"],
+    ["0000006a--9f0a7bdf9c"],
+    ["0000006a--9f0a7bdf9c"],
+  ]
+
+
+def test_route_search_input_updates_on_every_keystroke():
+  source = COMPONENT_PATH.read_text(encoding="utf-8")
+
+  assert '@input="${event => { state.searchQuery = event.target.value }}"' in source
 
 
 def test_filters_preserved_routes_before_applying_the_render_limit():

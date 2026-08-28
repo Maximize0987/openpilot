@@ -6,6 +6,16 @@ function validDate(value) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+export function normalizeRouteSearchText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLocaleLowerCase()
+    .replace(/(\d+)(?:st|nd|rd|th)\b/g, "$1")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+}
+
 export function formatRouteDate(value, locale) {
   const date = validDate(value)
   if (!date) return "Unknown date"
@@ -19,8 +29,17 @@ export function normalizeRoute(route, locale) {
   const timestamp = route?.timestamp == null ? null : String(route.timestamp)
   const startedAtDate = validDate(route?.startedAt)
   const timestampDate = validDate(timestamp)
-  const displayDate = formatRouteDate(startedAtDate || timestampDate, locale)
+  const routeDate = startedAtDate || timestampDate
+  const displayDate = formatRouteDate(routeDate, locale)
   const isCustomName = Boolean(route?.isCustomName) || Boolean(timestamp && !timestampDate)
+  const displayName = isCustomName ? timestamp : displayDate
+  const dateAliases = routeDate ? [
+    new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(routeDate),
+    new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(routeDate),
+    new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(routeDate),
+    `${routeDate.getMonth() + 1}/${routeDate.getDate()}/${routeDate.getFullYear()}`,
+    `${routeDate.getFullYear()}-${routeDate.getMonth() + 1}-${routeDate.getDate()}`,
+  ] : []
 
   return {
     ...route,
@@ -29,8 +48,13 @@ export function normalizeRoute(route, locale) {
     startedAt: route?.startedAt || null,
     isCustomName,
     displayDate,
-    displayName: isCustomName ? timestamp : displayDate,
+    displayName,
     _startedAtMs: startedAtDate?.getTime() ?? timestampDate?.getTime() ?? null,
+    _searchValues: [
+      normalizeRouteSearchText(route?.name),
+      normalizeRouteSearchText(isCustomName ? displayName : ""),
+      ...dateAliases.map(normalizeRouteSearchText),
+    ].filter(Boolean),
   }
 }
 
@@ -96,11 +120,19 @@ export function sortRoutes(routes, sortOrder = "newest") {
 }
 
 export function routeMatchesSearch(route, searchQuery) {
-  const query = String(searchQuery || "").trim().toLocaleLowerCase()
-  if (!query) return true
-  return [route?.name, route?.timestamp, route?.displayName, route?.displayDate]
-    .filter(Boolean)
-    .some(value => String(value).toLocaleLowerCase().includes(query))
+  const queryTokens = normalizeRouteSearchText(searchQuery).split(" ").filter(Boolean)
+  if (!queryTokens.length) return true
+
+  const searchValues = Array.isArray(route?._searchValues) ? route._searchValues : [
+    route?.name,
+    route?.timestamp,
+    route?.displayName,
+    route?.displayDate,
+  ].map(normalizeRouteSearchText).filter(Boolean)
+  return searchValues.some(value => {
+    const searchTokens = value.split(" ").filter(Boolean)
+    return queryTokens.every(queryToken => searchTokens.some(searchToken => searchToken.includes(queryToken)))
+  })
 }
 
 export function buildRouteView(routes, options = {}) {
