@@ -285,6 +285,19 @@ def seed_logged_params(init_data: Any | None, params: Params) -> int:
   return seeded
 
 
+def _model_uses_external_gpu(model_key: str) -> bool:
+  from openpilot.starpilot.assets.model_manager import model_uses_external_gpu
+
+  return model_uses_external_gpu(model_key)
+
+
+def seed_replay_gpu_model(init_data: Any | None, params: Params) -> None:
+  raw_model = logged_params(init_data).get("Model", b"")
+  model_key = raw_model.decode("utf-8", errors="replace").strip()
+  if model_key and _model_uses_external_gpu(model_key):
+    params.put_bool("UsbGpuCompiled", True)
+
+
 def seed_nav_offroad_preview(params: Params) -> None:
   secret = params.get("MapboxSecretKey", encoding="utf-8") or ""
   if not str(secret).strip():
@@ -312,6 +325,7 @@ def seed_desktop_overrides(params: Params) -> None:
 def seed_onroad_params(init_data: Any | None, params: Params | None = None) -> int:
   params = params or Params()
   seeded = seed_logged_params(init_data, params)
+  seed_replay_gpu_model(init_data, params)
   seed_desktop_overrides(params)
   return seeded
 
@@ -337,7 +351,7 @@ def _cmd_sync_gpu() -> int:
 
   params = Params()
   sm = messaging.SubMaster(["deviceState", "onroadEvents", "modelV2"])
-  state = ReplayGpuState()
+  state = ReplayGpuState(compiled=params.get_bool("UsbGpuCompiled"))
   last_values: tuple[bool, bool, bool, bool] | None = None
 
   while True:
