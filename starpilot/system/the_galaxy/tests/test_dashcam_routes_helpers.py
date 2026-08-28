@@ -200,6 +200,17 @@ def test_route_search_input_updates_on_every_keystroke():
   assert '@input="${event => { state.searchQuery = event.target.value }}"' in source
 
 
+def test_route_summary_only_shows_loading_or_active_search_status():
+  source = COMPONENT_PATH.read_text(encoding="utf-8")
+
+  assert "const hasActiveSearch = Boolean(state.searchQuery.trim())" in source
+  assert '${state.loading || hasActiveSearch ? html`' in source
+  assert '${hasActiveSearch ? html`<span>${view.matching.length} matching drive' in source
+  assert '${state.loading ? html`<span>Loading routes</span>` : ""}' in source
+  assert "Loading ${state.progress} of ${state.total}" not in source
+  assert "total local" not in source
+
+
 def test_search_indexes_the_displayed_time_for_every_route():
   result = evaluate('''
     const routes = [
@@ -366,6 +377,22 @@ def test_camera_video_url_carries_an_optional_quality_tier():
 
   assert result["full"] == "/video/0000006a--9f0a7bdf9c--7?camera=forward"
   assert result["low"] == "/video/0000006a--9f0a7bdf9c--7?camera=forward&quality=low"
+
+
+def test_route_metadata_errors_explain_missing_local_segments():
+  result = evaluate('''
+    return {
+      missing: routeMetadataErrorMessage(404, "Route not found"),
+      backend: routeMetadataErrorMessage(400, "Invalid route name"),
+      fallback: routeMetadataErrorMessage(503),
+    }
+  ''')
+
+  assert result == {
+    "missing": "This route is no longer available on this device. Its local video segments may have been deleted or moved.",
+    "backend": "Invalid route name",
+    "fallback": "Could not load route details (503).",
+  }
 
 
 def test_only_the_road_camera_has_a_preview():

@@ -12,6 +12,7 @@ import {
   groupRoutesForView,
   MAX_RENDERED_ROUTES,
   normalizeRoute,
+  routeMetadataErrorMessage,
   routeViewRenderKey,
 } from "/assets/components/recordings/dashcam_routes_helpers.js"
 
@@ -738,8 +739,8 @@ async function openOverlay(route) {
 
   try {
     const response = await fetch(`/api/routes/${route.name}`)
-    if (!response.ok) throw new Error(`Route metadata request failed (${response.status})`)
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(routeMetadataErrorMessage(response.status, data?.error))
     segments = Array.isArray(data.segment_urls) ? data.segment_urls.filter(url => typeof url === "string") : []
     const availableCameras = ["forward", "wide", "driver"].filter(camera => data.available_cameras?.includes(camera))
     if (!segments.length) throw new Error("No video segments are stored for this route")
@@ -884,12 +885,15 @@ export function RouteRecordings() {
           const view = buildRouteView(state.routes, { preservedOnly: state.showPreservedOnly, searchQuery: state.searchQuery, sortOrder: state.sortOrder })
           const groups = groupRoutesForView(view.visible, state.sortOrder)
           const renderKey = routeViewRenderKey(view.visible, state.sortOrder, state.viewMode)
+          const hasActiveSearch = Boolean(state.searchQuery.trim())
 
           return html`
-            <div class="dashcam-results-summary" aria-live="polite">
-              <span>${view.matching.length} matching drive${view.matching.length === 1 ? "" : "s"}</span>
-              ${state.loading ? html`<span>Loading ${state.progress} of ${state.total}</span>` : html`<span>${state.routes.length} total local</span>`}
-            </div>
+            ${state.loading || hasActiveSearch ? html`
+              <div class="dashcam-results-summary" aria-live="polite">
+                ${hasActiveSearch ? html`<span>${view.matching.length} matching drive${view.matching.length === 1 ? "" : "s"}</span>` : ""}
+                ${state.loading ? html`<span>Loading routes</span>` : ""}
+              </div>
+            ` : ""}
             ${state.error ? html`<p class="screen-recordings-message dashcam-error">${state.error}</p>` : ""}
             ${state.isDeletingAll ? html`<p class="screen-recordings-message">Deleting routes&hellip;</p>` : ""}
             ${!view.visible.length && state.loading ? html`<div class="dashcam-loading"><span></span><p>Finding local routes&hellip;</p></div>` : ""}

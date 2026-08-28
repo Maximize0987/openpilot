@@ -264,6 +264,14 @@ export function cameraVideoUrl(segmentUrl, camera, quality) {
   return quality ? `${url}&quality=${encodeURIComponent(quality)}` : url
 }
 
+export function routeMetadataErrorMessage(status, serverError) {
+  if (status === 404) {
+    return "This route is no longer available on this device. Its local video segments may have been deleted or moved."
+  }
+  const detail = String(serverError || "").trim()
+  return detail || `Could not load route details (${status}).`
+}
+
 // loggerd only writes qcamera.ts alongside the road camera.
 export function supportsLowQuality(camera) {
   return camera === "forward"
