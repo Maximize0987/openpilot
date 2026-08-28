@@ -90,9 +90,15 @@ def test_sort_order_select_and_route_items_are_keyed_and_reactive():
 
 def test_player_shell_keeps_both_quality_levels_at_one_fixed_size():
   source = COMPONENT_CSS_PATH.read_text(encoding="utf-8")
+  component = COMPONENT_PATH.read_text(encoding="utf-8")
 
   assert "aspect-ratio: 526 / 330;" in source
+  assert "contain: layout paint;" in source
+  assert "height: 100% !important;" in source
+  assert "width: 100% !important;" in source
   assert "object-fit: cover;" in source
+  assert "deferNativeControlsUntilInteraction(stagingVideo)" in component
+  assert "stagingVideo.controls = true" not in component
 
 
 def test_groups_routes_into_today_yesterday_dates_and_unknown():

@@ -1257,6 +1257,7 @@
   /* Match qcamera.ts so the visible frame does not widen during the full-quality swap. */
   aspect-ratio: 526 / 330;
   background: #07080b;
+  contain: layout paint;
   overflow: hidden;
   position: relative;
   width: 100%;
@@ -1264,12 +1265,16 @@
 
 .dashcam-player-overlay .dashcam-player .dashcam-video-shell video {
   border-radius: 0;
-  height: 100%;
+  display: block;
+  height: 100% !important;
   inset: 0;
-  /* Keep the visible frame size fixed when qcamera swaps to a wider full stream. */
+  max-height: none;
+  max-width: none;
+  /* Crop both encodes into the same viewport instead of letting intrinsic media sizing win. */
   object-fit: cover;
+  object-position: center center;
   position: absolute;
-  width: 100%;
+  width: 100% !important;
 }
 
 .dashcam-player-overlay .dashcam-player .dashcam-video-shell video.active {
