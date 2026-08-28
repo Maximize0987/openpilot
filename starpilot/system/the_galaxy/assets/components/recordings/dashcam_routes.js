@@ -825,11 +825,11 @@ export function RouteRecordings() {
           </div>
           <label class="dashcam-sort">
             <span>Sort</span>
-            <select @change="${event => { state.sortOrder = event.target.value }}">
-              <option value="newest" selected="${() => state.sortOrder === "newest" || false}">Newest first</option>
-              <option value="oldest" selected="${() => state.sortOrder === "oldest" || false}">Oldest first</option>
-              <option value="longest" selected="${() => state.sortOrder === "longest" || false}">Longest duration</option>
-              <option value="shortest" selected="${() => state.sortOrder === "shortest" || false}">Shortest duration</option>
+            <select value="${() => state.sortOrder}" @change="${event => { state.sortOrder = event.target.value }}">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="longest">Longest duration</option>
+              <option value="shortest">Shortest duration</option>
             </select>
           </label>
           <div class="dashcam-view-toggle" aria-label="Layout view mode">
@@ -862,7 +862,7 @@ export function RouteRecordings() {
                     <h2>${group.label}</h2>
                     <span class="dashcam-date-group-count">${group.routes.length} ${group.routes.length === 1 ? "drive" : "drives"}</span>
                   </div>
-                  ${() => state.viewMode === "grid" ? html`<div class="screen-recordings-grid dashcam-routes-grid">
+                  ${state.viewMode === "grid" ? html`<div class="screen-recordings-grid dashcam-routes-grid">
                       ${group.routes.map(route => html`
                         <article class="${() => `recording-card dashcam-route-card ${route.is_preserved ? "is-preserved" : ""}`}" @click="${() => { state.selectedRoute = route }}">
                           <div class="dashcam-card-top-bar">
@@ -901,7 +901,7 @@ export function RouteRecordings() {
                               </button>
                             </div>
                           </div>
-                        </article>`)}
+                        </article>`.key(route.name))}
                     </div>` : html`<div class="dashcam-routes-list">
                       ${group.routes.map(route => html`
                         <article class="${() => `dashcam-route-row ${route.is_preserved ? "is-preserved" : ""}`}" @click="${() => { state.selectedRoute = route }}">
@@ -940,9 +940,9 @@ export function RouteRecordings() {
                               <i class="bi bi-trash"></i>
                             </button>
                           </div>
-                        </article>`)}
+                        </article>`.key(route.name))}
                     </div>`}
-                </section>`)}
+                </section>`.key(group.key))}
             </div>
             ${view.truncated ? html`<p class="screen-recordings-message">Showing the first ${MAX_RENDERED_ROUTES} of ${view.matching.length} matching routes.</p>` : ""}`
         }}

@@ -40,6 +40,11 @@ export function normalizeRoute(route, locale) {
     `${routeDate.getMonth() + 1}/${routeDate.getDate()}/${routeDate.getFullYear()}`,
     `${routeDate.getFullYear()}-${routeDate.getMonth() + 1}-${routeDate.getDate()}`,
   ] : []
+  const timeAliases = routeDate ? [
+    new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(routeDate),
+    new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(routeDate),
+    `${String(routeDate.getHours()).padStart(2, "0")}:${String(routeDate.getMinutes()).padStart(2, "0")}`,
+  ] : []
 
   return {
     ...route,
@@ -54,6 +59,7 @@ export function normalizeRoute(route, locale) {
       normalizeRouteSearchText(route?.name),
       normalizeRouteSearchText(isCustomName ? displayName : ""),
       ...dateAliases.map(normalizeRouteSearchText),
+      ...timeAliases.map(normalizeRouteSearchText),
     ].filter(Boolean),
   }
 }
@@ -120,7 +126,8 @@ export function sortRoutes(routes, sortOrder = "newest") {
 }
 
 export function routeMatchesSearch(route, searchQuery) {
-  const queryTokens = normalizeRouteSearchText(searchQuery).split(" ").filter(Boolean)
+  const normalizedQuery = normalizeRouteSearchText(searchQuery)
+  const queryTokens = normalizedQuery.split(" ").filter(Boolean)
   if (!queryTokens.length) return true
 
   const searchValues = Array.isArray(route?._searchValues) ? route._searchValues : [
@@ -130,8 +137,9 @@ export function routeMatchesSearch(route, searchQuery) {
     route?.displayDate,
   ].map(normalizeRouteSearchText).filter(Boolean)
   return searchValues.some(value => {
+    if (value.includes(normalizedQuery)) return true
     const searchTokens = value.split(" ").filter(Boolean)
-    return queryTokens.every(queryToken => searchTokens.some(searchToken => searchToken.includes(queryToken)))
+    return queryTokens.every(queryToken => searchTokens.some(searchToken => searchToken.startsWith(queryToken)))
   })
 }
 

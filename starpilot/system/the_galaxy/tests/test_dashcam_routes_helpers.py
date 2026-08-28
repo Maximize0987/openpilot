@@ -79,6 +79,14 @@ def test_route_titles_and_custom_name_badges_are_reactive():
   assert source.count('${() => route.isCustomName ? html`') >= 4
 
 
+def test_sort_order_select_and_route_items_are_keyed_and_reactive():
+  source = COMPONENT_PATH.read_text(encoding="utf-8")
+
+  assert '<select value="${() => state.sortOrder}" @change="${event => { state.sortOrder = event.target.value }}">' in source
+  assert ".key(group.key)" in source
+  assert ".key(route.name)" in source
+
+
 def test_player_shell_matches_low_quality_video_aspect_ratio():
   source = COMPONENT_CSS_PATH.read_text(encoding="utf-8")
 
@@ -161,6 +169,24 @@ def test_route_search_input_updates_on_every_keystroke():
   source = COMPONENT_PATH.read_text(encoding="utf-8")
 
   assert '@input="${event => { state.searchQuery = event.target.value }}"' in source
+
+
+def test_search_indexes_the_displayed_time_for_every_route():
+  result = evaluate('''
+    const routes = [
+      route("0000006a--9f0a7bdf9c", "2026-08-27T12:15:00Z"),
+      route("0000006b--9f0a7bdf9d", "2026-08-27T12:50:00Z"),
+      route("0000006c--9f0a7bdf9e", "2026-08-27T13:05:00Z"),
+    ]
+    return ["12", "12:5", "12:15"]
+      .map(searchQuery => buildRouteView(routes, { searchQuery }).matching.map(item => item.name))
+  ''')
+
+  assert result == [
+    ["0000006b--9f0a7bdf9d", "0000006a--9f0a7bdf9c"],
+    ["0000006b--9f0a7bdf9d"],
+    ["0000006a--9f0a7bdf9c"],
+  ]
 
 
 def test_filters_preserved_routes_before_applying_the_render_limit():
