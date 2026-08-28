@@ -173,6 +173,24 @@ def test_search_matches_partial_title_tokens_and_friendly_dates_as_the_user_type
   ]
 
 
+def test_partial_day_does_not_match_the_four_digit_year():
+  result = evaluate('''
+    const routes = Array.from({ length: 9 }, (_, offset) => {
+      const day = 19 + offset
+      return route(`aug-${day}`, `2026-08-${day}T12:00:00Z`)
+    })
+    return {
+      partial: buildRouteView(routes, { searchQuery: "aug 2" }).matching.map(item => item.name),
+      complete: buildRouteView(routes, { searchQuery: "aug 20" }).matching.map(item => item.name),
+    }
+  ''')
+
+  assert result == {
+    "partial": ["aug-27", "aug-26", "aug-25", "aug-24", "aug-23", "aug-22", "aug-21", "aug-20"],
+    "complete": ["aug-20"],
+  }
+
+
 def test_route_search_input_updates_on_every_keystroke():
   source = COMPONENT_PATH.read_text(encoding="utf-8")
 

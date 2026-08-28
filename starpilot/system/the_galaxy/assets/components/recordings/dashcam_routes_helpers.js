@@ -151,18 +151,20 @@ export function routeMatchesSearch(route, searchQuery) {
     compactQuery.length >= 8 || (compactQuery.length >= 4 && /\d/.test(compactQuery) && /[a-f]/.test(compactQuery))
   ))
   const valuesFor = key => Array.isArray(searchIndex[key]) ? searchIndex[key] : []
-  const searchValues = [
-    ...valuesFor("titles"),
-    ...(isDateQuery ? valuesFor("dates") : []),
-    ...(isTimeQuery ? valuesFor("times") : []),
-    ...(isIdQuery ? valuesFor("ids") : []),
-  ]
-
-  return searchValues.some(value => {
+  const matchesValue = (value, dateValue = false) => {
     if (value.includes(normalizedQuery)) return true
     const searchTokens = value.split(" ").filter(Boolean)
-    return queryTokens.every(queryToken => searchTokens.some(searchToken => searchToken.startsWith(queryToken)))
-  })
+    return queryTokens.every(queryToken => searchTokens.some(searchToken => {
+      // In a date query, "20" is a day prefix, not a match for the year "2026".
+      if (dateValue && /^\d{1,2}$/.test(queryToken) && /^\d{4}$/.test(searchToken)) return false
+      return searchToken.startsWith(queryToken)
+    }))
+  }
+
+  return valuesFor("titles").some(value => matchesValue(value))
+    || (isDateQuery && valuesFor("dates").some(value => matchesValue(value, true)))
+    || (isTimeQuery && valuesFor("times").some(value => matchesValue(value)))
+    || (isIdQuery && valuesFor("ids").some(value => matchesValue(value)))
 }
 
 export function buildRouteView(routes, options = {}) {
