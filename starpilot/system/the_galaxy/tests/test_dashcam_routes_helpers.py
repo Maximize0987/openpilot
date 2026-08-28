@@ -88,10 +88,11 @@ def test_sort_order_select_and_route_items_are_keyed_and_reactive():
   assert ".key(route.name)" in source
 
 
-def test_player_shell_matches_low_quality_video_aspect_ratio():
+def test_player_shell_keeps_both_quality_levels_at_one_fixed_size():
   source = COMPONENT_CSS_PATH.read_text(encoding="utf-8")
 
   assert "aspect-ratio: 526 / 330;" in source
+  assert "object-fit: cover;" in source
 
 
 def test_groups_routes_into_today_yesterday_dates_and_unknown():
