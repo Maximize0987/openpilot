@@ -82,7 +82,8 @@ def test_route_titles_and_custom_name_badges_are_reactive():
 def test_sort_order_select_and_route_items_are_keyed_and_reactive():
   source = COMPONENT_PATH.read_text(encoding="utf-8")
 
-  assert '<select value="${() => state.sortOrder}" @change="${event => { state.sortOrder = event.target.value }}">' in source
+  assert '<select value="${() => state.sortOrder}" @input="${changeSortOrder}" @change="${changeSortOrder}">' in source
+  assert "state.routes = [...state.routes]" in source
   assert ".key(group.key)" in source
   assert ".key(route.name)" in source
 
@@ -187,6 +188,27 @@ def test_search_indexes_the_displayed_time_for_every_route():
     ["0000006b--9f0a7bdf9d"],
     ["0000006a--9f0a7bdf9c"],
   ]
+
+
+def test_short_numeric_search_does_not_match_hidden_ids_or_unrelated_dates():
+  result = evaluate('''
+    const routes = [
+      route("00000012--9f0a7bdf9c", "2026-08-27T13:05:00Z", { timestamp: "Morning drive", isCustomName: true }),
+      route("0000006b--9f0a7bdf9d", "2026-12-12T13:05:00Z", { timestamp: "Afternoon drive", isCustomName: true }),
+      route("0000006c--9f0a7bdf9e", "2026-08-27T13:05:00Z", { timestamp: "Test_12", isCustomName: true }),
+    ]
+    return {
+      plainNumber: buildRouteView(routes, { searchQuery: "12" }).matching.map(item => item.name),
+      ordinalDate: buildRouteView(routes, { searchQuery: "dec 12th" }).matching.map(item => item.name),
+      explicitId: buildRouteView(routes, { searchQuery: "00000012" }).matching.map(item => item.name),
+    }
+  ''')
+
+  assert result == {
+    "plainNumber": ["0000006c--9f0a7bdf9e"],
+    "ordinalDate": ["0000006b--9f0a7bdf9d"],
+    "explicitId": ["00000012--9f0a7bdf9c"],
+  }
 
 
 def test_filters_preserved_routes_before_applying_the_render_limit():

@@ -1,4 +1,5 @@
 export const MAX_RENDERED_ROUTES = 250
+const SEARCH_MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
 
 function validDate(value) {
   if (!value) return null
@@ -55,12 +56,12 @@ export function normalizeRoute(route, locale) {
     displayDate,
     displayName,
     _startedAtMs: startedAtDate?.getTime() ?? timestampDate?.getTime() ?? null,
-    _searchValues: [
-      normalizeRouteSearchText(route?.name),
-      normalizeRouteSearchText(isCustomName ? displayName : ""),
-      ...dateAliases.map(normalizeRouteSearchText),
-      ...timeAliases.map(normalizeRouteSearchText),
-    ].filter(Boolean),
+    _searchIndex: {
+      ids: [normalizeRouteSearchText(route?.name)].filter(Boolean),
+      titles: [normalizeRouteSearchText(isCustomName ? displayName : "")].filter(Boolean),
+      dates: dateAliases.map(normalizeRouteSearchText).filter(Boolean),
+      times: timeAliases.map(normalizeRouteSearchText).filter(Boolean),
+    },
   }
 }
 
@@ -126,16 +127,37 @@ export function sortRoutes(routes, sortOrder = "newest") {
 }
 
 export function routeMatchesSearch(route, searchQuery) {
+  const rawQuery = String(searchQuery || "").trim()
   const normalizedQuery = normalizeRouteSearchText(searchQuery)
   const queryTokens = normalizedQuery.split(" ").filter(Boolean)
   if (!queryTokens.length) return true
 
-  const searchValues = Array.isArray(route?._searchValues) ? route._searchValues : [
-    route?.name,
-    route?.timestamp,
-    route?.displayName,
-    route?.displayDate,
-  ].map(normalizeRouteSearchText).filter(Boolean)
+  const fallbackIndex = {
+    ids: [route?.name],
+    titles: [route?.timestamp, route?.displayName],
+    dates: [route?.displayDate],
+    times: [route?.displayDate],
+  }
+  const searchIndex = route?._searchIndex || Object.fromEntries(
+    Object.entries(fallbackIndex).map(([key, values]) => [key, values.map(normalizeRouteSearchText).filter(Boolean)]),
+  )
+
+  const hasMonth = queryTokens.some(token => token.length >= 3 && SEARCH_MONTHS.some(month => month.startsWith(token)))
+  const isDateQuery = hasMonth || /\d\s*[/-]\s*\d/.test(rawQuery) || /\d+(?:st|nd|rd|th)\b/i.test(rawQuery) || /^\d{4}$/.test(normalizedQuery)
+  const isTimeQuery = /^\d{1,2}$/.test(normalizedQuery) || /\d\s*:\s*\d/.test(rawQuery) || queryTokens.some(token => token === "am" || token === "pm")
+  const compactQuery = normalizedQuery.replaceAll(" ", "")
+  const isHexQuery = /^[0-9a-f]+$/.test(compactQuery)
+  const isIdQuery = rawQuery.includes("--") || (isHexQuery && (
+    compactQuery.length >= 8 || (compactQuery.length >= 4 && /\d/.test(compactQuery) && /[a-f]/.test(compactQuery))
+  ))
+  const valuesFor = key => Array.isArray(searchIndex[key]) ? searchIndex[key] : []
+  const searchValues = [
+    ...valuesFor("titles"),
+    ...(isDateQuery ? valuesFor("dates") : []),
+    ...(isTimeQuery ? valuesFor("times") : []),
+    ...(isIdQuery ? valuesFor("ids") : []),
+  ]
+
   return searchValues.some(value => {
     if (value.includes(normalizedQuery)) return true
     const searchTokens = value.split(" ").filter(Boolean)

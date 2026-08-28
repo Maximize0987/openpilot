@@ -110,6 +110,14 @@ function refresh() {
   return fetchRoutes()
 }
 
+function changeSortOrder(event) {
+  const sortOrder = String(event.target.value || "")
+  if (!["newest", "oldest", "longest", "shortest"].includes(sortOrder)) return
+  state.sortOrder = sortOrder
+  // Replacing the array forces the keyed route templates to move immediately.
+  state.routes = [...state.routes]
+}
+
 if (!isGalaxyTunnel()) refresh()
 
 function openDialog(htmlString) {
@@ -825,7 +833,7 @@ export function RouteRecordings() {
           </div>
           <label class="dashcam-sort">
             <span>Sort</span>
-            <select value="${() => state.sortOrder}" @change="${event => { state.sortOrder = event.target.value }}">
+            <select value="${() => state.sortOrder}" @input="${changeSortOrder}" @change="${changeSortOrder}">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="longest">Longest duration</option>
