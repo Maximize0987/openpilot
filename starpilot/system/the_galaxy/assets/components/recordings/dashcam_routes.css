@@ -1225,12 +1225,32 @@
   line-height: 1.25;
 }
 
+.dashcam-player-overlay .dashcam-player-close,
 .dashcam-player-close {
+  align-items: center;
   background: transparent;
   border: 0;
-  color: var(--text-muted);
+  box-shadow: none;
+  color: var(--danger-fg, #e05577);
   cursor: pointer;
-  font-size: 2rem;
+  display: inline-flex;
+  font-size: 2.75rem;
+  font-weight: 300;
+  justify-content: center;
+  line-height: 0.8;
+  margin: 0;
+  padding: 0 0.25rem;
+  transition: color var(--transition-fast, 0.15s ease), transform var(--transition-fast, 0.15s ease), opacity var(--transition-fast, 0.15s ease);
+}
+
+.dashcam-player-overlay .dashcam-player-close:hover,
+.dashcam-player-overlay .dashcam-player-close:focus-visible,
+.dashcam-player-close:hover,
+.dashcam-player-close:focus-visible {
+  background: transparent;
+  color: var(--danger-hover-bg, #ff6b8b);
+  outline: none;
+  transform: scale(1.15);
 }
 
 .dashcam-video-shell {

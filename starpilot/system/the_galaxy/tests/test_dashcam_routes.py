@@ -326,6 +326,7 @@ def test_rename_and_reset_keep_logs_and_use_both_reset_urls(monkeypatch, tmp_pat
 
   renamed = client.post("/api/routes/rename", json={"old": ROUTE_NAME, "new": "New name"})
   assert renamed.status_code == 200
+  assert renamed.get_json()["name"] == "New_name"
   assert all((segment / "New_name").exists() for segment in segments)
   assert all((segment / "qlog.zst").read_bytes() == b"log" for segment in segments)
 

@@ -6668,7 +6668,7 @@ def setup(app):
           return jsonify({"error": f"Error creating new name file: {e}"}), 500
 
     if renamed:
-      return jsonify({"message": "Route renamed successfully!"}), 200
+      return jsonify({"message": "Route renamed successfully!", "name": new_name}), 200
     else:
       return jsonify({"error": "Route not found"}), 404
 

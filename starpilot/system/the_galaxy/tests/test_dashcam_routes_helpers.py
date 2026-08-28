@@ -14,6 +14,7 @@ import subprocess
 import pytest
 
 HELPERS_PATH = Path(__file__).resolve().parent.parent / "assets" / "components" / "recordings" / "dashcam_routes_helpers.js"
+COMPONENT_PATH = HELPERS_PATH.with_name("dashcam_routes.js")
 
 # node infers ESM from `export` syntax in a bare .js file from 22.7 on, so the helpers
 # need no package.json and stay a normal asset next to the component that imports them.
@@ -67,6 +68,14 @@ def evaluate(snippet):
 def test_helpers_module_is_a_plain_js_asset():
   assert HELPERS_PATH.is_file()
   assert not list(HELPERS_PATH.parent.glob("*.mjs"))
+
+
+def test_route_titles_and_custom_name_badges_are_reactive():
+  source = COMPONENT_PATH.read_text(encoding="utf-8")
+
+  # Both grid and row views must subscribe directly to the renamed route fields.
+  assert source.count('${() => route.displayName}') >= 4
+  assert source.count('${() => route.isCustomName ? html`') >= 4
 
 
 def test_groups_routes_into_today_yesterday_dates_and_unknown():

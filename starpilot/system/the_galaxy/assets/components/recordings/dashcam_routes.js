@@ -205,11 +205,13 @@ async function renameRoute(route) {
       return
     }
 
-    const updatedRoute = normalizeRoute({ ...route, timestamp: newName, isCustomName: true })
+    const payload = await response.json().catch(() => ({}))
+    const savedName = payload.name || newName
+    const updatedRoute = normalizeRoute({ ...route, timestamp: savedName, isCustomName: true })
     replaceRoute(updatedRoute)
     closeDialog(dialog)
     const title = overlay?.querySelector(".media-player-title-text")
-    if (title) title.textContent = newName
+    if (title) title.textContent = savedName
     showSnackbar("Route renamed!")
   }
 }
@@ -301,7 +303,7 @@ async function openOverlay(route) {
             <button class="dashcam-title-rename action-rename" type="button" title="Rename route" aria-label="Rename route"><i class="bi bi-pencil"></i></button>
           </div>
         </div>
-        <button class="dashcam-player-close action-close" type="button" aria-label="Close player">&times;</button>
+        <button class="dashcam-player-close" type="button" aria-label="Close player">&times;</button>
       </header>
       <div class="dashcam-video-shell">
         <video class="dashcam-video active" controls muted playsinline preload="metadata"></video>
@@ -597,7 +599,7 @@ async function openOverlay(route) {
   overlay.addEventListener("click", event => { if (event.target === overlay) closeOverlay() })
   document.addEventListener("keydown", closeOnEscape)
   overlay._closeOnEscape = closeOnEscape
-  overlay.querySelector(".action-close").onclick = closeOverlay
+  overlay.querySelector(".dashcam-player-close").onclick = closeOverlay
   overlay.querySelector(".action-delete").onclick = () => deleteRoute(state.selectedRoute || route)
   overlay.querySelector(".action-rename").onclick = () => renameRoute(state.selectedRoute || route)
 
@@ -876,10 +878,10 @@ export function RouteRecordings() {
                           </div>
                           <div class="dashcam-card-body">
                             <div class="dashcam-route-title-row">
-                              <h3 title="${route.displayName}">${route.displayName}</h3>
-                              ${route.isCustomName ? html`<span class="dashcam-custom-badge" title="Custom name"><i class="bi bi-tag-fill"></i></span>` : ""}
+                              <h3 title="${() => route.displayName}">${() => route.displayName}</h3>
+                              ${() => route.isCustomName ? html`<span class="dashcam-custom-badge" title="Custom name"><i class="bi bi-tag-fill"></i></span>` : ""}
                             </div>
-                            ${route.isCustomName ? html`<p class="dashcam-card-date">${route.displayDate}</p>` : ""}
+                            ${() => route.isCustomName ? html`<p class="dashcam-card-date">${route.displayDate}</p>` : ""}
                             <div class="dashcam-route-meta-pills">
                               <span class="meta-pill duration-pill"><i class="bi bi-clock"></i> ${formatApproxDuration(route.approxDurationSeconds)}</span>
                               <span class="meta-pill segments-pill"><i class="bi bi-collection-play"></i> ${route.segmentCount} seg</span>
@@ -910,10 +912,10 @@ export function RouteRecordings() {
                           </div>
                           <div class="dashcam-route-info">
                             <div class="dashcam-route-title-row">
-                              <h3 class="dashcam-route-title" title="${route.displayName}">${route.displayName}</h3>
-                              ${route.isCustomName ? html`<span class="dashcam-custom-badge" title="Custom name"><i class="bi bi-tag-fill"></i> Custom</span>` : ""}
+                              <h3 class="dashcam-route-title" title="${() => route.displayName}">${() => route.displayName}</h3>
+                              ${() => route.isCustomName ? html`<span class="dashcam-custom-badge" title="Custom name"><i class="bi bi-tag-fill"></i> Custom</span>` : ""}
                             </div>
-                            ${route.isCustomName ? html`<p class="dashcam-route-subdate"><i class="bi bi-calendar3"></i> ${route.displayDate}</p>` : ""}
+                            ${() => route.isCustomName ? html`<p class="dashcam-route-subdate"><i class="bi bi-calendar3"></i> ${route.displayDate}</p>` : ""}
                             <div class="dashcam-route-meta-pills">
                               <span class="meta-pill duration-pill" title="Estimated duration"><i class="bi bi-clock"></i> ${formatApproxDuration(route.approxDurationSeconds)}</span>
                               <span class="meta-pill segments-pill" title="Segments recorded"><i class="bi bi-collection-play"></i> ${route.segmentCount} segment${route.segmentCount === 1 ? "" : "s"}</span>
