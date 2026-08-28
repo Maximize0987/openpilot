@@ -218,6 +218,16 @@ GENESIS_GV70_FRICTION_CENTER_LAT = 0.28
 GENESIS_GV70_FRICTION_CENTER_LAT_WIDTH = 0.12
 GENESIS_GV70_FRICTION_CALM_JERK = 0.35
 GENESIS_GV70_FRICTION_CALM_JERK_WIDTH = 0.10
+GENESIS_GV70_FRICTION_JERK_DEADZONE_MAX = 0.30
+GENESIS_GV70_FRICTION_JERK_DEADZONE_LAT = 0.30
+GENESIS_GV70_FRICTION_JERK_DEADZONE_LAT_WIDTH = 0.08
+GENESIS_GV70_FRICTION_JERK_DEADZONE_SPEED = 12.0 * CV.MPH_TO_MS
+GENESIS_GV70_FRICTION_JERK_DEADZONE_SPEED_WIDTH = 3.5 * CV.MPH_TO_MS
+GENESIS_GV70_CENTER_OUTPUT_TAPER_MAX = 0.14
+GENESIS_GV70_CENTER_OUTPUT_TAPER_LAT = 0.30
+GENESIS_GV70_CENTER_OUTPUT_TAPER_LAT_WIDTH = 0.10
+GENESIS_GV70_CENTER_OUTPUT_TAPER_SPEED = 22.0 * CV.MPH_TO_MS
+GENESIS_GV70_CENTER_OUTPUT_TAPER_SPEED_WIDTH = 3.0 * CV.MPH_TO_MS
 GENESIS_GV70_UNWIND_FF_REDUCTION_MAX = 0.35
 GENESIS_GV70_UNWIND_FF_OVERSHOOT = 0.15
 GENESIS_GV70_UNWIND_FF_OVERSHOOT_WIDTH = 0.18
@@ -3027,6 +3037,24 @@ def get_genesis_gv70_friction_threshold(v_ego: float, desired_lateral_accel: flo
   gain = (GENESIS_GV70_FRICTION_THRESHOLD_GAIN * speed_onset * speed_cutoff *
           center_weight * calm_jerk_weight)
   return base_threshold * (1.0 + gain)
+
+
+def get_genesis_gv70_friction_jerk_deadzone(v_ego: float, desired_lateral_accel: float) -> float:
+  """Suppress small jerk-driven friction flips around the GV70 lane center."""
+  speed_weight = _sigmoid((v_ego - GENESIS_GV70_FRICTION_JERK_DEADZONE_SPEED) /
+                          GENESIS_GV70_FRICTION_JERK_DEADZONE_SPEED_WIDTH)
+  center_weight = _sigmoid((GENESIS_GV70_FRICTION_JERK_DEADZONE_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_GV70_FRICTION_JERK_DEADZONE_LAT_WIDTH)
+  return GENESIS_GV70_FRICTION_JERK_DEADZONE_MAX * speed_weight * center_weight
+
+
+def get_genesis_gv70_center_output_scale(desired_lateral_accel: float, v_ego: float) -> float:
+  """Dampen high-speed center corrections without reducing turn authority."""
+  speed_weight = _sigmoid((v_ego - GENESIS_GV70_CENTER_OUTPUT_TAPER_SPEED) /
+                          GENESIS_GV70_CENTER_OUTPUT_TAPER_SPEED_WIDTH)
+  center_weight = _sigmoid((GENESIS_GV70_CENTER_OUTPUT_TAPER_LAT - abs(desired_lateral_accel)) /
+                           GENESIS_GV70_CENTER_OUTPUT_TAPER_LAT_WIDTH)
+  return 1.0 - (GENESIS_GV70_CENTER_OUTPUT_TAPER_MAX * speed_weight * center_weight)
 
 
 def get_genesis_gv70_unwind_ff_scale(setpoint: float, measured_lateral_accel: float,

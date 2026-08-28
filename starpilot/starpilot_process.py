@@ -285,6 +285,7 @@ def starpilot_thread():
   run_update_checks = False
   safe_mode_active = safe_mode_enabled(params_raw)
   started_previously = False
+  starpilot_tracking = None
   model_randomizer_previously = params.get_bool("ModelRandomizer")
   time_validated = False
 
@@ -304,6 +305,7 @@ def starpilot_thread():
     started = sm["deviceState"].started
 
     if not started and started_previously:
+      starpilot_tracking.flush(now, time_validated)
       starpilot_planner.shutdown()
 
       starpilot_toggles = update_toggles(starpilot_variables, started, theme_manager, thread_manager, time_validated, params, starpilot_toggles)
