@@ -4,7 +4,6 @@ import pytest
 
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
-from openpilot.starpilot.common.starpilot_variables import PLANNER_TIME
 from openpilot.starpilot.controls.lib.curve_speed_controller import CSC_MAX_DECEL_RATE, CurveSpeedController, MIN_TRAINING_TIME
 from openpilot.starpilot.controls.lib.starpilot_vcruise import (
   FORCE_STOP_CAP_SLACK_M,
@@ -195,7 +194,7 @@ def test_curve_speed_controller_releases_immediately_when_disabled():
 
 
 def test_curve_speed_controller_does_not_compete_with_force_stop():
-  planner, vcruise = make_vcruise(red_light=True, road_curvature=0.02)
+  planner, vcruise = make_vcruise(red_light=True, road_curvature=0.001)
   sm = make_sm(standstill=False)
   toggles = make_toggles()
   toggles.curve_speed_controller = True
@@ -207,6 +206,21 @@ def test_curve_speed_controller_does_not_compete_with_force_stop():
 
   assert not vcruise.csc_controlling_speed
   assert not vcruise.csc.target_set
+
+
+def test_curve_speed_controller_learns_through_a_signaled_curve():
+  planner, vcruise = make_vcruise(road_curvature=0.02)
+  sm = make_sm(standstill=False)
+  sm["carControl"].longActive = False
+  sm["carState"].leftBlinker = True
+  planner.driving_in_curve = True
+  planner.lateral_acceleration = 2.4
+  vcruise.csc.training_timer = MIN_TRAINING_TIME
+
+  vcruise.csc.log_data(20.0, sm)
+
+  assert vcruise.csc.enable_training
+  assert vcruise.csc.curvature_data["0.02"]["count"] == 1
 
 
 
