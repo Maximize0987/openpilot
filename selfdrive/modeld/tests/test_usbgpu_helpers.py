@@ -55,7 +55,7 @@ def test_external_gpu_voltage_uses_hardware_specific_source():
 
 
 def test_external_gpu_power_must_remain_stable():
-  ready, stable_since = modeld._external_gpu_power_ready(12800, 10.0, None)
+  ready, stable_since = modeld._external_gpu_power_ready(12400, 10.0, None)
   assert not ready
   assert stable_since is None
 
