@@ -211,13 +211,16 @@ def test_stop_start_inputs_are_captured_for_supported_models(platform):
   CP = CarInterface.get_non_essential_params(platform)
   car_state = CarState(CP, None)
   parsers = car_state.get_can_parsers(CP)
+  raw_dashlights = bytes.fromhex("13031407875a8100")
   parsers[Bus.pt].vl["Dashlights"]["COUNTER"] = 6
   parsers[Bus.pt].vl["Dashlights"]["STOP_START"] = 0
   parsers[Bus.pt].vl["Engine_Stop_Start"]["STOP_START_STATE"] = 3
+  parsers[Bus.pt].vl_raw["Dashlights"] = raw_dashlights
 
   car_state.update(parsers, SimpleNamespace(subaru_sng=False))
 
   assert car_state.dashlights_msg["COUNTER"] == 6
+  assert car_state.dashlights_dat == raw_dashlights
   assert car_state.stop_start_state == 3
 
 
@@ -247,6 +250,7 @@ def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expect
   CS = SimpleNamespace(
     canValid=True,
     dashlights_msg={"COUNTER": 6, "STOP_START": 0},
+    dashlights_dat=bytes.fromhex("13061407875a8100"),
     stop_start_state=0,
     out=SimpleNamespace(
       standstill=True,
@@ -259,6 +263,7 @@ def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expect
   stop_start_msgs = [msg for msg in can_sends if msg[0] == 0x390]
   assert len(stop_start_msgs) == 1
   assert stop_start_msgs[0][2] == expected_bus
+  assert stop_start_msgs[0][1] == bytes.fromhex("57071407875ac100")
   parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("Dashlights", 0)], expected_bus)
   parser.update([(expected_bus, [stop_start_msgs[0]])])
   assert parser.vl["Dashlights"]["STOP_START"] == 1

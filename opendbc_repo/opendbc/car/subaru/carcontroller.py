@@ -137,7 +137,8 @@ class CarController(CarControllerBase):
       return None
 
     msg = subarucan.create_stop_start_control(
-      self.packer, dashlights_msg, counter=self.stop_start_counter, bus=self.main_bus,
+      self.packer, dashlights_msg, raw_dat=getattr(CS, "dashlights_dat", None),
+      counter=self.stop_start_counter, bus=self.main_bus,
     )
     self.stop_start_counter = (self.stop_start_counter + 1) % 0x10
     return msg

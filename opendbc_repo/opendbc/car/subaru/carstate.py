@@ -16,6 +16,7 @@ class CarState(CarStateBase):
 
     self.angle_rate_calulator = CanSignalRateCalculator(50)
     self.dashlights_msg = {}
+    self.dashlights_dat = b""
     self.stop_start_state = 0
 
   def update(self, can_parsers, starpilot_toggles) -> structs.CarState:
@@ -28,6 +29,7 @@ class CarState(CarStateBase):
 
     if self.CP.carFingerprint in SUBARU_STOP_START_CARS:
       self.dashlights_msg = copy.copy(cp.vl["Dashlights"])
+      self.dashlights_dat = cp.vl_raw["Dashlights"]
       self.stop_start_state = cp.vl["Engine_Stop_Start"]["STOP_START_STATE"]
 
     throttle_msg = cp.vl["Throttle"] if not (self.CP.flags & SubaruFlags.HYBRID) else cp_alt.vl["Throttle_Hybrid"]
