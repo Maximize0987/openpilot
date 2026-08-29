@@ -221,14 +221,14 @@ def test_stop_start_inputs_are_captured_for_supported_models(platform):
   assert car_state.stop_start_state == 3
 
 
-@pytest.mark.parametrize("platform, expected_bus", [
-  (CAR.SUBARU_OUTBACK_2023, CanBus.alt),
-  (CAR.SUBARU_LEGACY_2025, CanBus.main),
+@pytest.mark.parametrize("platform, expected_bus, start_frame", [
+  (CAR.SUBARU_OUTBACK_2023, CanBus.alt, 101),
+  (CAR.SUBARU_LEGACY_2025, CanBus.main, 401),
 ])
-def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expected_bus):
+def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expected_bus, start_frame):
   CP = CarInterface.get_non_essential_params(platform)
   controller = CarController({}, CP)
-  controller.frame = 101
+  controller.frame = start_frame
 
   class TestActuators:
     steeringAngleDeg = 0.0

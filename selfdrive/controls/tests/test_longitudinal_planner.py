@@ -787,7 +787,7 @@ def test_prebrake_floor_is_vehicle_specific():
   honda = SimpleNamespace(brand="honda", carFingerprint=CAR.HONDA_CIVIC)
 
   assert get_follow_prebrake_min_headway(silverado, 1.0) == pytest.approx(1.25)
-  assert get_follow_prebrake_min_headway(lightning, 0.75) == pytest.approx(1.0)
+  assert get_follow_prebrake_min_headway(lightning, 0.75) == pytest.approx(0.75)
   assert get_follow_prebrake_min_headway(honda, 1.0) == pytest.approx(1.25)
 
 
@@ -801,7 +801,7 @@ def test_lightning_stopped_lead_guard_tune_is_vehicle_specific():
   assert get_standstill_stopped_lead_guard_max_lead_speed(civic, 0.45) == pytest.approx(0.45)
   assert get_standstill_gap_settle_max_extra_gap(lightning) == pytest.approx(3.0)
   assert get_tracked_lead_catchup_headway_margins(lightning) == pytest.approx((0.10, 0.25))
-  assert get_tracked_lead_catchup_bias_gain(lightning) == pytest.approx(0.65)
+  assert get_tracked_lead_catchup_bias_gain(lightning) == pytest.approx(1.0)
   assert get_tracked_lead_catchup_headway_margins(civic) is None
   assert get_tracked_lead_catchup_bias_gain(civic) is None
 

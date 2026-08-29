@@ -32,7 +32,9 @@ _ANGLE_RECLAIM_EXPONENT = 2.5
 _ANGLE_MADS_MIN_SPEED = 0.44704
 _ANGLE_MADS_MAX_STEER_ANGLE = 120.0
 _STOP_START_STARTUP_DELAY_FRAMES = 100
-_STOP_START_STARTUP_DEADLINE_FRAMES = 300
+# StarPilot's first populated toggle message can arrive several seconds after
+# the car controller starts while fingerprinting and settings settle.
+_STOP_START_STARTUP_DEADLINE_FRAMES = 1000
 _STOP_START_PULSE_FRAMES = 30
 _STOP_START_PULSE_PERIOD_FRAMES = 5
 
