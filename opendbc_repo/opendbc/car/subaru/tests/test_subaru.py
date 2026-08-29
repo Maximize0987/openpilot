@@ -206,6 +206,21 @@ def test_outback_2023_uses_d_platform_bus_layout():
   assert CP.lateralSmoothSeconds == pytest.approx(0.4)
 
 
+@pytest.mark.parametrize("platform", [CAR.SUBARU_OUTBACK_2023, CAR.SUBARU_LEGACY_2025])
+def test_stop_start_inputs_are_captured_for_supported_models(platform):
+  CP = CarInterface.get_non_essential_params(platform)
+  car_state = CarState(CP, None)
+  parsers = car_state.get_can_parsers(CP)
+  parsers[Bus.pt].vl["Dashlights"]["COUNTER"] = 6
+  parsers[Bus.pt].vl["Dashlights"]["STOP_START"] = 0
+  parsers[Bus.pt].vl["Engine_Stop_Start"]["STOP_START_STATE"] = 3
+
+  car_state.update(parsers, SimpleNamespace(subaru_sng=False))
+
+  assert car_state.dashlights_msg["COUNTER"] == 6
+  assert car_state.stop_start_state == 3
+
+
 @pytest.mark.parametrize("platform, expected_bus", [
   (CAR.SUBARU_OUTBACK_2023, CanBus.alt),
   (CAR.SUBARU_LEGACY_2025, CanBus.main),

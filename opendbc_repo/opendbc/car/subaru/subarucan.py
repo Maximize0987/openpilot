@@ -183,7 +183,7 @@ def create_es_dashstatus(packer, frame, dashstatus_msg, enabled, long_enabled, l
 
 
 def create_stop_start_control(packer, dashlights_msg, counter=None, bus=CanBus.alt):
-  """Create the Outback 2023-24 momentary Stop/Start button request.
+  """Create the supported Subaru momentary Stop/Start button request.
 
   Dashlights is a stock periodic message, so preserve the live frame and only
   change the event bit. CANPacker calculates the Subaru checksum for us.
