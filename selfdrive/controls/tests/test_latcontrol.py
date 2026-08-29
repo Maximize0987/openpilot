@@ -1775,8 +1775,9 @@ class TestLatControl:
     assert lac_log.active
     assert controller.torque_params.latAccelFactor == pytest.approx(CP.lateralTuning.torque.latAccelFactor * KIA_FORTE_BASE_LAT_ACCEL_FACTOR_MULT)
 
-  def test_kia_carnival_default_update_path(self):
-    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.KIA_CARNIVAL_2025)
+  @pytest.mark.parametrize("candidate", (HYUNDAI.KIA_CARNIVAL_2025, HYUNDAI.KIA_CARNIVAL_HEV_4TH_GEN))
+  def test_kia_carnival_default_update_path(self, candidate):
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(candidate)
     CS.vEgo = 8.5
 
     _, _, lac_log = controller.update(True, CS, VM, params, False, 0.0025, False, 0.2, None, None, starpilot_toggles)
