@@ -1043,6 +1043,36 @@ class TestToyotaCarController:
 
 
 class TestToyotaCarState:
+  @pytest.mark.parametrize("candidate", [CAR.TOYOTA_PRIUS, CAR.TOYOTA_PRIUS_RETROFIT])
+  def test_legacy_prius_distance_button_generates_events(self, candidate):
+    params = CarInterface.get_params(
+      candidate,
+      {bus: {} for bus in range(8)},
+      [],
+      alpha_long=False,
+      is_release=False,
+      docs=False,
+      starpilot_toggles=SimpleNamespace(force_torque_controller=False, nnff=False, nnff_lite=False),
+    )
+    starpilot_params = CarInterface.get_starpilot_params(candidate, {bus: {} for bus in range(8)}, [], params, SimpleNamespace())
+    car_state = CarState(params, starpilot_params)
+    can_parsers = car_state.get_can_parsers(params)
+
+    assert "ACC_CONTROL" in can_parsers[Bus.pt].vl
+    assert ("ACC_CONTROL" in can_parsers[Bus.cam].vl) == bool(params.flags & ToyotaFlags.DSU_BYPASS.value)
+
+    can_parsers[Bus.pt].vl["ACC_CONTROL"]["DISTANCE"] = 1
+    ret, _ = car_state.update(can_parsers, SimpleNamespace(cluster_offset=1.0))
+    assert [(event.type, event.pressed) for event in ret.buttonEvents] == [
+      (structs.CarState.ButtonEvent.Type.gapAdjustCruise, True),
+    ]
+
+    can_parsers[Bus.pt].vl["ACC_CONTROL"]["DISTANCE"] = 0
+    ret, _ = car_state.update(can_parsers, SimpleNamespace(cluster_offset=1.0))
+    assert [(event.type, event.pressed) for event in ret.buttonEvents] == [
+      (structs.CarState.ButtonEvent.Type.gapAdjustCruise, False),
+    ]
+
   def test_lkas_button_platforms(self):
     assert CAR.TOYOTA_PRIUS in LKAS_BUTTON_CAR
     assert TSS2_CAR <= LKAS_BUTTON_CAR

@@ -42,6 +42,7 @@
 // Keep the absolute envelope aligned with the software controller's 540 deg limit.
 #define VOLVO_ANGLE_DEG_TO_CAN 17.869907f
 #define VOLVO_MAX_ANGLE_CAN 9650
+#define VOLVO_RELAY_ANGLE_TOLERANCE 54  // approximately 3 degrees
 #define VOLVO_DRIVER_OVERRIDE 2
 
 
@@ -186,8 +187,10 @@ static bool volvo_tx_hook(const CANPacket_t *msg) {
   // path. Do not allow that relay to invent a steering-angle measurement.
   if (msg->addr == VOLVO_PSCM) {
     const int relayed_angle = volvo_pscm_angle(msg);
-    const int measured_max = SAFETY_CLAMP(angle_meas.max, -VOLVO_MAX_ANGLE_CAN, VOLVO_MAX_ANGLE_CAN) + 1;
-    const int measured_min = SAFETY_CLAMP(angle_meas.min, -VOLVO_MAX_ANGLE_CAN, VOLVO_MAX_ANGLE_CAN) - 1;
+    const int measured_max = SAFETY_CLAMP(angle_meas.max + VOLVO_RELAY_ANGLE_TOLERANCE,
+                                          -VOLVO_MAX_ANGLE_CAN, VOLVO_MAX_ANGLE_CAN);
+    const int measured_min = SAFETY_CLAMP(angle_meas.min - VOLVO_RELAY_ANGLE_TOLERANCE,
+                                          -VOLVO_MAX_ANGLE_CAN, VOLVO_MAX_ANGLE_CAN);
     tx &= !safety_max_limit_check(relayed_angle, measured_max, measured_min);
   }
 
@@ -262,7 +265,8 @@ static safety_config volvo_init(uint16_t param) {
   volvo_ecm_1_addr = spa ? VOLVO_SPA_ECM_1 : VOLVO_CMA_ECM_1;
   volvo_bus1_cruise_control_addr = spa ? VOLVO_SPA_BUS1_CRUISE_CONTROL : VOLVO_CMA_BUS1_CRUISE_CONTROL;
 
-  // Define allowed TX messages - very permissive
+  // Define the TX messages needed to replace the stock LCA path. Payload
+  // limits for steering and the PSCM relay are enforced in volvo_tx_hook.
   static const CanMsg VOLVO_TX_MSGS[] = {
     {VOLVO_LCA_STEER, VOLVO_PARTY_BUS, 8, .check_relay = true},  // LCA steering command to party bus
     {VOLVO_PSCM, VOLVO_MAIN_BUS, 8, .check_relay = true},  // PSCM message sent to main bus (relay from party bus)
