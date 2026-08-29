@@ -4,7 +4,7 @@ from opendbc.car import Bus, DT_CTRL, make_tester_present_msg, structs
 from opendbc.car.lateral import apply_driver_steer_torque_limits, apply_std_steer_angle_limits, apply_steer_angle_limits_vm, common_fault_avoidance
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.subaru import subarucan
-from opendbc.car.subaru.values import CAR, DBC, GLOBAL_ES_ADDR, CanBus, CarControllerParams, SubaruFlags
+from opendbc.car.subaru.values import CAR, DBC, GLOBAL_ES_ADDR, SUBARU_STOP_START_CARS, CanBus, CarControllerParams, SubaruFlags
 from opendbc.car.vehicle_model import VehicleModel
 
 # FIXME: These limits aren't exact. The real limit is more than likely over a larger time period and
@@ -87,12 +87,12 @@ class CarController(CarControllerBase):
     self.stop_start_acknowledged = False
 
   def _stop_start_off_request(self, CC, CS, starpilot_toggles):
-    """Send one bounded Outback Stop/Start OFF request after ignition.
+    """Send one bounded Subaru Stop/Start OFF request after ignition.
 
     This is intentionally opt-in and limited to a stationary vehicle in
     Park/Neutral. A single ignition session gets at most one attempt.
     """
-    if self.CP.carFingerprint != CAR.SUBARU_OUTBACK_2023 or \
+    if self.CP.carFingerprint not in SUBARU_STOP_START_CARS or \
        not getattr(starpilot_toggles, "subaru_stop_start_off", False) or self.stop_start_attempted:
       return None
 

@@ -301,6 +301,9 @@ GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR = 0.18
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR_WIDTH = 0.15
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK = 0.15
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK_WIDTH = 0.10
+GENESIS_G70_ANGLE_OUTPUT_TAPER_MIN = 0.45
+GENESIS_G70_ANGLE_OUTPUT_TAPER_START = 70.0
+GENESIS_G70_ANGLE_OUTPUT_TAPER_WIDTH = 6.0
 
 BOLT_2017_LATERAL_TESTING_GROUND_ID = testing_ground.id_3
 BOLT_2017_STEER_RATIO_TEST_SCALE = 1.045
@@ -3177,6 +3180,16 @@ def get_genesis_g70_low_speed_output_limit(desired_lateral_accel: float, v_ego: 
   center_weight = _sigmoid((GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT - abs(desired_lateral_accel)) /
                            GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_LAT_WIDTH)
   return max(0.05, 1.0 - GENESIS_G70_LOW_SPEED_OUTPUT_LIMIT_REDUCTION * speed_weight * center_weight)
+
+
+def get_genesis_g70_angle_output_scale(steering_angle_deg: float, output_torque: float) -> float:
+  """Ease G70 torque as it approaches the EPS high-angle protection threshold."""
+  if steering_angle_deg == 0.0 or output_torque * steering_angle_deg <= 0.0:
+    return 1.0
+
+  angle_weight = _sigmoid((abs(steering_angle_deg) - GENESIS_G70_ANGLE_OUTPUT_TAPER_START) /
+                          GENESIS_G70_ANGLE_OUTPUT_TAPER_WIDTH)
+  return 1.0 - ((1.0 - GENESIS_G70_ANGLE_OUTPUT_TAPER_MIN) * angle_weight)
 
 
 def get_genesis_g70_curve_unwind_output_scale(desired_lateral_accel: float, desired_lateral_jerk: float,

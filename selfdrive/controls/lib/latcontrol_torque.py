@@ -637,6 +637,7 @@ class LatControlTorque(LatControl):
         output_torque *= get_genesis_g70_high_speed_error_scale(
           setpoint, measurement, desired_lateral_jerk, CS.vEgo,
         )
+        output_torque *= get_genesis_g70_angle_output_scale(CS.steeringAngleDeg, output_torque)
         low_speed_output_limit = get_genesis_g70_low_speed_output_limit(setpoint, CS.vEgo)
         output_torque = float(np.clip(output_torque, -low_speed_output_limit, low_speed_output_limit))
       elif self.is_genesis_gv70:

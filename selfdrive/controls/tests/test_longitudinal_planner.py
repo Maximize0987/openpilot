@@ -39,8 +39,13 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_standstill_gap_settle_max_extra_gap,
   get_standstill_stopped_lead_guard_distance_margin,
   get_standstill_stopped_lead_guard_max_lead_speed,
+  get_stop_sign_low_speed_hold,
+  get_tracked_lead_catchup_bias_cap,
   get_tracked_lead_catchup_bias_gain,
+  get_tracked_lead_catchup_cruise_error_full,
+  get_tracked_lead_catchup_fade_margins,
   get_tracked_lead_catchup_headway_margins,
+  get_tracked_lead_catchup_speed_range,
   get_toyota_prius_stopped_lead_obstacle_bias,
   get_toyota_rav4_tss2_lead_departure_tune,
   get_toyota_rav4_tss2_early_lead_cap,
@@ -799,6 +804,20 @@ def test_lightning_stopped_lead_guard_tune_is_vehicle_specific():
   assert get_tracked_lead_catchup_bias_gain(lightning) == pytest.approx(0.65)
   assert get_tracked_lead_catchup_headway_margins(civic) is None
   assert get_tracked_lead_catchup_bias_gain(civic) is None
+
+
+def test_crv_tracked_lead_catchup_tune_is_vehicle_specific():
+  crv = CarInterface.get_non_essential_params(CAR.HONDA_CRV_5G)
+  civic = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+
+  assert get_tracked_lead_catchup_headway_margins(crv) == pytest.approx((0.10, 0.35))
+  assert get_tracked_lead_catchup_bias_gain(crv) == pytest.approx(1.25)
+  assert get_tracked_lead_catchup_bias_cap(crv) == pytest.approx(65.0)
+  assert get_tracked_lead_catchup_speed_range(crv) == pytest.approx((10.0, 18.0))
+  assert get_tracked_lead_catchup_fade_margins(crv) == pytest.approx((0.75, 6.5))
+  assert get_tracked_lead_catchup_cruise_error_full(crv) == pytest.approx(0.75)
+  assert get_tracked_lead_catchup_bias_cap(civic) is None
+  assert get_tracked_lead_catchup_speed_range(civic) is None
 
 
 def test_lightning_far_follow_output_slew_damps_nonurgent_lead_braking():
@@ -3403,6 +3422,42 @@ def test_publish_force_stop_handoff_sets_should_stop_when_vcruise_low():
   sm["starpilotPlan"].forcingStopLength = 6.5
   sm["starpilotPlan"].vCruise = 0.4
 
+  planner.publish(sm, pm)
+
+  assert pm.sent["longitudinalPlan"].longitudinalPlan.shouldStop
+
+
+def test_carnival_confirmed_stop_sign_stays_latched_at_low_speed():
+  class FakePM:
+    def __init__(self):
+      self.sent = {}
+
+    def send(self, name, msg):
+      self.sent[name] = msg
+
+  class FakeSM(dict):
+    def all_checks(self, service_list=None):
+      return True
+
+    logMonoTime = {"modelV2": int(1e9)}
+
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  CP.carFingerprint = "KIA_CARNIVAL_2025"
+  planner = LongitudinalPlanner(CP, init_v=0.4)
+  planner.output_a_target = -0.2
+  planner.output_should_stop = False
+  planner.v_desired_trajectory = np.zeros(CONTROL_N)
+  planner.a_desired_trajectory = np.zeros(CONTROL_N)
+  planner.j_desired_trajectory = np.zeros(CONTROL_N)
+  planner.fcw = False
+  planner.mpc.source = "cruise"
+  planner.mpc.solve_time = 0.0
+
+  sm = FakeSM(make_sm(0.4, desired_accel=0.0, min_accel=-1.0, experimental_mode=False))
+  sm["starpilotPlan"].stopSignConfirmed = True
+  pm = FakePM()
+
+  assert get_stop_sign_low_speed_hold(CP) == pytest.approx(0.75)
   planner.publish(sm, pm)
 
   assert pm.sent["longitudinalPlan"].longitudinalPlan.shouldStop

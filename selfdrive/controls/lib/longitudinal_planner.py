@@ -28,6 +28,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_toyota_rav4_tss2_lead_departure_tune,
   get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
+  get_stop_sign_low_speed_hold,
   allow_radar_standstill_gap_settle,
   is_gm_silverado_early_follow_lead,
   is_toyota_rav4_tss2_post_departure_tune,
@@ -44,6 +45,10 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_standstill_stopped_lead_guard_distance_margin,
   get_standstill_stopped_lead_guard_max_lead_speed,
   get_tracked_lead_catchup_bias_gain,
+  get_tracked_lead_catchup_bias_cap,
+  get_tracked_lead_catchup_speed_range,
+  get_tracked_lead_catchup_fade_margins,
+  get_tracked_lead_catchup_cruise_error_full,
   get_tracked_lead_catchup_headway_margins,
 )
 from openpilot.selfdrive.controls.lib.drive_helpers import CONTROL_N
@@ -578,6 +583,10 @@ class LongitudinalPlanner:
     self.radar_standstill_gap_settle_elapsed = 0.0
     self.radar_standstill_gap_settle_active = False
     self.tracked_lead_catchup_bias_gain = get_tracked_lead_catchup_bias_gain(CP)
+    self.tracked_lead_catchup_bias_cap = get_tracked_lead_catchup_bias_cap(CP)
+    self.tracked_lead_catchup_speed_range = get_tracked_lead_catchup_speed_range(CP)
+    self.tracked_lead_catchup_fade_margins = get_tracked_lead_catchup_fade_margins(CP)
+    self.tracked_lead_catchup_cruise_error_full = get_tracked_lead_catchup_cruise_error_full(CP)
 
     self.v_desired_trajectory = np.zeros(CONTROL_N)
     self.a_desired_trajectory = np.zeros(CONTROL_N)
@@ -2293,7 +2302,11 @@ class LongitudinalPlanner:
                     modelV2=sm['modelV2'],
                     lead_obstacle_bias=stopped_lead_obstacle_bias,
                     tracked_lead_catchup_headway_margins=self.tracked_lead_catchup_headway_margins,
-                    tracked_lead_catchup_bias_gain=self.tracked_lead_catchup_bias_gain)
+                    tracked_lead_catchup_bias_gain=self.tracked_lead_catchup_bias_gain,
+                    tracked_lead_catchup_bias_cap=self.tracked_lead_catchup_bias_cap,
+                    tracked_lead_catchup_speed_range=self.tracked_lead_catchup_speed_range,
+                    tracked_lead_catchup_fade_margins=self.tracked_lead_catchup_fade_margins,
+                    tracked_lead_catchup_cruise_error_full=self.tracked_lead_catchup_cruise_error_full)
 
     self.a_desired_trajectory_full = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
@@ -3060,7 +3073,14 @@ class LongitudinalPlanner:
         sm['starpilotPlan'].vCruise <= FORCE_STOP_HANDOFF_MAX_VCRUISE
       )
     )
-    longitudinalPlan.shouldStop = bool(self.output_should_stop) or force_stop_handoff
+    stop_sign_hold_speed = get_stop_sign_low_speed_hold(self.CP)
+    stop_sign_low_speed_hold = bool(
+      stop_sign_hold_speed is not None and
+      bool(getattr(sm['starpilotPlan'], 'stopSignConfirmed', False)) and
+      float(getattr(sm['carState'], 'vEgo', 0.0)) <= stop_sign_hold_speed and
+      not bool(getattr(sm['carState'], 'gasPressed', False))
+    )
+    longitudinalPlan.shouldStop = bool(self.output_should_stop) or force_stop_handoff or stop_sign_low_speed_hold
     longitudinalPlan.allowBrake = True
     longitudinalPlan.allowThrottle = bool(self.allow_throttle)
 

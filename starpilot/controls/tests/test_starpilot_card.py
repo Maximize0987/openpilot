@@ -231,6 +231,38 @@ def test_pulse_and_glide_long_cancel_consumes_release_after_threshold(monkeypatc
   assert release.buttonEvents == []
 
 
+@pytest.mark.parametrize(
+  ("pressed_field", "long_key", "very_long_key"),
+  (
+    ("distancePressed", "distance_long", "distance_very_long"),
+    ("cancelPressed", "cancel_long", "cancel_very_long"),
+    ("modePressed", "mode_long", "mode_very_long"),
+    ("customPressed", "star_long", "star_very_long"),
+  ),
+)
+def test_very_long_press_does_not_repeat_long_press_action(monkeypatch, tmp_path, pressed_field, long_key, very_long_key):
+  monkeypatch.setattr(spc, "Params", FakeParams)
+  monkeypatch.setattr(spc, "ERROR_LOGS_PATH", tmp_path)
+
+  card = spc.StarPilotCard(SimpleNamespace(brand="gm"), SimpleNamespace(alternativeExperience=0))
+  sm = make_sm()
+  toggles = make_toggles(has_canfd_media_buttons=pressed_field in ("modePressed", "customPressed"))
+  starpilot_car_state = SimpleNamespace(
+    distancePressed=False,
+    cancelPressed=False,
+    modePressed=False,
+    customPressed=False,
+  )
+  setattr(starpilot_car_state, pressed_field, True)
+  handled = []
+  monkeypatch.setattr(card, "handle_button_event", lambda key, _sm, _toggles: handled.append(key) or False)
+
+  for _ in range(card.very_long_press_threshold):
+    card.update(make_car_state(), starpilot_car_state, sm, toggles)
+
+  assert handled == [long_key, very_long_key]
+
+
 def make_car_state(available=False, enabled=False, button_events=None, brake_pressed=False, gas_pressed=False):
   return SimpleNamespace(
     buttonEvents=button_events or [],

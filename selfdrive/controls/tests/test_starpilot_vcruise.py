@@ -5,7 +5,7 @@ import pytest
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 from openpilot.starpilot.common.starpilot_variables import PLANNER_TIME
-from openpilot.starpilot.controls.lib.curve_speed_controller import CSC_MAX_DECEL_RATE, CurveSpeedController
+from openpilot.starpilot.controls.lib.curve_speed_controller import CSC_MAX_DECEL_RATE, CurveSpeedController, MIN_TRAINING_TIME
 from openpilot.starpilot.controls.lib.starpilot_vcruise import (
   FORCE_STOP_CAP_SLACK_M,
   FORCE_STOP_TURN_VETO_STOP_SEEN_HOLD_TIME,
@@ -194,6 +194,22 @@ def test_curve_speed_controller_releases_immediately_when_disabled():
   assert not vcruise.csc_controlling_speed
 
 
+def test_curve_speed_controller_does_not_compete_with_force_stop():
+  planner, vcruise = make_vcruise(red_light=True, road_curvature=0.02)
+  sm = make_sm(standstill=False)
+  toggles = make_toggles()
+  toggles.curve_speed_controller = True
+  planner.road_curvature_detected = True
+  vcruise.csc.target_set = True
+  vcruise.csc.target = 12.0
+
+  update_vcruise(vcruise, sm, toggles, now=25.0, v_ego=20.0)
+
+  assert not vcruise.csc_controlling_speed
+  assert not vcruise.csc.target_set
+
+
+
 def test_curve_speed_controller_can_be_limited_to_driving_without_a_lead():
   planner, vcruise = make_vcruise()
   sm = make_sm(standstill=False)
@@ -251,7 +267,7 @@ def test_curve_speed_controller_learns_when_speed_is_manually_controlled(long_ac
   planner.driving_in_curve = True
   planner.road_curvature_detected = True
   planner.lateral_acceleration = 2.4
-  vcruise.csc.training_timer = PLANNER_TIME
+  vcruise.csc.training_timer = MIN_TRAINING_TIME
 
   update_vcruise(vcruise, sm, toggles, now=50.0, v_ego=20.0)
 
@@ -269,7 +285,7 @@ def test_curve_speed_controller_learns_when_longitudinal_override_event_is_activ
   planner.driving_in_curve = True
   planner.road_curvature_detected = True
   planner.lateral_acceleration = 2.4
-  vcruise.csc.training_timer = PLANNER_TIME
+  vcruise.csc.training_timer = MIN_TRAINING_TIME
 
   update_vcruise(vcruise, sm, toggles, now=50.0, v_ego=20.0)
 
@@ -283,7 +299,7 @@ def test_curve_speed_controller_persists_data_after_leaving_curve():
   sm["carControl"].longActive = False
   planner.driving_in_curve = True
   planner.lateral_acceleration = 2.4
-  vcruise.csc.training_timer = PLANNER_TIME
+  vcruise.csc.training_timer = MIN_TRAINING_TIME
 
   vcruise.csc.log_data(20.0, sm)
   assert not any(key == "CurvatureData" for key, _ in planner.params.writes)
@@ -300,7 +316,7 @@ def test_curve_speed_controller_publishes_live_values_to_memory_params():
   sm["carControl"].longActive = False
   planner.driving_in_curve = True
   planner.lateral_acceleration = 2.4
-  vcruise.csc.training_timer = PLANNER_TIME
+  vcruise.csc.training_timer = MIN_TRAINING_TIME
 
   vcruise.csc.log_data(20.0, sm)
 

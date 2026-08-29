@@ -86,6 +86,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_g90_friction_threshold,
   get_genesis_g70_center_output_scale,
   get_genesis_g70_curve_unwind_output_scale,
+  get_genesis_g70_angle_output_scale,
   get_genesis_g70_friction_jerk_deadzone,
   get_genesis_g70_friction_threshold,
   get_genesis_g70_high_speed_error_scale,
@@ -967,6 +968,8 @@ class TestLatControl:
     assert get_genesis_g70_low_speed_angle_damping(0.0, 20.0, 0.0, 2.0) > 0.0
     assert get_genesis_g70_curve_unwind_output_scale(0.7, -0.5, 25.0) == pytest.approx(1.0)
     assert get_genesis_g70_curve_unwind_output_scale(0.7, 0.5, 25.0) == 1.0
+    assert get_genesis_g70_angle_output_scale(55.0, 1.0) > get_genesis_g70_angle_output_scale(85.0, 1.0)
+    assert get_genesis_g70_angle_output_scale(85.0, -1.0) == pytest.approx(1.0)
     assert get_genesis_g70_friction_jerk_deadzone(25.0, 0.0) > 0.25
     assert get_genesis_g70_unwind_ff_scale(-0.7, -0.95, 0.5, 25.0) < 0.90
     assert get_genesis_g70_unwind_ff_scale(-0.7, -0.95, -0.5, 25.0) == 1.0
@@ -1145,6 +1148,30 @@ class TestLatControl:
 
     assert controller.is_rav4_prime
     assert lac_log.active
+    assert tapered_output == pytest.approx(base_output * 0.5)
+
+  def test_genesis_g70_angle_output_taper_update_path(self, monkeypatch):
+    monkeypatch.setattr(latcontrol_torque, "get_genesis_g70_angle_output_scale", lambda *_args: 1.0)
+    controller, VM, CS, params, starpilot_toggles = self._build_torque_controller(HYUNDAI.GENESIS_G70_2020)
+    CS.vEgo = 15.0
+    CS.steeringAngleDeg = 85.0
+    base_output, _, lac_log = controller.update(
+      True, CS, VM, params, False, 0.004, False, 0.2, None, None, starpilot_toggles,
+    )
+
+    monkeypatch.setattr(latcontrol_torque, "get_genesis_g70_angle_output_scale", lambda *_args: 0.5)
+    tapered_controller, tapered_VM, tapered_CS, tapered_params, tapered_toggles = self._build_torque_controller(
+      HYUNDAI.GENESIS_G70_2020,
+    )
+    tapered_CS.vEgo = 15.0
+    tapered_CS.steeringAngleDeg = 85.0
+    tapered_output, _, _ = tapered_controller.update(
+      True, tapered_CS, tapered_VM, tapered_params, False, 0.004, False, 0.2, None, None, tapered_toggles,
+    )
+
+    assert controller.is_genesis_g70
+    assert lac_log.active
+    assert base_output != 0.0
     assert tapered_output == pytest.approx(base_output * 0.5)
 
   def test_ram_1500_transition_taper_curve(self):

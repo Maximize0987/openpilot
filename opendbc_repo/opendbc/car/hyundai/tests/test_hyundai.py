@@ -20,7 +20,6 @@ from opendbc.car.hyundai.carcontroller import CarController, Ioniq6LongitudinalT
                                              should_track_stop_accel_directly_for_car, \
                                              preserve_stock_canfd_lfa_status, \
                                              preserve_stock_canfd_lkas_status, \
-                                             apply_carnival_steering_override, \
                                              suppress_redundant_gv70_brake_cancel
 from opendbc.car.hyundai.carstate import CarState, decode_canfd_camera_lead, decode_ioniq_6_blindspot_radar_state, \
                                              get_canfd_cruise_available
@@ -208,12 +207,6 @@ class TestHyundaiFingerprint:
     assert parser.vl["LKAS_ALT"]["DAMP_FACTOR"] == 100
     assert parser.vl["LKAS_ALT"]["TORQUE_REQUEST"] == 123
     assert parser.vl["LKAS_ALT"]["STEER_REQ"] == 1
-
-  def test_carnival_steering_override_is_scoped_to_2025_platform(self):
-    assert apply_carnival_steering_override(CAR.KIA_CARNIVAL_2025, True, True, 123) == (False, 0)
-    assert apply_carnival_steering_override(CAR.KIA_CARNIVAL_2025, False, True, 123) == (True, 123)
-    assert apply_carnival_steering_override(CAR.KIA_CARNIVAL_HEV_4TH_GEN, True, True, 123) == (True, 123)
-    assert apply_carnival_steering_override(CAR.HYUNDAI_IONIQ_6, True, True, 123) == (True, 123)
 
   def test_canfd_torque_bsm_parser_registers_rear_blindspots(self):
     CP = CarParams.new_message()

@@ -206,8 +206,12 @@ def test_outback_2023_uses_d_platform_bus_layout():
   assert CP.lateralSmoothSeconds == pytest.approx(0.4)
 
 
-def test_stop_start_request_is_bounded_and_uses_live_dashlights():
-  CP = CarInterface.get_non_essential_params(CAR.SUBARU_OUTBACK_2023)
+@pytest.mark.parametrize("platform, expected_bus", [
+  (CAR.SUBARU_OUTBACK_2023, CanBus.alt),
+  (CAR.SUBARU_LEGACY_2025, CanBus.main),
+])
+def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expected_bus):
+  CP = CarInterface.get_non_essential_params(platform)
   controller = CarController({}, CP)
   controller.frame = 101
 
@@ -239,9 +243,9 @@ def test_stop_start_request_is_bounded_and_uses_live_dashlights():
   _, can_sends = controller.update(CC, CS, 0, toggles)
   stop_start_msgs = [msg for msg in can_sends if msg[0] == 0x390]
   assert len(stop_start_msgs) == 1
-  assert stop_start_msgs[0][2] == CanBus.alt
-  parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("Dashlights", 0)], CanBus.alt)
-  parser.update([(1, [stop_start_msgs[0]])])
+  assert stop_start_msgs[0][2] == expected_bus
+  parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("Dashlights", 0)], expected_bus)
+  parser.update([(expected_bus, [stop_start_msgs[0]])])
   assert parser.vl["Dashlights"]["STOP_START"] == 1
   assert parser.vl["Dashlights"]["COUNTER"] == 7
 
@@ -262,6 +266,7 @@ def test_legacy_2025_uses_gen2_angle_bus_layout():
   assert not (CP.flags & SubaruFlags.D_PLATFORM_CAMERA)
   assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA)
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.FIXED_ANGLE_LIMITS
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.STOP_START_BUTTON
   assert CanBus.main_for_cp(CP) == CanBus.main
   assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.main

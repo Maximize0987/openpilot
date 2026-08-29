@@ -71,7 +71,7 @@ def _model_smooth_seconds(params, key, default):
 
 
 def _should_publish_model_output(model_output, vipc_dropped_frames: int, external_gpu_active: bool = False) -> bool:
-  return model_output is not None and (external_gpu_active or vipc_dropped_frames == 0)
+  return model_output is not None and vipc_dropped_frames == 0
 
 
 MIN_LAT_CONTROL_SPEED = 0.3
@@ -1011,7 +1011,7 @@ def main(demo=False):
     mt2 = time.perf_counter()
     model_execution_time = mt2 - mt1
 
-    if model_output is not None and vipc_dropped_frames > 0 and not external_gpu_active:
+    if model_output is not None and vipc_dropped_frames > 0:
       cloudlog.error(f"suppressing model output after dropping {vipc_dropped_frames} frames")
 
     if _should_publish_model_output(model_output, vipc_dropped_frames, external_gpu_active):

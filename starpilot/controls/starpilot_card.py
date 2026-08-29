@@ -304,7 +304,6 @@ class StarPilotCard:
     elif self.gap_counter == self.long_press_threshold:
       self.handle_button_event("distance_long", sm, starpilot_toggles)
     elif self.gap_counter == self.very_long_press_threshold:
-      self.handle_button_event("distance_long", sm, starpilot_toggles)
       self.handle_button_event("distance_very_long", sm, starpilot_toggles)
 
     if cancel_pressed:
@@ -322,8 +321,7 @@ class StarPilotCard:
     elif self.cancel_counter == self.long_press_threshold:
       pulse_glide_cancel_consumed = self.handle_button_event("cancel_long", sm, starpilot_toggles) or False
     elif self.cancel_counter == self.very_long_press_threshold:
-      pulse_glide_cancel_consumed = self.handle_button_event("cancel_long", sm, starpilot_toggles) or False
-      pulse_glide_cancel_consumed |= self.handle_button_event("cancel_very_long", sm, starpilot_toggles) or False
+      pulse_glide_cancel_consumed = self.handle_button_event("cancel_very_long", sm, starpilot_toggles) or False
 
     if pulse_glide_cancel_consumed:
       self.cancel_pulse_glide_suppressed = True
@@ -353,7 +351,6 @@ class StarPilotCard:
       elif self.mode_counter == self.long_press_threshold:
         self.handle_button_event("mode_long", sm, starpilot_toggles)
       elif self.mode_counter == self.very_long_press_threshold:
-        self.handle_button_event("mode_long", sm, starpilot_toggles)
         self.handle_button_event("mode_very_long", sm, starpilot_toggles)
 
       if starpilotCarState.customPressed:
@@ -367,7 +364,6 @@ class StarPilotCard:
       elif self.custom_counter == self.long_press_threshold:
         self.handle_button_event("star_long", sm, starpilot_toggles)
       elif self.custom_counter == self.very_long_press_threshold:
-        self.handle_button_event("star_long", sm, starpilot_toggles)
         self.handle_button_event("star_very_long", sm, starpilot_toggles)
 
     if not getattr(starpilot_toggles, "pulse_and_glide_available", False):

@@ -292,7 +292,7 @@ static bool subaru_tx_hook(const CANPacket_t *msg) {
 
   if (msg->addr == MSG_SUBARU_Dashlights) {
     violation |= !subaru_stop_start_button;
-    violation |= msg->bus != SUBARU_ALT_BUS;
+    violation |= msg->bus != (subaru_d_platform ? SUBARU_ALT_BUS : SUBARU_MAIN_BUS);
     violation |= !GET_BIT(msg, 54U);
     violation |= subaru_get_checksum(msg) != subaru_compute_checksum(msg);
   }
@@ -339,6 +339,12 @@ static safety_config subaru_init(uint16_t param) {
   static const CanMsg SUBARU_GEN2_LKAS_ANGLE_TX_MSGS[] = {
     SUBARU_BASE_TX_MSGS(SUBARU_ALT_BUS, MSG_SUBARU_ES_LKAS_ANGLE)
     SUBARU_COMMON_TX_MSGS(SUBARU_ALT_BUS)
+  };
+
+  static const CanMsg SUBARU_GEN2_LKAS_ANGLE_STOP_START_TX_MSGS[] = {
+    SUBARU_BASE_TX_MSGS(SUBARU_ALT_BUS, MSG_SUBARU_ES_LKAS_ANGLE)
+    SUBARU_COMMON_TX_MSGS(SUBARU_ALT_BUS)
+    SUBARU_STOP_START_TX_MSGS(SUBARU_MAIN_BUS)
   };
 
   static const CanMsg SUBARU_D_PLATFORM_ANGLE_MAIN_TX_MSGS[] = {
@@ -409,7 +415,8 @@ static safety_config subaru_init(uint16_t param) {
     ret = subaru_d_platform ? (subaru_stop_start_button ? BUILD_SAFETY_CFG(subaru_d_platform_angle_rx_checks, SUBARU_D_PLATFORM_ANGLE_STOP_START_MAIN_TX_MSGS) : \
                               (subaru_d_platform_camera ? BUILD_SAFETY_CFG(subaru_d_platform_angle_rx_checks, SUBARU_D_PLATFORM_ANGLE_CAMERA_TX_MSGS) : \
                               BUILD_SAFETY_CFG(subaru_d_platform_angle_rx_checks, SUBARU_D_PLATFORM_ANGLE_MAIN_TX_MSGS))) : \
-          subaru_gen2 ? BUILD_SAFETY_CFG(subaru_gen2_lkas_angle_rx_checks, SUBARU_GEN2_LKAS_ANGLE_TX_MSGS) : \
+          subaru_gen2 ? (subaru_stop_start_button ? BUILD_SAFETY_CFG(subaru_gen2_lkas_angle_rx_checks, SUBARU_GEN2_LKAS_ANGLE_STOP_START_TX_MSGS) : \
+                         BUILD_SAFETY_CFG(subaru_gen2_lkas_angle_rx_checks, SUBARU_GEN2_LKAS_ANGLE_TX_MSGS)) : \
                         BUILD_SAFETY_CFG(subaru_lkas_angle_rx_checks, SUBARU_LKAS_ANGLE_TX_MSGS);
   } else if (subaru_gen2) {
     ret = subaru_longitudinal ? BUILD_SAFETY_CFG(subaru_gen2_rx_checks, SUBARU_GEN2_LONG_TX_MSGS) : \

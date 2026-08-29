@@ -180,13 +180,6 @@ def should_use_ev6_gt_line_stop_direct_tracking(ev6_gt_line: bool, stopping: boo
   return bool(ev6_gt_line and stopping and v_ego > EV6_GT_LINE_STOP_BRAKE_CAP_MAX_SPEED and accel_cmd < actual_accel)
 
 
-def apply_carnival_steering_override(car_fingerprint, steering_pressed: bool,
-                                     apply_steer_req: bool, apply_torque: int) -> tuple[bool, int]:
-  if car_fingerprint == CAR.KIA_CARNIVAL_2025 and steering_pressed:
-    return False, 0
-  return apply_steer_req, apply_torque
-
-
 def update_ev9_longitudinal_tuning(state: EV9LongitudinalTuningState, enabled: bool,
                                    stopping: bool, v_ego: float) -> EV9LongitudinalTuningState:
   if not enabled:
@@ -619,10 +612,6 @@ class CarController(CarControllerBase):
 
       if not CC.latActive:
         apply_torque = 0
-
-      apply_steer_req, apply_torque = apply_carnival_steering_override(
-        self.CP.carFingerprint, CS.out.steeringPressed, apply_steer_req, apply_torque,
-      )
 
       # Hold torque with induced temporary fault when cutting the actuation bit
       # FIXME: we don't use this with CAN FD?

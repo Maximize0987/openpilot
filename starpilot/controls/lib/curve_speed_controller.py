@@ -7,6 +7,7 @@ from openpilot.common.realtime import DT_MDL
 from openpilot.starpilot.common.starpilot_variables import CITY_SPEED_LIMIT, CRUISING_SPEED, DEFAULT_LATERAL_ACCELERATION, PLANNER_TIME
 
 CALIBRATION_PROGRESS_THRESHOLD = 10 / DT_MDL
+MIN_TRAINING_TIME = 5.0
 CSC_MIN_SPEED = CITY_SPEED_LIMIT * CV.MPH_TO_MS
 CSC_MAX_DECEL_RATE = 1.5
 MAX_CURVATURE = 0.1
@@ -150,9 +151,8 @@ class CurveSpeedController:
       self.persistence_timer += DT_MDL
 
     in_curve = (
-      self.training_timer >= PLANNER_TIME and
-      self.starpilot_planner.driving_in_curve and
-      not (sm["carState"].leftBlinker or sm["carState"].rightBlinker)
+      self.training_timer >= MIN_TRAINING_TIME and
+      self.starpilot_planner.driving_in_curve
     )
     if in_curve:
       lateral_acceleration = abs(self.starpilot_planner.lateral_acceleration)

@@ -22,6 +22,7 @@ HONDA_ACCORD_STOP_GO_ACCEL_RISE_RATE = 4.0
 HYUNDAI_ELANTRA_LEAD_FOLLOW_JERK_SCALE = 1.25
 GENESIS_GV70_ELECTRIFIED_LEAD_FOLLOW_JERK_SCALE = 1.35
 FORD_LIGHTNING_LEAD_FOLLOW_JERK_SCALE = 1.20
+HONDA_CRV_5G_LEAD_FOLLOW_JERK_SCALE = 1.20
 GM_SILVERADO_EARLY_FOLLOW_MIN_EGO_SPEED = 18.0
 GM_SILVERADO_EARLY_FOLLOW_MAX_DISTANCE = 130.0
 GM_SILVERADO_EARLY_FOLLOW_MIN_MODEL_PROB = 0.85
@@ -32,6 +33,13 @@ FORD_LIGHTNING_FOLLOW_PREBRAKE_MIN_HEADWAY = 1.0
 FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN = 0.10
 FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN = 0.25
 FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_BIAS_GAIN = 0.65
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN = 0.10
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN = 0.35
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_BIAS_GAIN = 1.25
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_BIAS_CAP = 65.0
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_SPEED_RANGE = (10.0, 18.0)
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_FADE_MARGINS = (0.75, 6.5)
+HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_CRUISE_ERROR_FULL = 0.75
 FORD_LIGHTNING_FAR_FOLLOW_BRAKE_SLEW_RATE = 2.5
 FORD_LIGHTNING_FAR_FOLLOW_RELEASE_SLEW_RATE = 1.75
 FORD_LIGHTNING_STANDSTILL_GUARD_DISTANCE_MARGIN = 5.0
@@ -106,6 +114,7 @@ TOYOTA_CAMRY_TSS2_FORCE_STOP_DISTANCE_BIAS_M = 6.0
 DEFAULT_FORCE_STOP_HANDOFF_M = 6.0
 HYUNDAI_SANTA_FE_2022_FORCE_STOP_REANCHOR_SPEED_TOLERANCE = 0.25
 HYUNDAI_SANTA_FE_2022_FORCE_STOP_LOW_SPEED_HOLD = 2.5
+KIA_CARNIVAL_2025_STOP_SIGN_LOW_SPEED_HOLD = 0.75
 
 
 def get_toyota_prius_stopped_lead_obstacle_bias(CP, lead, v_ego):
@@ -278,6 +287,11 @@ def get_standstill_stopped_lead_guard_max_lead_speed(CP, default):
 
 
 def get_tracked_lead_catchup_headway_margins(CP):
+  if is_honda_crv_5g(CP):
+    return (
+      HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN,
+      HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN,
+    )
   if is_ford_f150_lightning(CP):
     return (
       FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN,
@@ -287,8 +301,34 @@ def get_tracked_lead_catchup_headway_margins(CP):
 
 
 def get_tracked_lead_catchup_bias_gain(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_BIAS_GAIN
   if is_ford_f150_lightning(CP):
     return FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_BIAS_GAIN
+  return None
+
+
+def get_tracked_lead_catchup_bias_cap(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_BIAS_CAP
+  return None
+
+
+def get_tracked_lead_catchup_speed_range(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_SPEED_RANGE
+  return None
+
+
+def get_tracked_lead_catchup_fade_margins(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_FADE_MARGINS
+  return None
+
+
+def get_tracked_lead_catchup_cruise_error_full(CP):
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_CRUISE_ERROR_FULL
   return None
 
 
@@ -436,6 +476,8 @@ def get_lead_follow_jerk_scale(CP):
     str(getattr(CP, "carFingerprint", "")) == "GENESIS_GV70_ELECTRIFIED_1ST_GEN"
   ):
     return GENESIS_GV70_ELECTRIFIED_LEAD_FOLLOW_JERK_SCALE
+  if is_honda_crv_5g(CP):
+    return HONDA_CRV_5G_LEAD_FOLLOW_JERK_SCALE
   if is_ford_f150_lightning(CP):
     return FORD_LIGHTNING_LEAD_FOLLOW_JERK_SCALE
   return 1.0
@@ -576,4 +618,11 @@ def get_force_stop_low_speed_hold(car_params):
   """Keep a committed Santa Fe stop from releasing while it is still rolling."""
   if str(getattr(car_params, "carFingerprint", car_params)) == "HYUNDAI_SANTA_FE_2022":
     return HYUNDAI_SANTA_FE_2022_FORCE_STOP_LOW_SPEED_HOLD
+  return None
+
+
+def get_stop_sign_low_speed_hold(car_params):
+  """Keep a confirmed Carnival stop latched through the final low-speed handoff."""
+  if str(getattr(car_params, "carFingerprint", car_params)) == "KIA_CARNIVAL_2025":
+    return KIA_CARNIVAL_2025_STOP_SIGN_LOW_SPEED_HOLD
   return None
