@@ -308,12 +308,11 @@ def test_thumbnail_endpoint_sets_cache_headers(monkeypatch, tmp_path):
   preview.write_bytes(b"not-a-real-png-but-send-file-does-not-mind")
   client = _make_client(monkeypatch, tmp_path)
 
-  response = client.get(f"/thumbnails/{ROUTE_NAME}--0/preview.png")
-
-  assert response.status_code == 200
-  assert response.mimetype == "image/png"
-  assert response.headers["Cache-Control"] == f"public, max-age={the_galaxy.ROUTE_THUMBNAIL_CACHE_SECONDS}"
-  assert response.data == preview.read_bytes()
+  with client.get(f"/thumbnails/{ROUTE_NAME}--0/preview.png") as response:
+    assert response.status_code == 200
+    assert response.mimetype == "image/png"
+    assert response.headers["Cache-Control"] == f"public, max-age={the_galaxy.ROUTE_THUMBNAIL_CACHE_SECONDS}"
+    assert response.data == preview.read_bytes()
 
 
 def test_rename_and_reset_keep_logs_and_use_both_reset_urls(monkeypatch, tmp_path):
@@ -527,6 +526,61 @@ def test_combined_video_streams_fragmented_mp4_without_a_full_cache_file(monkeyp
   assert not list(cache.glob("*.mp4"))
 
 
+def test_combined_video_stream_has_a_hard_timeout(monkeypatch, tmp_path):
+  cache = tmp_path / "video_cache"
+  source = tmp_path / "first.hevc"
+  source.write_bytes(b"first")
+  monkeypatch.setattr(utilities, "VIDEO_CACHE_PATH", cache)
+  monkeypatch.setattr(utilities, "VIDEO_STREAM_TIMEOUT_SECONDS", 0.01)
+
+  class HangingStdout:
+    def read(self, _):
+      time.sleep(10)
+      return b""
+
+    def close(self):
+      pass
+
+  class HangingProcess:
+    def __init__(self):
+      self.stdout = HangingStdout()
+      self.returncode = None
+      self.terminated = False
+
+    def poll(self):
+      return self.returncode
+
+    def terminate(self):
+      self.terminated = True
+      self.returncode = -15
+
+    def wait(self, timeout=None):
+      del timeout
+      return self.returncode
+
+  process = HangingProcess()
+  monkeypatch.setattr(utilities.subprocess, "Popen", lambda *args, **kwargs: process)
+
+  with pytest.raises(TimeoutError, match="Timed out streaming"):
+    b"".join(utilities.ffmpeg_stream_concatenated_mp4([source], chunk_size=4))
+
+  assert process.terminated
+  assert not list(cache.glob("route-download-*.txt"))
+
+
+def test_route_endpoints_reject_invalid_names(monkeypatch, tmp_path):
+  client = _make_client(monkeypatch, tmp_path)
+
+  for method, path in (
+    (client.delete, "/api/routes/not-a-route"),
+    (client.post, "/api/routes/not-a-route/preserve"),
+    (client.delete, "/api/routes/not-a-route/preserve"),
+    (client.get, "/api/routes/not-a-route"),
+    (client.get, "/video/not-a-route/combined"),
+  ):
+    assert method(path).status_code == 400
+
+
 def _stub_remux(monkeypatch, tmp_path, payload=b"wrapped-video"):
   """Stand in for the ffmpeg remux, returning a real file so send_file can stream it."""
   wrapped = tmp_path / "wrapped.mp4"
@@ -550,16 +604,16 @@ def test_sparse_route_metadata_and_video_downloads(monkeypatch, tmp_path):
   # One minute per segment, without probing each one with ffprobe.
   assert metadata.get_json()["total_duration"] == 180
 
-  segment_video = client.get(f"/video/{ROUTE_NAME}--3?camera=forward")
-  assert segment_video.status_code == 200
-  assert segment_video.mimetype == "video/mp4"
-  assert segment_video.data == b"wrapped-video"
+  with client.get(f"/video/{ROUTE_NAME}--3?camera=forward") as segment_video:
+    assert segment_video.status_code == 200
+    assert segment_video.mimetype == "video/mp4"
+    assert segment_video.data == b"wrapped-video"
 
-  combined_video = client.get(f"/video/{ROUTE_NAME}/combined?camera=forward")
-  assert combined_video.status_code == 200
-  assert combined_video.mimetype == "video/mp4"
-  assert combined_video.data == b"combined-video"
-  assert combined_video.headers["X-Accel-Buffering"] == "no"
+  with client.get(f"/video/{ROUTE_NAME}/combined?camera=forward") as combined_video:
+    assert combined_video.status_code == 200
+    assert combined_video.mimetype == "video/mp4"
+    assert combined_video.data == b"combined-video"
+    assert combined_video.headers["X-Accel-Buffering"] == "no"
 
 
 def test_route_metadata_never_probes_segments_with_ffprobe(monkeypatch, tmp_path):
@@ -599,13 +653,13 @@ def test_low_quality_serves_the_wrapped_qcamera_preview(monkeypatch, tmp_path):
   monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", wrap)
   client = _make_client(monkeypatch, tmp_path)
 
-  low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
-  assert low.status_code == 200
-  assert low.mimetype == "video/mp4"
-  assert low.data == b"preview-video"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low") as low:
+    assert low.status_code == 200
+    assert low.mimetype == "video/mp4"
+    assert low.data == b"preview-video"
 
-  full = client.get(f"/video/{ROUTE_NAME}--0?camera=forward")
-  assert full.data == b"full-video"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward") as full:
+    assert full.data == b"full-video"
   assert wrapped == ["qcamera.ts", "fcamera.hevc"]
 
 
@@ -616,9 +670,9 @@ def test_low_quality_falls_through_to_the_full_stream_when_qcamera_is_missing(mo
   _stub_remux(monkeypatch, tmp_path)
   client = _make_client(monkeypatch, tmp_path)
 
-  low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
-  assert low.status_code == 200
-  assert low.data == b"wrapped-video"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low") as low:
+    assert low.status_code == 200
+    assert low.data == b"wrapped-video"
 
 
 def test_low_quality_falls_through_when_the_preview_cannot_be_wrapped(monkeypatch, tmp_path):
@@ -637,9 +691,9 @@ def test_low_quality_falls_through_when_the_preview_cannot_be_wrapped(monkeypatc
   monkeypatch.setattr(utilities, "ffmpeg_mp4_wrap_to_path", wrap)
   client = _make_client(monkeypatch, tmp_path)
 
-  low = client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low")
-  assert low.status_code == 200
-  assert low.data == b"full-video"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward&quality=low") as low:
+    assert low.status_code == 200
+    assert low.data == b"full-video"
 
 
 def test_only_the_road_camera_has_a_preview(monkeypatch, tmp_path):
@@ -649,8 +703,8 @@ def test_only_the_road_camera_has_a_preview(monkeypatch, tmp_path):
   _stub_remux(monkeypatch, tmp_path)
   client = _make_client(monkeypatch, tmp_path)
 
-  wide = client.get(f"/video/{ROUTE_NAME}--0?camera=wide&quality=low")
-  assert wide.data == b"wrapped-video"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=wide&quality=low") as wide:
+    assert wide.data == b"wrapped-video"
 
 
 def test_preview_timeout_does_not_wait_again_for_the_full_stream(monkeypatch, tmp_path):
@@ -732,7 +786,8 @@ def test_segment_video_falls_back_across_cameras(monkeypatch, tmp_path):
   _stub_remux(monkeypatch, tmp_path)
   client = _make_client(monkeypatch, tmp_path)
 
-  assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward").data == b"wrapped-video"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward") as forward:
+    assert forward.data == b"wrapped-video"
   # No ecamera.hevc on disk for this segment.
   assert client.get(f"/video/{ROUTE_NAME}--0?camera=wide").status_code == 404
   assert client.get("/video/not-a-segment?camera=forward").status_code == 400
@@ -744,13 +799,14 @@ def test_segment_video_supports_range_requests(monkeypatch, tmp_path):
   _stub_remux(monkeypatch, tmp_path, payload=b"0123456789")
   client = _make_client(monkeypatch, tmp_path)
 
-  partial = client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=2-5"})
-  assert partial.status_code == 206
-  assert partial.data == b"2345"
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=2-5"}) as partial:
+    assert partial.status_code == 206
+    assert partial.data == b"2345"
   assert partial.headers["Content-Range"] == "bytes 2-5/10"
 
   # A malformed range used to raise inside the hand-rolled parser.
-  assert client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=abc"}).status_code in (200, 416)
+  with client.get(f"/video/{ROUTE_NAME}--0?camera=forward", headers={"Range": "bytes=abc"}) as malformed_range:
+    assert malformed_range.status_code in (200, 416)
 
 
 def test_head_request_prepares_full_quality_without_sending_the_body(monkeypatch, tmp_path):
@@ -759,10 +815,10 @@ def test_head_request_prepares_full_quality_without_sending_the_body(monkeypatch
   _stub_remux(monkeypatch, tmp_path)
   client = _make_client(monkeypatch, tmp_path)
 
-  prepared = client.head(f"/video/{ROUTE_NAME}--0?camera=forward")
-  assert prepared.status_code == 200
-  assert prepared.mimetype == "video/mp4"
-  assert prepared.data == b""
+  with client.head(f"/video/{ROUTE_NAME}--0?camera=forward") as prepared:
+    assert prepared.status_code == 200
+    assert prepared.mimetype == "video/mp4"
+    assert prepared.data == b""
 
 
 def test_concurrent_requests_for_one_segment_share_a_single_remux(monkeypatch, tmp_path):
@@ -785,7 +841,8 @@ def test_concurrent_requests_for_one_segment_share_a_single_remux(monkeypatch, t
 
   results = []
   def fetch():
-    results.append(client.get(f"/video/{ROUTE_NAME}--0?camera=forward").status_code)
+    with client.get(f"/video/{ROUTE_NAME}--0?camera=forward") as response:
+      results.append(response.status_code)
 
   threads = [threading.Thread(target=fetch) for _ in range(4)]
   for thread in threads:

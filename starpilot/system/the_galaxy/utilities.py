@@ -5,6 +5,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import queue
 import re
 import secrets
 import shutil
@@ -673,6 +674,8 @@ VIDEO_CACHE_MAX_BYTES = 512 * 1024 * 1024
 # A malformed or truncated segment must not occupy the Galaxy's only remux worker
 # forever. Stream-copy normally finishes in seconds; this also bounds the fallback.
 VIDEO_REMUX_TIMEOUT_SECONDS = 60
+# Bound combined-route streams as well. Scale the deadline with route length below.
+VIDEO_STREAM_TIMEOUT_SECONDS = 120
 
 
 def _prune_video_cache(keep_path=None):
@@ -763,6 +766,7 @@ def ffmpeg_stream_concatenated_mp4(input_files, chunk_size=256 * 1024):
       list_file.write(f"file '{Path(segment)}'\n")
 
   process = None
+  reader_thread = None
   try:
     process = subprocess.Popen(
       [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0",
@@ -771,13 +775,39 @@ def ffmpeg_stream_concatenated_mp4(input_files, chunk_size=256 * 1024):
       stdout=subprocess.PIPE,
       stderr=subprocess.DEVNULL,
     )
+    chunks = queue.Queue(maxsize=4)
+    deadline = time.monotonic() + max(VIDEO_STREAM_TIMEOUT_SECONDS, len(input_files) * 2.0)
+
+    def read_stdout():
+      try:
+        while True:
+          chunk = process.stdout.read(chunk_size)
+          if not chunk:
+            chunks.put(("eof", None))
+            return
+          chunks.put(("data", chunk))
+      except Exception as error:
+        chunks.put(("error", error))
+
+    reader_thread = threading.Thread(target=read_stdout, name="route-video-reader", daemon=True)
+    reader_thread.start()
+
     while True:
-      chunk = process.stdout.read(chunk_size)
-      if not chunk:
+      remaining = deadline - time.monotonic()
+      if remaining <= 0:
+        raise TimeoutError("Timed out streaming the combined route video")
+      try:
+        kind, value = chunks.get(timeout=remaining)
+      except queue.Empty as error:
+        raise TimeoutError("Timed out streaming the combined route video") from error
+      if kind == "data":
+        yield value
+      elif kind == "error":
+        raise ValueError("Could not read the combined route video") from value
+      else:
+        if process.wait(timeout=max(0.1, remaining)) != 0:
+          raise ValueError("Could not stream the combined route video")
         break
-      yield chunk
-    if process.wait() != 0:
-      raise ValueError("Could not stream the combined route video")
   finally:
     if process is not None:
       if process.stdout is not None:
@@ -789,6 +819,8 @@ def ffmpeg_stream_concatenated_mp4(input_files, chunk_size=256 * 1024):
         except subprocess.TimeoutExpired:
           process.kill()
           process.wait()
+    if reader_thread is not None:
+      reader_thread.join(timeout=1)
     try:
       list_path.unlink()
     except OSError:

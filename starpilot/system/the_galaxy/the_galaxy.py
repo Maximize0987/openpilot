@@ -1119,7 +1119,7 @@ def _get_toggle_backup_keys():
 
 def _route_log_files(name):
   """Full logs for a route as [(segment, filename, path, size)], oldest segment first."""
-  if not utilities.ROUTE_RE.match(name or ""):
+  if not utilities.ROUTE_RE.fullmatch(str(name or "")):
     return []
 
   for footage_path in FOOTAGE_PATHS:
@@ -6450,7 +6450,7 @@ def setup(app):
     if not _valid_route_name(name):
       return jsonify({"error": "Invalid route name."}), 400
 
-    preserved_routes = 0
+    preserved_routes = set()
     for footage_path in FOOTAGE_PATHS:
       if not os.path.isdir(footage_path):
         continue
@@ -6475,9 +6475,9 @@ def setup(app):
       return jsonify({"error": "Invalid route name."}), 400
 
     for footage_path in FOOTAGE_PATHS:
-      route_path = os.path.join(footage_path, f"{name}--0")
-      if os.path.isdir(route_path) and PRESERVE_ATTR_NAME in os.listxattr(route_path):
-        os.removexattr(route_path, PRESERVE_ATTR_NAME)
+      segment_path = _route_first_segment_path(name, footage_path)
+      if segment_path is not None and utilities.has_preserve_attr(segment_path):
+        os.removexattr(segment_path, PRESERVE_ATTR_NAME)
         return {"message": "Route unpreserved!"}, 200
     return {"error": "Route not found"}, 404
 
@@ -6600,8 +6600,8 @@ def setup(app):
     data = request.get_json()
     route_name = data.get("name")
 
-    if not route_name:
-      return jsonify({"error": "Missing route name"}), 400
+    if not _valid_route_name(route_name):
+      return jsonify({"error": "Invalid route name"}), 400
 
     cleared = False
     original_timestamp = None
@@ -6638,8 +6638,8 @@ def setup(app):
     old_name = data.get("old")
     new_name_raw = data.get("new")
 
-    if not old_name or not new_name_raw:
-      return jsonify({"error": "Missing old or new name"}), 400
+    if not _valid_route_name(old_name) or not new_name_raw:
+      return jsonify({"error": "Missing or invalid route name"}), 400
 
     new_name = utilities.secure_filename(new_name_raw)
     renamed = False
