@@ -20,7 +20,8 @@ from opendbc.car.hyundai.carcontroller import CarController, Ioniq6LongitudinalT
                                              should_track_stop_accel_directly_for_car, \
                                              preserve_stock_canfd_lfa_status, \
                                              preserve_stock_canfd_lkas_status, \
-                                             suppress_redundant_gv70_brake_cancel
+                                             suppress_redundant_gv70_brake_cancel, \
+                                             clear_ioniq_6_torque_when_request_inactive
 from opendbc.car.hyundai.carstate import CarState, decode_canfd_camera_lead, decode_ioniq_6_blindspot_radar_state, \
                                              get_canfd_cruise_available
 from opendbc.car.hyundai.interface import CarInterface, KIA_EV9_ACCEL_MAX
@@ -553,6 +554,14 @@ class TestHyundaiFingerprint:
     assert not (CP.flags & HyundaiFlags.CCNC)
     assert not (CP.flags & HyundaiFlags.CANFD_LKA_STEERING)
     assert bool(CP.flags & HyundaiFlags.CANFD_CAMERA_SCC)
+
+  def test_ioniq_6_clears_torque_with_inactive_safety_request(self):
+    ioniq_6_cp = SimpleNamespace(carFingerprint=CAR.HYUNDAI_IONIQ_6)
+    other_cp = SimpleNamespace(carFingerprint=CAR.KIA_EV6)
+
+    assert clear_ioniq_6_torque_when_request_inactive(ioniq_6_cp, -409, False) == 0
+    assert clear_ioniq_6_torque_when_request_inactive(ioniq_6_cp, -409, True) == -409
+    assert clear_ioniq_6_torque_when_request_inactive(other_cp, -409, False) == -409
 
     palisade_2023 = CarInterface.get_params(CAR.HYUNDAI_PALISADE_2023, gen_empty_fingerprint(), [], True, False, False, None)
     assert palisade_2023.flags & HyundaiFlags.CAN_CANFD_BLENDED
