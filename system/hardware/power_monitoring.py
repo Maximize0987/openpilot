@@ -33,10 +33,16 @@ class PowerMonitoring:
     self.low_voltage_start_time = None          # Monotonic timestamp when low voltage was first observed
     self.integration_lock = threading.Lock()
 
-    car_battery_capacity_uWh = self.params.get("CarBatteryCapacity") or CAR_BATTERY_CAPACITY_uWh
+    # Preserve an exhausted persisted value so the shutdown policy can act on it.
+    # A missing or malformed value is treated as a newly initialized battery.
+    car_battery_capacity_uWh = self.params.get_int("CarBatteryCapacity", default=CAR_BATTERY_CAPACITY_uWh)
+    if car_battery_capacity_uWh < 0:
+      car_battery_capacity_uWh = CAR_BATTERY_CAPACITY_uWh
 
-    # Reset capacity if it's low
-    self.car_battery_capacity_uWh = max((CAR_BATTERY_CAPACITY_uWh / 2), car_battery_capacity_uWh)
+    # Reset low but non-zero estimates; zero means the estimate is exhausted.
+    self.car_battery_capacity_uWh = (
+      0 if car_battery_capacity_uWh == 0 else max((CAR_BATTERY_CAPACITY_uWh / 2), car_battery_capacity_uWh)
+    )
 
   # Calculation tick
   def calculate(self, voltage: int | None, ignition: bool):
