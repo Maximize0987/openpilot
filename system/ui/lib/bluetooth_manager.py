@@ -13,6 +13,7 @@ class BluetoothManager:
     self._active = False
     self._exit = False
     self._operation_error = ""
+    self._operations = {}
     self._audio_test_deadline = 0.0
     self._thread = threading.Thread(target=self._poll, daemon=True)
     self._thread.start()
@@ -33,6 +34,10 @@ class BluetoothManager:
       error = self._operation_error
       self._operation_error = ""
       return error
+
+  def operation_for(self, address: str) -> str:
+    with self._lock:
+      return self._operations.get(address.upper(), "")
 
   def audio_test_phase(self) -> str:
     with self._lock:
@@ -58,13 +63,23 @@ class BluetoothManager:
             self._status = BluetoothStatus(error=str(error))
       time.sleep(1.0 if self._active else 2.0)
 
-  def _run(self, fn, *args) -> None:
+  def _run(self, fn, *args, operation: str = "", address: str = "") -> None:
+    normalized_address = address.upper()
+    if normalized_address:
+      with self._lock:
+        self._operations[normalized_address] = operation
+
     def worker():
       try:
         fn(*args)
       except Exception as error:
         with self._lock:
           self._operation_error = str(error)
+      finally:
+        if normalized_address:
+          with self._lock:
+            if self._operations.get(normalized_address) == operation:
+              self._operations.pop(normalized_address, None)
     threading.Thread(target=worker, daemon=True).start()
 
   def set_power(self, enabled: bool) -> None:
@@ -74,16 +89,16 @@ class BluetoothManager:
     self._run(self._client.start_scan if scanning else self._client.stop_scan)
 
   def pair(self, address: str) -> None:
-    self._run(self._client.pair, address)
+    self._run(self._client.pair, address, operation="pairing", address=address)
 
   def connect(self, address: str) -> None:
-    self._run(self._client.connect, address)
+    self._run(self._client.connect, address, operation="connecting", address=address)
 
   def disconnect(self, address: str) -> None:
-    self._run(self._client.disconnect, address)
+    self._run(self._client.disconnect, address, operation="disconnecting", address=address)
 
   def forget(self, address: str) -> None:
-    self._run(self._client.forget, address)
+    self._run(self._client.forget, address, operation="forgetting", address=address)
 
   def select_audio(self, address: str) -> None:
     self._run(self._client.select_audio, address)

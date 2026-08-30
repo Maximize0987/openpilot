@@ -9,6 +9,7 @@ const state = reactive({
   discovering: false,
   offroad: false,
   selectedAudio: "",
+  pairingAddress: "",
   devices: [],
   prompt: null,
   audioTestAddress: "",
@@ -96,6 +97,7 @@ async function refresh() {
     state.discovering = !!payload.discovering
     state.offroad = !!payload.offroad
     state.selectedAudio = String(payload.selected_audio || "")
+    state.pairingAddress = String(payload.pairing_address || "")
     state.devices = Array.isArray(payload.devices) ? payload.devices : []
     state.prompt = payload.prompt || null
     state.error = payload.error || (response.ok ? "" : "Bluetooth service unavailable")
@@ -117,21 +119,54 @@ function initialize() {
   }, 2000)
 }
 
-function capabilityBadges(device) {
-  const badges = []
-  if (device.audio) badges.push(html`<span class="bluetoothBadge">Audio</span>`)
-  if (device.controller) badges.push(html`<span class="bluetoothBadge">Controller</span>`)
-  if (device.paired) badges.push(html`<span class="bluetoothBadge bluetoothBadgePaired">Paired</span>`)
-  if (device.connected) badges.push(html`<span class="bluetoothBadge bluetoothBadgeConnected">Connected</span>`)
-  return badges
+function normalizedAddress(device) {
+  return String(device.address || "").toUpperCase()
+}
+
+function isPairing(device) {
+  return !!state.pairingAddress && state.pairingAddress.toUpperCase() === normalizedAddress(device)
+}
+
+function deviceIcon(device) {
+  if (device.audio && device.controller) return "bi-headset"
+  if (device.audio) return "bi-headphones"
+  if (device.controller) return "bi-controller"
+  return "bi-bluetooth"
+}
+
+function deviceCapabilities(device) {
+  const capabilities = []
+  if (device.audio) capabilities.push("Audio")
+  if (device.controller) capabilities.push("Controller")
+  return capabilities.join(" · ") || "Bluetooth device"
+}
+
+function deviceStatus(device) {
+  if (isPairing(device)) return "Pairing…"
+  if (device.connected) {
+    const audioSelected = state.selectedAudio.toUpperCase() === normalizedAddress(device)
+    return audioSelected ? "Connected · Audio output" : "Connected"
+  }
+  return device.paired ? "Saved" : "Ready to pair"
+}
+
+function knownDevices() {
+  return state.devices.filter((device) => device.paired || device.trusted || device.connected)
+}
+
+function availableDevices() {
+  return state.devices.filter((device) => !device.paired && !device.trusted && !device.connected)
 }
 
 function deviceActions(device) {
   const audioSelected = () => state.selectedAudio.toUpperCase() === device.address.toUpperCase()
+  const pairing = () => isPairing(device)
   return html`
     <div class="bluetoothActions">
       ${!device.paired ? html`
-        <button disabled="${() => !state.offroad || !!state.busy}" @click="${() => request("pair", { address: device.address })}">Pair</button>
+        <button disabled="${() => !state.offroad || !!state.busy || pairing()}" @click="${() => request("pair", { address: device.address })}">
+          ${() => pairing() ? "Pairing…" : "Pair"}
+        </button>
       ` : html`
         <button disabled="${() => !!state.busy}" @click="${() => request(device.connected ? "disconnect" : "connect", { address: device.address })}">
           ${device.connected ? "Disconnect" : "Connect"}
@@ -147,11 +182,45 @@ function deviceActions(device) {
             </button>
           ` : ""}
         ` : ""}
-        <button class="danger" disabled="${() => !state.offroad || !!state.busy}" @click="${() => {
+        <button class="bluetoothIconButton bluetoothForgetButton" title="Forget device" aria-label="Forget ${device.name}"
+                disabled="${() => !state.offroad || !!state.busy}" @click="${() => {
           if (window.confirm(`Forget ${device.name}?`)) request("forget", { address: device.address })
-        }}">Forget</button>
+        }}"><i class="bi bi-trash3" aria-hidden="true"></i></button>
       `}
     </div>
+  `
+}
+
+function deviceRow(device) {
+  return html`
+    <div class="${() => `bluetoothDeviceRow ${device.connected ? "connected" : ""}`}">
+      <div class="bluetoothDeviceIcon"><i class="bi ${deviceIcon(device)}" aria-hidden="true"></i></div>
+      <div class="bluetoothDeviceDetails">
+        <div class="bluetoothDeviceName">
+          <h3>${device.name}</h3>
+          ${device.connected ? html`<span class="bluetoothConnectedDot" title="Connected"></span>` : ""}
+        </div>
+        <p>${deviceCapabilities(device)}</p>
+        <span class="bluetoothDeviceStatus">${() => deviceStatus(device)}</span>
+      </div>
+      ${deviceActions(device)}
+    </div>
+  `
+}
+
+function deviceSection(title, icon, devices, emptyText = "") {
+  return html`
+    <section class="bluetoothSection">
+      <div class="bluetoothSectionHeader">
+        <div><i class="bi ${icon}" aria-hidden="true"></i><h3>${title}</h3></div>
+        <span>${devices.length}</span>
+      </div>
+      <div class="bluetoothSectionBody">
+        ${devices.length ? devices.map(deviceRow) : html`
+          <div class="bluetoothEmptyState">${emptyText}</div>
+        `}
+      </div>
+    </section>
   `
 }
 
@@ -164,7 +233,7 @@ export function Bluetooth() {
           <i class="bi bi-bluetooth" aria-hidden="true"></i>
           <div>
           <h2>Bluetooth</h2>
-          <p>Connect audio devices and controllers.</p>
+          <p>Connect speakers, headphones, media controls, and controllers.</p>
           </div>
         </div>
         <label class="bluetoothSwitch">
@@ -188,28 +257,30 @@ export function Bluetooth() {
 
       <div class="bluetoothToolbar">
         <button disabled="${() => !state.offroad || !state.enabled || !!state.busy}"
+                class="${() => state.discovering ? "scanning" : ""}"
                 @click="${() => request(state.discovering ? "stop_scan" : "scan")}">
-          ${() => state.discovering ? "Stop Scanning" : "Scan for Devices"}
+          <i class="${() => `bi ${state.discovering ? "bi-arrow-repeat" : "bi-search"}`}" aria-hidden="true"></i>
+          ${() => state.discovering ? "Searching…" : "Search for Devices"}
         </button>
-        <button disabled="${() => !!state.busy}" @click="${refresh}">Refresh</button>
+        <button class="bluetoothSecondaryButton" disabled="${() => !!state.busy}" @click="${refresh}">
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
+        </button>
+        <span class="bluetoothScanHint">Put a device in pairing mode before searching.</span>
       </div>
 
       <div class="bluetoothDeviceList">
-        ${() => state.loading ? html`<div class="bluetoothCard">Loading...</div>` : ""}
-        ${() => !state.loading && state.devices.length === 0 ? html`
-          <div class="bluetoothCard">${state.enabled ? "No Bluetooth devices found." : "Enable Bluetooth to find devices."}</div>
-        ` : ""}
-        ${() => state.devices.map((device) => html`
-          <div class="bluetoothCard">
-            <div class="bluetoothDeviceHeader">
-              <div>
-                <h3>${device.name}</h3>
-              </div>
-              <div class="bluetoothBadges">${capabilityBadges(device)}</div>
-            </div>
-            ${deviceActions(device)}
+        ${() => state.loading ? html`<div class="bluetoothLoading"><span></span><span></span><span></span></div>` : ""}
+        ${() => !state.loading && !state.enabled ? html`
+          <div class="bluetoothEmptyPage">
+            <i class="bi bi-bluetooth" aria-hidden="true"></i>
+            <h3>Bluetooth is off</h3>
+            <p>Turn it on to reconnect saved devices or find something new.</p>
           </div>
-        `)}
+        ` : ""}
+        ${() => !state.loading && state.enabled ? html`
+          ${deviceSection("My Devices", "bi-check2-circle", knownDevices(), "No saved devices yet.")}
+          ${deviceSection("Available Devices", "bi-radar", availableDevices(), state.discovering ? "Searching for nearby devices…" : "No nearby devices found. Start a search to try again.")}
+        ` : ""}
       </div>
     </div>
   `

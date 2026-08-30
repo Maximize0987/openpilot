@@ -772,6 +772,9 @@ class TestLatControl:
     assert overshooting_unwind < 0.70
     assert highway_overshoot > overshooting_unwind
 
+    low_speed_exit = get_kia_carnival_unwind_ff_scale(0.31, 0.43, -0.88, 11.0)
+    assert low_speed_exit < 0.90
+
   def test_genesis_g90_ff_scale_curve(self):
     assert get_genesis_g90_ff_scale(0.0, 0.0, 20.0) == 1.0
     assert get_genesis_g90_ff_scale(0.5, 0.0, 20.0) > get_genesis_g90_ff_scale(-0.5, 0.0, 20.0)

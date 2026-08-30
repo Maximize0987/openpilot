@@ -149,6 +149,7 @@ def test_bluetooth_status_api(monkeypatch):
     "enabled": True,
     "error": "",
     "offroad": True,
+    "pairing_address": "",
     "powered": True,
     "prompt": None,
     "selected_audio": "",

@@ -37,6 +37,11 @@ def test_bluetooth_actions_use_reactive_disabled_bindings():
   assert 'request("test_audio", { address: device.address })' in source
   assert "startAudioTestCountdown" in source
   assert "The test sound is sent at NOW" in source
+  assert 'deviceSection("My Devices"' in source
+  assert 'deviceSection("Available Devices"' in source
+  assert "bluetoothForgetButton" in source
+  assert "bi-trash3" in source
+  assert "state.pairingAddress" in source
 
 
 def test_controller_test_mode_has_explicit_start_and_stop():

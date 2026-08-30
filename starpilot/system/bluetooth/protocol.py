@@ -63,6 +63,7 @@ class BluetoothStatus:
   discovering: bool = False
   offroad: bool = False
   selected_audio: str = ""
+  pairing_address: str = ""
   devices: tuple[BluetoothDevice, ...] = ()
   prompt: dict[str, Any] | None = None
   error: str = ""
@@ -76,6 +77,7 @@ class BluetoothStatus:
       discovering=bool(value.get("discovering", False)),
       offroad=bool(value.get("offroad", False)),
       selected_audio=str(value.get("selected_audio", "")),
+      pairing_address=str(value.get("pairing_address", "")),
       devices=tuple(BluetoothDevice.from_dict(device) for device in value.get("devices", ())),
       prompt=value.get("prompt"),
       error=str(value.get("error", "")),

@@ -26,6 +26,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_honda_accord_stop_go_accel_cap,
   get_honda_accord_stop_go_accel_rise_rate,
   get_toyota_rav4_tss2_lead_departure_tune,
+  get_toyota_rav4_tss2_lead_creep_tune,
   get_force_stop_distance_bias,
   get_force_stop_handoff_distance,
   get_stop_sign_low_speed_hold,
@@ -1323,11 +1324,17 @@ class LongitudinalPlanner:
     lead_gap = float(getattr(lead, "dRel", 0.0))
     lead_speed = max(float(getattr(lead, "vLead", 0.0)), 0.0)
     lead_accel = float(getattr(lead, "aLeadK", 0.0))
+    creep_tune = get_toyota_rav4_tss2_lead_creep_tune(self.CP)
+    min_lead_speed, min_lead_accel = (
+      (STANDSTILL_LEAD_CREEP_RELEASE_MIN_LEAD_SPEED,
+       STANDSTILL_LEAD_CREEP_RELEASE_MIN_LEAD_ACCEL)
+      if creep_tune is None else creep_tune
+    )
     return bool(
       float(v_ego) <= STANDSTILL_LEAD_DEPART_MAX_EGO_SPEED and
       lead_gap >= standstill_nudge_gap + STANDSTILL_LEAD_CREEP_RELEASE_MIN_GAP_MARGIN and
-      lead_speed >= STANDSTILL_LEAD_CREEP_RELEASE_MIN_LEAD_SPEED and
-      lead_accel >= STANDSTILL_LEAD_CREEP_RELEASE_MIN_LEAD_ACCEL
+      lead_speed >= min_lead_speed and
+      lead_accel >= min_lead_accel
     )
 
   def get_safe_depart_release_hold_lead(self, v_ego):

@@ -21,26 +21,54 @@ class BluetoothDeviceButton(BigButton):
     self._offroad = offroad
     self._selected_audio = selected_audio
     self._check_txt = gui_app.texture("icons_mici/setup/driver_monitoring/dm_check.png", 32, 32)
-    self._forget_btn = ForgetButton(lambda: self._manager.forget(self.device.address))
+    self._forget_btn = ForgetButton(self._forget_device)
     self.update_device(device, selected_audio, offroad)
+
+  def _forget_device(self):
+    self._manager.forget(self.device.address)
 
   def _get_label_font_size(self):
     return 48
 
   @property
   def _show_forget_btn(self):
-    return self.device.paired and self._offroad
+    return self.device.paired and self._offroad and self._manager.operation_for(self.device.address) != "forgetting"
 
   def update_device(self, device, selected_audio: str, offroad: bool):
     self.device = device
     self._selected_audio = selected_audio
     self._offroad = offroad
-    states = ["connected" if device.connected else "paired" if device.paired else "pair"]
-    if device.audio:
-      states.append("audio selected" if selected_audio.upper() == device.address.upper() else "audio")
-    if device.controller:
-      states.append("controller")
-    self.set_value(" / ".join(states))
+
+  def _update_state(self):
+    super()._update_state()
+    operation = self._manager.operation_for(self.device.address)
+    pairing = self._manager.status.pairing_address.upper() == self.device.address.upper()
+    audio_selected = self._selected_audio.upper() == self.device.address.upper()
+
+    if operation or pairing:
+      self.set_value(operation or "pairing")
+      self.set_enabled(False)
+    elif self.device.connected:
+      capabilities = []
+      if audio_selected:
+        capabilities.append("audio output")
+      elif self.device.audio:
+        capabilities.append("audio")
+      if self.device.controller:
+        capabilities.append("controller")
+      self.set_value("connected" + (f" / {' / '.join(capabilities)}" if capabilities else ""))
+      self.set_enabled(True)
+    elif self.device.paired:
+      self.set_value("connect")
+      self.set_enabled(True)
+    else:
+      capabilities = []
+      if self.device.audio:
+        capabilities.append("audio")
+      if self.device.controller:
+        capabilities.append("controller")
+      self.set_value("pair" + (f" / {' / '.join(capabilities)}" if capabilities else ""))
+      self.set_enabled(self._offroad)
 
   def _handle_mouse_release(self, mouse_pos: MousePos):
     if self._show_forget_btn and rl.check_collision_point_rec(mouse_pos, self._forget_btn.rect):
@@ -117,20 +145,28 @@ class BluetoothLayoutMici(NavScroller):
     self._scan_btn = BigButton("scan for devices", "scan", self._dialog_icon, scroll=True)
     self._scan_btn.set_click_callback(lambda: self._manager.set_scanning(True))
     self._scanning_btn = BluetoothScanningButton()
+    self._device_buttons = {}
+    self._scan_on_ready = False
+    self._scroller.add_widgets([self._power_btn, self._scan_btn, self._scanning_btn])
     self._rebuild()
 
   def show_event(self):
     super().show_event()
     self._manager.set_active(True)
+    self._scan_on_ready = True
     gui_app.add_nav_stack_tick(self._tick)
 
   def hide_event(self):
+    if self._manager.status.discovering and self._manager.status.offroad:
+      self._manager.set_scanning(False)
     self._manager.set_active(False)
     gui_app.remove_nav_stack_tick(self._tick)
     super().hide_event()
 
   def _toggle_power(self):
-    self._manager.set_power(not self._manager.status.enabled)
+    enabled = not self._manager.status.enabled
+    self._scan_on_ready = enabled
+    self._manager.set_power(enabled)
 
   def _rebuild(self):
     status = self._manager.status
@@ -139,35 +175,43 @@ class BluetoothLayoutMici(NavScroller):
     self._scan_btn.set_enabled(status.enabled and status.offroad)
     items = [self._power_btn]
     for device in status.devices:
-      button = BluetoothDeviceButton(device, self._manager, self._bluetooth_icon, status.selected_audio, status.offroad)
-      button.set_enabled(status.offroad or device.paired)
-      button.set_click_callback(lambda selected=device: self._device_actions(selected))
+      button = self._device_buttons.get(device.address)
+      if button is None:
+        button = BluetoothDeviceButton(device, self._manager, self._bluetooth_icon, status.selected_audio, status.offroad)
+        button.set_click_callback(lambda address=device.address: self._device_selected(address))
+        self._device_buttons[device.address] = button
+        self._scroller.add_widget(button)
+      else:
+        button.update_device(device, status.selected_audio, status.offroad)
       items.append(button)
     if status.enabled:
       items.append(self._scanning_btn if status.discovering else self._scan_btn)
-    self._scroller.items.clear()
-    self._scroller.add_widgets(items)
+    self._device_buttons = {device.address: self._device_buttons[device.address] for device in status.devices}
+    self._scroller.items[:] = items
 
-  def _device_actions(self, device):
+  def _device_selected(self, address: str):
+    device = next((device for device in self._manager.status.devices if device.address == address), None)
+    if device is None:
+      return
     if not device.paired:
       self._manager.pair(device.address)
-      return
+    elif not device.connected:
+      self._manager.connect(device.address)
+    else:
+      self._device_actions(device)
 
-    options = ["disconnect" if device.connected else "connect"]
+  def _device_actions(self, device):
+    options = ["disconnect"]
     if device.audio:
       selected = self._manager.status.selected_audio.upper() == device.address.upper()
       options.append("stop using for audio" if selected else "use for audio")
       if device.connected and self._manager.status.offroad:
         options.append("test audio")
-    if self._manager.status.offroad:
-      options.append("forget")
     dialog_holder = {}
 
     def apply():
       action = dialog_holder["dialog"].get_selected_option()
-      if action == "connect":
-        self._manager.connect(device.address)
-      elif action == "disconnect":
+      if action == "disconnect":
         self._manager.disconnect(device.address)
       elif action == "use for audio":
         self._manager.select_audio(device.address)
@@ -176,8 +220,6 @@ class BluetoothLayoutMici(NavScroller):
       elif action == "test audio":
         self._manager.test_audio(device.address)
         gui_app.push_widget(BluetoothAudioTestDialog(self._manager, self._dialog_icon))
-      elif action == "forget":
-        self._manager.forget(device.address)
 
     dialog = BigMultiOptionDialog(options=options, default=options[0], right_btn_callback=apply)
     dialog_holder["dialog"] = dialog
@@ -217,12 +259,18 @@ class BluetoothLayoutMici(NavScroller):
       status.discovering,
       status.offroad,
       status.selected_audio,
+      status.pairing_address,
       tuple((device.address, device.name, device.paired, device.connected, device.audio, device.controller) for device in status.devices),
     )
     if signature != self._last_signature:
       self._last_signature = signature
       self._rebuild()
+    if self._scan_on_ready and status.available and status.enabled:
+      self._scan_on_ready = False
+      if status.offroad and not status.discovering:
+        self._manager.set_scanning(True)
     error = self._manager.consume_error()
     if error:
+      self._scan_on_ready = False
       gui_app.push_widget(BigDialog("Bluetooth", error))
     self._handle_prompt()
