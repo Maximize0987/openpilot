@@ -11,6 +11,7 @@ from openpilot.starpilot.system.bluetooth.daemon import BluetoothController
 from openpilot.starpilot.system.bluetooth.protocol import (A2DP_SINK_UUID, HID_UUID, BluetoothClient, BluetoothDevice, BluetoothStatus,
                                                            device_capabilities, show_pairing_device)
 from openpilot.system import hardware
+from openpilot.system.ui.lib.bluetooth_manager import BluetoothManager
 
 
 class FakeParams:
@@ -104,6 +105,35 @@ class FakeRadio:
 
   def stop(self):
     self.stops += 1
+
+
+class BlockingStopRadio(FakeRadio):
+  def __init__(self):
+    super().__init__()
+    self.stop_started = threading.Event()
+    self.allow_stop = threading.Event()
+
+  def stop(self):
+    self.stops += 1
+    self.stop_started.set()
+    self.allow_stop.wait()
+
+
+class BlockingPowerClient:
+  def __init__(self):
+    self.power_entered = threading.Event()
+    self.allow_power = threading.Event()
+    self.power_finished = threading.Event()
+    self.status_calls = 0
+
+  def set_power(self, _enabled):
+    self.power_entered.set()
+    self.allow_power.wait()
+    self.power_finished.set()
+
+  def status(self):
+    self.status_calls += 1
+    return BluetoothStatus()
 
 
 class FakeProcess:
@@ -233,6 +263,81 @@ def test_power_pair_audio_and_offroad_enforcement():
   params.values["IsOffroad"] = True
   controller.handle({"command": "set_power", "enabled": False})
   assert not params.get_bool("BluetoothEnabled") and radio.stops == 1 and clients[0].closed
+
+
+def test_status_does_not_restart_radio_during_disable():
+  params = FakeParams(IsOffroad=True, BluetoothEnabled=True)
+  radio = BlockingStopRadio()
+  client = FakeBlueZ()
+  controller = BluetoothController(params, lambda: client, radio)
+  controller._bluez = client
+
+  errors = []
+  def disable():
+    try:
+      controller.handle({"command": "set_power", "enabled": False})
+    except Exception as error:
+      errors.append(error)
+
+  status_started = threading.Event()
+  status_done = threading.Event()
+  status_result = []
+
+  def read_status():
+    status_started.set()
+    status_result.append(controller.status())
+    status_done.set()
+
+  worker = threading.Thread(target=disable, daemon=True)
+  worker.start()
+  assert radio.stop_started.wait(timeout=1.0)
+
+  status_worker = threading.Thread(target=read_status, daemon=True)
+  status_worker.start()
+  try:
+    assert status_started.wait(timeout=1.0)
+    assert not status_done.wait(timeout=0.1)
+  finally:
+    radio.allow_stop.set()
+
+  worker.join(timeout=1.0)
+  status_worker.join(timeout=1.0)
+
+  assert not worker.is_alive()
+  assert not status_worker.is_alive()
+  assert errors == []
+  assert radio.starts == 0
+  assert radio.stops == 1
+  status = status_result[0]
+  assert not status["enabled"]
+  assert not params.get_bool("BluetoothEnabled")
+
+
+def test_status_poll_does_not_overlap_power_transition():
+  client = BlockingPowerClient()
+  manager = object.__new__(BluetoothManager)
+  manager._client = client
+  manager._lock = threading.Lock()
+  manager._client_lock = threading.Lock()
+  manager._status = BluetoothStatus()
+  manager._active = True
+  manager._exit = False
+  manager._operation_error = ""
+  manager._operations = {}
+  manager._power_pending = False
+  manager._audio_test_deadline = 0.0
+
+  manager.set_power(True)
+  assert client.power_entered.wait(timeout=1.0)
+  poller = threading.Thread(target=manager._poll_status)
+  poller.start()
+  poller.join(timeout=1.0)
+
+  client.allow_power.set()
+  assert client.power_finished.wait(timeout=1.0)
+
+  assert not poller.is_alive()
+  assert client.status_calls == 0
 
 
 def test_audio_uses_soundd_engage_alert_and_cleans_up():

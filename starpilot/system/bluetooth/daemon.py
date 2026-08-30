@@ -73,32 +73,34 @@ class BluetoothController:
     return self.params.get_bool("IsOffroad")
 
   def status(self) -> dict[str, Any]:
-    result = {
-      "available": self._radio.available,
-      "enabled": self.params.get_bool("BluetoothEnabled"),
-      "powered": False,
-      "discovering": False,
-      "offroad": self._offroad(),
-      "selected_audio": self.params.get("BluetoothAudioAddress", encoding="utf-8") or "",
-      "devices": [],
-      "prompt": None,
-      "error": self._pairing_error,
-      "pairing_address": self._pairing_address,
-    }
-    if not result["enabled"]:
+    # Status lazily initializes the radio, so serialize it with power changes.
+    with self._lock:
+      result = {
+        "available": self._radio.available,
+        "enabled": self.params.get_bool("BluetoothEnabled"),
+        "powered": False,
+        "discovering": False,
+        "offroad": self._offroad(),
+        "selected_audio": self.params.get("BluetoothAudioAddress", encoding="utf-8") or "",
+        "devices": [],
+        "prompt": None,
+        "error": self._pairing_error,
+        "pairing_address": self._pairing_address,
+      }
+      if not result["enabled"]:
+        return result
+      try:
+        result.update(self._client().status())
+        result["available"] = True
+        prompt = result.get("prompt")
+        if prompt is not None and self._pairing_address:
+          prompt["address"] = self._pairing_address
+          device = next((item for item in result["devices"] if item["address"].upper() == self._pairing_address.upper()), None)
+          prompt["name"] = device["name"] if device else self._pairing_address
+      except Exception as error:
+        result["error"] = str(error)
+        self._reset_client()
       return result
-    try:
-      result.update(self._client().status())
-      result["available"] = True
-      prompt = result.get("prompt")
-      if prompt is not None and self._pairing_address:
-        prompt["address"] = self._pairing_address
-        device = next((item for item in result["devices"] if item["address"].upper() == self._pairing_address.upper()), None)
-        prompt["name"] = device["name"] if device else self._pairing_address
-    except Exception as error:
-      result["error"] = str(error)
-      self._reset_client()
-    return result
 
   def _require_offroad(self, command: str) -> None:
     if command in OFFROAD_COMMANDS and not self._offroad():
@@ -143,30 +145,30 @@ class BluetoothController:
     address = str(request.get("address", ""))
     if command == "set_power":
       enabled = bool(request.get("enabled", False))
-      if enabled:
-        try:
-          self.params.put_bool("BluetoothEnabled", True)
-          self._client()
-        except Exception:
-          self.params.put_bool("BluetoothEnabled", False)
-          self._reset_client()
+      with self._lock:
+        if enabled:
           try:
-            self._radio.stop()
+            self.params.put_bool("BluetoothEnabled", True)
+            self._client()
           except Exception:
-            pass
-          raise
-      else:
-        try:
-          with self._lock:
+            self.params.put_bool("BluetoothEnabled", False)
+            self._reset_client()
+            try:
+              self._radio.stop()
+            except Exception:
+              pass
+            raise
+        else:
+          try:
             client = self._bluez
-          if client is not None:
-            client.set_powered(False)
-        finally:
-          self._reset_client()
-          self._radio.stop()
-          self.params.remove("BluetoothAudioAddress")
-          self.params.put_bool("BluetoothEnabled", False)
-          self._scan_deadline = 0.0
+            if client is not None:
+              client.set_powered(False)
+          finally:
+            self._reset_client()
+            self._radio.stop()
+            self.params.remove("BluetoothAudioAddress")
+            self.params.put_bool("BluetoothEnabled", False)
+            self._scan_deadline = 0.0
     elif command == "start_scan":
       if not self.params.get_bool("BluetoothEnabled"):
         raise RuntimeError("Enable Bluetooth before scanning")
