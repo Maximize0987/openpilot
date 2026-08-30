@@ -2404,6 +2404,24 @@ class LongitudinalPlanner:
         raw_approach_lift_cap = min(approach_lift_caps)
 
       if not experimental_mode:
+        # Apply the RAV4's mild early-lead response before ordinary lead tracking
+        # is admitted. This only removes throttle while a centered, confident
+        # lead is already braking; the normal safety path remains authoritative.
+        rav4_pretracking_caps = [
+          cap for cap in (
+            get_toyota_rav4_tss2_early_lead_cap(
+              self.CP, self.lead_one, v_ego, vision_cap_accel_min,
+            ),
+            get_toyota_rav4_tss2_early_lead_cap(
+              self.CP, self.lead_two, v_ego, vision_cap_accel_min,
+            ),
+          ) if cap is not None
+        ]
+        if rav4_pretracking_caps:
+          rav4_pretracking_cap = min(rav4_pretracking_caps)
+          self.a_desired = min(self.a_desired, rav4_pretracking_cap)
+          output_a_target = min(output_a_target, rav4_pretracking_cap)
+
         early_radar_caps = [
           cap for cap in (
             get_honda_crv_5g_early_radar_follow_cap(
