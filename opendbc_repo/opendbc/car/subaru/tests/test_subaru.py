@@ -212,10 +212,10 @@ def test_stop_start_inputs_are_captured_for_supported_models(platform):
   car_state = CarState(CP, None)
   parsers = car_state.get_can_parsers(CP)
   raw_dashlights = bytes.fromhex("13031407875a8100")
-  parsers[Bus.pt].vl["Dashlights"]["COUNTER"] = 6
-  parsers[Bus.pt].vl["Dashlights"]["STOP_START"] = 0
-  parsers[Bus.pt].vl["Engine_Stop_Start"]["STOP_START_STATE"] = 3
-  parsers[Bus.pt].vl_raw["Dashlights"] = raw_dashlights
+  parsers[Bus.alt].vl["Dashlights"]["COUNTER"] = 6
+  parsers[Bus.alt].vl["Dashlights"]["STOP_START"] = 0
+  parsers[Bus.alt].vl["Engine_Stop_Start"]["STOP_START_STATE"] = 3
+  parsers[Bus.alt].vl_raw["Dashlights"] = raw_dashlights
 
   car_state.update(parsers, SimpleNamespace(subaru_sng=False))
 
@@ -226,7 +226,7 @@ def test_stop_start_inputs_are_captured_for_supported_models(platform):
 
 @pytest.mark.parametrize("platform, expected_bus, start_frame", [
   (CAR.SUBARU_OUTBACK_2023, CanBus.alt, 101),
-  (CAR.SUBARU_LEGACY_2025, CanBus.main, 401),
+  (CAR.SUBARU_LEGACY_2025, CanBus.alt, 401),
 ])
 def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expected_bus, start_frame):
   CP = CarInterface.get_non_essential_params(platform)

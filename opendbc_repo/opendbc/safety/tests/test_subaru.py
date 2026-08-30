@@ -373,11 +373,11 @@ class TestSubaruGen2FixedAngleSafety(TestSubaruGen2AngleStockLongitudinalSafety)
 class TestSubaruGen2FixedAngleStopStartSafety(TestSubaruGen2FixedAngleSafety):
   FLAGS = SubaruSafetyFlags.GEN2 | SubaruSafetyFlags.LKAS_ANGLE | SubaruSafetyFlags.FIXED_ANGLE_LIMITS | \
     SubaruSafetyFlags.STOP_START_BUTTON
-  TX_MSGS = TestSubaruGen2FixedAngleSafety.TX_MSGS + [[SubaruMsg.Dashlights, SUBARU_MAIN_BUS]]
+  TX_MSGS = TestSubaruGen2FixedAngleSafety.TX_MSGS + [[SubaruMsg.Dashlights, SUBARU_ALT_BUS]]
 
   def _stop_start_msg(self, pressed):
     return self.packer.make_can_msg_safety(
-      "Dashlights", SUBARU_MAIN_BUS, {"COUNTER": 0, "STOP_START": pressed},
+      "Dashlights", SUBARU_ALT_BUS, {"COUNTER": 0, "STOP_START": pressed},
     )
 
   def test_stop_start_tx_requires_pressed_bit(self):

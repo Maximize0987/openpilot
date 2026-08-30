@@ -28,9 +28,10 @@ class CarState(CarStateBase):
     ret = structs.CarState()
 
     if self.CP.carFingerprint in SUBARU_STOP_START_CARS:
-      self.dashlights_msg = copy.copy(cp.vl["Dashlights"])
-      self.dashlights_dat = cp.vl_raw["Dashlights"]
-      self.stop_start_state = cp.vl["Engine_Stop_Start"]["STOP_START_STATE"]
+      stop_start_cp = cp_alt if self.CP.flags & SubaruFlags.GLOBAL_GEN2 else cp
+      self.dashlights_msg = copy.copy(stop_start_cp.vl["Dashlights"])
+      self.dashlights_dat = stop_start_cp.vl_raw["Dashlights"]
+      self.stop_start_state = stop_start_cp.vl["Engine_Stop_Start"]["STOP_START_STATE"]
 
     throttle_msg = cp.vl["Throttle"] if not (self.CP.flags & SubaruFlags.HYBRID) else cp_alt.vl["Throttle_Hybrid"]
     ret.gasPressed = throttle_msg["Throttle_Pedal"] > 1e-5
