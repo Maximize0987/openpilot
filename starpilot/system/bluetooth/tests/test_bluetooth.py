@@ -8,7 +8,9 @@ import pytest
 from openpilot.starpilot.system.bluetooth.audio import BluetoothAudioSink
 from openpilot.starpilot.system.bluetooth.bluez import PairingAgent
 from openpilot.starpilot.system.bluetooth.daemon import BluetoothController
-from openpilot.starpilot.system.bluetooth.protocol import A2DP_SINK_UUID, HID_UUID, BluetoothDevice, BluetoothStatus, device_capabilities, show_pairing_device
+from openpilot.starpilot.system.bluetooth.protocol import (A2DP_SINK_UUID, HID_UUID, BluetoothClient, BluetoothDevice, BluetoothStatus,
+                                                           device_capabilities, show_pairing_device)
+from openpilot.system import hardware
 
 
 class FakeParams:
@@ -138,6 +140,52 @@ def test_pairing_list_filters_anonymous_and_irrelevant_advertisements():
   assert not show_pairing_device("00:11:22:33:44:55", "Nearby sensor", False, False, False, False, False, False)
   assert show_pairing_device("00:11:22:33:44:55", "Media Remote", False, False, False, False, False, True)
   assert show_pairing_device("00:11:22:33:44:55", "Known device", True, True, False, False, False, False)
+
+
+def test_desktop_fake_bluetooth_is_stateful_and_interactive(monkeypatch, tmp_path):
+  monkeypatch.setenv("SP_ALLOW_DESKTOP_FAKE_BLUETOOTH", "1")
+  monkeypatch.setenv("SIMULATION", "1")
+  monkeypatch.setenv("NOBOARD", "1")
+  client = BluetoothClient(socket_path=str(tmp_path / "bluetooth.sock"))
+
+  initial = client.status()
+  speaker, controller = initial.devices[:2]
+  assert initial.available and initial.enabled and speaker.connected
+
+  client.start_scan()
+  assert client.status().discovering
+
+  client.pair(controller.address)
+  client.connect(controller.address)
+  paired_controller = next(device for device in client.status().devices if device.address == controller.address)
+  assert paired_controller.paired and paired_controller.trusted and paired_controller.connected
+
+  client.select_audio(speaker.address)
+  assert client.status().selected_audio == speaker.address
+  assert client.test_audio(speaker.address) == 3.0
+
+  client.forget(controller.address)
+  forgotten_controller = next(device for device in client.status().devices if device.address == controller.address)
+  assert not forgotten_controller.paired and not forgotten_controller.connected
+
+  client.set_power(False)
+  disabled = client.status()
+  assert not disabled.enabled and not disabled.powered and not disabled.discovering
+  with pytest.raises(RuntimeError, match="Enable Bluetooth"):
+    client.start_scan()
+  client.set_power(True)
+  assert client.status().enabled
+
+
+def test_desktop_fake_bluetooth_cannot_activate_on_device(monkeypatch, tmp_path):
+  monkeypatch.setenv("SP_ALLOW_DESKTOP_FAKE_BLUETOOTH", "1")
+  monkeypatch.setenv("SIMULATION", "1")
+  monkeypatch.setenv("NOBOARD", "1")
+  monkeypatch.setattr(hardware, "PC", False)
+  client = BluetoothClient(socket_path=str(tmp_path / "bluetooth.sock"))
+
+  assert client._get_desktop_fake() is None
+  assert client._desktop_fake is None
 
 
 def test_pairing_agent_accept_reject_and_timeout():
