@@ -55,6 +55,18 @@ def test_controller_joystick_mode_requires_explicit_device_selection():
   assert 'request("joystick", { device_id: device.device_id, enabled: !selected() })' in source
 
 
+def test_controller_page_has_ten_controller_only_action_slots():
+  source = CONTROLLERS_PATH.read_text(encoding="utf-8")
+
+  assert "Controller-only Actions" in source
+  assert "These never appear as on-screen Favorites" in source
+  assert 'request("action", { slot: index, key, value })' in source
+  assert "const targetIndex = 3 + index" in source
+  assert "state.controllerSlots.map(controllerSlotCard)" in source
+  assert "Set speed (${() => state.speedUnit})" in source
+  assert "Galaxy → Sentry Mode" in source
+
+
 def test_bluetooth_and_controllers_sidebar_order():
   source = SIDEBAR_PATH.read_text(encoding="utf-8")
 

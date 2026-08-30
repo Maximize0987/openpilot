@@ -369,6 +369,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"StarPilotCarParamsPersistent", {PERSISTENT, BYTES, "", ""}},
     {"StarPilotDongleId", {PERSISTENT | DONT_LOG, STRING, "", "", 0}},
     {"StarPilotFavoriteSlots", {PERSISTENT, JSON, "[]", "[]", 1}},
+    {"ControllerActionSlots", {PERSISTENT, JSON, "[]", "[]", 1}},
     {"WheelControlLearnSlot", {CLEAR_ON_MANAGER_START | DONT_LOG, INT}},
     {"WheelControlMappings", {PERSISTENT, JSON, "[]", "[]", 1}},
     {"WheelControlStatus", {CLEAR_ON_MANAGER_START | DONT_LOG, JSON, "{}", "{}"}},

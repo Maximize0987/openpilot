@@ -215,6 +215,90 @@ def test_wheel_controls_status_includes_favorite_slots(monkeypatch):
 
   assert response.status_code == 200
   assert response.get_json()["slots"][0]["label"] == "Force Offroad"
+  assert len(response.get_json()["slots"]) == 3
+  assert len(response.get_json()["controller_slots"]) == 10
+  option_keys = {option["key"] for option in response.get_json()["controller_options"]}
+  assert option_keys == {
+    "ForceOffroad",
+    "__starpilot_controller_action__:set_speed",
+    "__starpilot_controller_action__:selfie",
+  }
+  assert response.get_json()["speed_unit"] == "mph"
+
+
+def test_wheel_controls_configures_a_controller_only_action(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "_get_available_favorite_slot_options", lambda: [{"key": "ForceOffroad", "label": "Force Offroad"}])
+  monkeypatch.setattr(the_galaxy, "set_controller_action_slot", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+  response = client.post("/api/wheel-controls/action", json={"slot": 9, "key": "ForceOffroad"})
+
+  assert response.status_code == 200
+  expected_keys = {
+    "ForceOffroad",
+    "__starpilot_controller_action__:set_speed",
+    "__starpilot_controller_action__:selfie",
+  }
+  assert calls == [((9, "ForceOffroad", "Force Offroad", the_galaxy.params), {"value": None, "eligible_keys": expected_keys})]
+
+
+def test_wheel_controls_configures_set_speed_in_current_units(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True, "IsMetric": False}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "_get_available_favorite_slot_options", list)
+  monkeypatch.setattr(the_galaxy, "set_controller_action_slot", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+  response = client.post("/api/wheel-controls/action", json={
+    "slot": 0,
+    "key": "__starpilot_controller_action__:set_speed",
+    "value": 60,
+  })
+
+  assert response.status_code == 200
+  assert calls[0][0][:4] == (0, "__starpilot_controller_action__:set_speed", "Set Speed To", the_galaxy.params)
+  assert calls[0][1]["value"] == 60
+
+  response = client.post("/api/wheel-controls/action", json={
+    "slot": 0,
+    "key": "__starpilot_controller_action__:set_speed",
+    "value": 100,
+  })
+  assert response.status_code == 400
+
+
+def test_controller_selfie_is_saved_to_sentry_history(monkeypatch, tmp_path):
+  client, fake_params = _params_client(monkeypatch, {"IsOffroad": False}, "mici")
+  recorded = []
+  monkeypatch.setattr(the_galaxy, "_get_live_driver_jpeg", lambda: b"jpeg-data")
+  monkeypatch.setattr(the_galaxy, "_sentry_event_roots", lambda: (tmp_path,))
+  monkeypatch.setattr(the_galaxy, "_record_sentry_event", lambda event: recorded.append(event))
+
+  response = client.post("/api/sentry/selfie")
+
+  assert response.status_code == 201
+  event = recorded[0]
+  assert event["kind"] == "selfie"
+  assert event["message"] == "Comma Selfie"
+  assert (tmp_path / event["eventId"] / "driver.jpg").read_bytes() == b"jpeg-data"
+  assert the_galaxy._normalize_sentry_event(event)["kind"] == "selfie"
+  assert fake_params.get("SentryModeLastEvent") is not None
+
+
+def test_wheel_controls_learning_targets_controller_only_action(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "start_wheel_control_learning", lambda *args: calls.append(args))
+  monkeypatch.setattr(the_galaxy, "_get_available_favorite_slot_options", lambda: [{"key": "ForceOffroad", "label": "Force Offroad"}])
+  monkeypatch.setattr(the_galaxy, "load_controller_action_slots", lambda *_args, **_kwargs: [
+    {"enabled": True, "key": "ForceOffroad", "label": "Force Offroad"},
+    *[{"enabled": False, "key": None, "label": ""} for _ in range(9)],
+  ])
+
+  response = client.post("/api/wheel-controls/learn", json={"slot": 3})
+
+  assert response.status_code == 200
+  assert calls == [(3, the_galaxy.params_memory, the_galaxy.params)]
 
 
 def test_wheel_controls_learning_requires_offroad(monkeypatch):

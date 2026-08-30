@@ -320,10 +320,22 @@ def _install_server_import_stubs():
   sys.modules["openpilot.starpilot.system.the_galaxy.utilities"] = utilities
   sys.modules["openpilot.starpilot.system.wheel_controls"] = _simple_module(
     "openpilot.starpilot.system.wheel_controls",
+    CONTROLLER_ACTION_OPTIONS=(
+      {"key": "__starpilot_controller_action__:set_speed", "label": "Set Speed To", "section": "Controller Actions", "value_type": "speed"},
+      {"key": "__starpilot_controller_action__:selfie", "label": "Take Comma Selfie", "section": "Controller Actions"},
+    ),
+    CONTROLLER_ACTION_SET_SPEED="__starpilot_controller_action__:set_speed",
+    CONTROLLER_ACTION_SLOT_COUNT=10,
+    FAVORITE_SLOT_COUNT=3,
     cancel_learning=lambda *args, **kwargs: None,
     clear_mappings=lambda *args, **kwargs: None,
+    controller_speed_bounds=lambda is_metric: (8, 145) if is_metric else (5, 90),
     delete_mapping=lambda *args, **kwargs: True,
+    load_controller_action_slots=lambda *args, **kwargs: [
+      {"enabled": False, "key": None, "label": "", "value": None} for _ in range(10)
+    ],
     public_status=lambda *args, **kwargs: {"mappings": [], "devices": [], "available": True},
+    set_controller_action_slot=lambda *args, **kwargs: None,
     set_joystick_device=lambda *args, **kwargs: None,
     start_learning=lambda *args, **kwargs: None,
     start_testing=lambda *args, **kwargs: None,

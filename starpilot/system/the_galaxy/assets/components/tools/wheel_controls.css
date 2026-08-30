@@ -18,6 +18,8 @@
 
 .wheelHeader h2,
 .wheelHeader p,
+.wheelSectionHeading h3,
+.wheelSectionHeading p,
 .wheelCard h3,
 .wheelCard p {
   margin: 0;
@@ -43,9 +45,24 @@
 }
 
 .wheelSlotGrid,
+.wheelControllerGrid,
 .wheelMappings {
   display: grid;
   gap: 12px;
+}
+
+.wheelSection {
+  display: grid;
+  gap: 12px;
+}
+
+.wheelSectionHeading p {
+  margin-top: 5px;
+  opacity: 0.68;
+}
+
+.wheelControllerGrid {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
 
 .wheelSlotLabel,
@@ -66,6 +83,31 @@
 
 .wheelHint a {
   color: #cbb8ff;
+}
+
+.wheelActionPicker {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.wheelActionPicker span {
+  opacity: 0.68;
+}
+
+.wheelActionPicker select,
+.wheelActionPicker input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--border-radius-md);
+  padding: 8px 10px;
+  color: inherit;
+  background: var(--main-bg);
+}
+
+.wheelSpeedPicker {
+  max-width: 220px;
 }
 
 .wheelMapping {

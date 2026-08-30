@@ -26,6 +26,12 @@ class FakeParams:
   def put_bool(self, key, value):
     self.values[key] = bool(value)
 
+  def get_float(self, key, default=0.0):
+    return float(self.values.get(key, default))
+
+  def put_float(self, key, value):
+    self.values[key] = float(value)
+
   def remove(self, key):
     self.values.pop(key, None)
 
@@ -46,6 +52,29 @@ def test_mapping_round_trip_and_reassignment():
   assert wheel_controlsd.delete_mapping(second["id"], params)
   assert wheel_controlsd.load_mappings(params) == []
   assert not params.get_bool(wheel_controlsd.ENABLED_PARAM)
+
+
+def test_controller_only_mapping_slots_extend_beyond_three_favorites():
+  params = FakeParams()
+
+  mapping = wheel_controlsd.upsert_mapping(source(), 30, 12, params)
+
+  assert mapping["slot"] == 12
+  assert wheel_controlsd.load_mappings(params) == [mapping]
+  assert wheel_controlsd.normalize_mappings([{**mapping, "slot": 13}]) == []
+
+
+def test_controller_action_slots_are_separate_and_fixed_at_ten():
+  params = FakeParams()
+
+  slots = wheel_controlsd.set_controller_action_slot(
+    9, "RedneckCruise", "Redneck Cruise", params, eligible_keys={"RedneckCruise"},
+  )
+
+  assert len(slots) == 10
+  assert slots[9] == {"enabled": True, "key": "RedneckCruise", "label": "Redneck Cruise", "value": None}
+  assert wheel_controlsd.load_controller_action_slots(params, {"RedneckCruise"}) == slots
+  assert wheel_controlsd.CONTROLLER_ACTIONS_PARAM != "StarPilotFavoriteSlots"
 
 
 def test_joystick_selection_is_explicit_and_exclusive():
@@ -110,6 +139,81 @@ def test_mapped_key_triggers_once(monkeypatch):
   daemon._handle_key(source(), 31)
 
   assert triggered == [2]
+  daemon.close()
+
+
+def test_mapped_controller_action_dispatches_without_using_a_favorite_slot(monkeypatch):
+  params = FakeParams({"IsOffroad": False})
+  memory = FakeParams()
+  wheel_controlsd.upsert_mapping(source(), 30, 3, params)
+  daemon = wheel_controlsd.WheelControlsDaemon(params, memory)
+  favorite_triggered = []
+  controller_triggered = []
+  monkeypatch.setattr(wheel_controlsd, "execute_favorite_slot", lambda slot, *_args: favorite_triggered.append(slot) or True)
+  monkeypatch.setattr(wheel_controlsd, "execute_controller_action", lambda slot, *_args: controller_triggered.append(slot) or True)
+
+  daemon._handle_key(source(), 30)
+
+  assert favorite_triggered == []
+  assert controller_triggered == [0]
+  daemon.close()
+
+
+def test_controller_set_speed_uses_current_display_units_and_requires_engagement():
+  memory = FakeParams()
+  params = FakeParams({"IsOnroad": True, "IsEngaged": True, "IsMetric": False})
+
+  assert wheel_controlsd.set_controller_cruise_speed(60, params, memory)
+  assert memory.get_float("SLCForceCruiseSpeed") == 60 * wheel_controlsd.CV.MPH_TO_MS
+
+  params.values["IsMetric"] = True
+  assert wheel_controlsd.set_controller_cruise_speed(30, params, memory)
+  assert memory.get_float("SLCForceCruiseSpeed") == 30 * wheel_controlsd.CV.KPH_TO_MS
+
+  params.values["IsEngaged"] = False
+  memory.remove("SLCForceCruiseSpeed")
+  assert not wheel_controlsd.set_controller_cruise_speed(60, params, memory)
+  assert "SLCForceCruiseSpeed" not in memory.values
+
+
+def test_controller_custom_actions_dispatch_their_own_payload(monkeypatch):
+  params = FakeParams({
+    wheel_controlsd.CONTROLLER_ACTIONS_PARAM: [
+      {
+        "enabled": True,
+        "key": wheel_controlsd.CONTROLLER_ACTION_SET_SPEED,
+        "label": "Set Speed To",
+        "value": 60,
+      },
+      {
+        "enabled": True,
+        "key": wheel_controlsd.CONTROLLER_ACTION_SELFIE,
+        "label": "Take Comma Selfie",
+      },
+    ],
+  })
+  memory = FakeParams()
+  speeds = []
+  selfies = []
+  monkeypatch.setattr(wheel_controlsd, "set_controller_cruise_speed", lambda value, *_args: speeds.append(value) or True)
+  monkeypatch.setattr(wheel_controlsd, "request_comma_selfie", lambda: selfies.append(True) or True)
+
+  assert wheel_controlsd.execute_controller_action(0, params, memory)
+  assert wheel_controlsd.execute_controller_action(1, params, memory)
+  assert speeds == [60]
+  assert selfies == [True]
+
+
+def test_learning_accepts_the_tenth_controller_action():
+  params = FakeParams({"IsOffroad": True})
+  memory = FakeParams()
+  daemon = wheel_controlsd.WheelControlsDaemon(params, memory)
+
+  wheel_controlsd.start_learning(12, memory, params)
+  daemon._update_learning(10.0)
+
+  assert daemon.learning_slot == 12
+  assert memory.get_int(wheel_controlsd.LEARN_SLOT_PARAM) == 13
   daemon.close()
 
 

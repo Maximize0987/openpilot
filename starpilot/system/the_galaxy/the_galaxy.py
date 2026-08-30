@@ -104,10 +104,17 @@ from openpilot.starpilot.system.the_galaxy import flm_workspace, utilities
 from openpilot.starpilot.system.the_galaxy.update_recovery import inspect_interrupted_update, public_recovery_status, recover_interrupted_update
 from openpilot.starpilot.system.bluetooth import BluetoothClient
 from openpilot.starpilot.system.wheel_controls import (
+  CONTROLLER_ACTION_OPTIONS,
+  CONTROLLER_ACTION_SET_SPEED,
+  CONTROLLER_ACTION_SLOT_COUNT,
+  FAVORITE_SLOT_COUNT,
   cancel_learning as cancel_wheel_control_learning,
   clear_mappings as clear_wheel_control_mappings,
+  controller_speed_bounds,
   delete_mapping as delete_wheel_control_mapping,
+  load_controller_action_slots,
   public_status as wheel_control_status,
+  set_controller_action_slot,
   set_joystick_device,
   start_learning as start_wheel_control_learning,
   start_testing as start_wheel_control_testing,
@@ -692,7 +699,7 @@ def _normalize_sentry_event(payload) -> dict | None:
 
   event_id = str(payload.get("eventId") or "").strip()
   kind = str(payload.get("kind") or "").strip().lower()
-  if not event_id or kind not in {"warning", "alarm", "power_off"}:
+  if not event_id or kind not in {"warning", "alarm", "power_off", "selfie"}:
     return None
 
   event = {
@@ -797,6 +804,57 @@ def _capture_sentry_live_images() -> list[str]:
     jpeg_write(str(path), front)
     paths.append(str(path))
   return paths
+
+
+def _get_live_driver_jpeg():
+  from openpilot.system.manager.process_config import managed_processes
+  started = False
+  try:
+    try:
+      subprocess.check_call(["pgrep", "camerad"])
+    except subprocess.CalledProcessError:
+      managed_processes['camerad'].start()
+      started = True
+
+    client = VisionIpcClient("camerad", VisionStreamType.VISION_STREAM_DRIVER, True)
+    if not client.connect(True):
+      return None
+
+    if started:
+      settle_deadline = time.monotonic() + 4.0
+      while time.monotonic() < settle_deadline:
+        client.recv(timeout_ms=100)
+
+    buf = client.recv(timeout_ms=5000)
+    if buf is None:
+      return None
+
+    y = np.array(buf.data[:buf.uv_offset], dtype=np.uint8).reshape((-1, buf.stride))[:buf.height, :buf.width]
+    u = np.array(buf.data[buf.uv_offset::2], dtype=np.uint8).reshape((-1, buf.stride // 2))[:buf.height // 2, :buf.width // 2]
+    v = np.array(buf.data[buf.uv_offset + 1::2], dtype=np.uint8).reshape((-1, buf.stride // 2))[:buf.height // 2, :buf.width // 2]
+
+    ul = np.repeat(np.repeat(u, 2).reshape(u.shape[0], y.shape[1]), 2, axis=0).reshape(y.shape)
+    vl = np.repeat(np.repeat(v, 2).reshape(v.shape[0], y.shape[1]), 2, axis=0).reshape(y.shape)
+
+    yuv = np.dstack((y, ul, vl)).astype(np.int16)
+    yuv[:, :, 1:] -= 128
+
+    m = np.array([
+      [1.00000, 1.00000, 1.00000],
+      [0.00000, -0.39465, 2.03211],
+      [1.13983, -0.58060, 0.00000],
+    ])
+    rgb = np.dot(yuv, m).clip(0, 255).astype(np.uint8)
+
+    img = Image.fromarray(rgb)
+    buf_io = BytesIO()
+    img.save(buf_io, format="JPEG", quality=85)
+    return buf_io.getvalue()
+  except Exception:
+    return None
+  finally:
+    if started:
+      managed_processes['camerad'].stop()
 
 
 _SENTRY_PUSH_LOCK = threading.Lock()
@@ -3238,6 +3296,15 @@ def _get_available_favorite_slot_options():
     {"HasRivianAngleHarness": _get_has_rivian_angle_harness()},
   )
 
+
+def _get_available_controller_action_options():
+  options = [*_get_available_favorite_slot_options(), *(dict(option) for option in CONTROLLER_ACTION_OPTIONS)]
+  return sorted(options, key=lambda option: (
+    str(option.get("section") or "").casefold(),
+    str(option.get("label") or option.get("key") or "").casefold(),
+  ))
+
+
 def _favorite_slot_values(options):
   return get_favorite_values(options, params)
 
@@ -4954,29 +5021,72 @@ def setup(app):
   @app.route("/api/wheel-controls/status", methods=["GET"])
   def wheel_controls_status():
     status = wheel_control_status(params, params_memory)
-    options = _get_available_favorite_slot_options()
-    option_by_key = {option["key"]: option for option in options}
+    favorite_options = _get_available_favorite_slot_options()
+    favorite_option_by_key = {option["key"]: option for option in favorite_options}
+    controller_options = _get_available_controller_action_options()
+    controller_option_by_key = {option["key"]: option for option in controller_options}
     slots = normalize_favorite_slots(
       params.get(FAVORITE_SLOTS_PARAM),
       params=params,
-      eligible_keys=set(option_by_key),
+      eligible_keys=set(favorite_option_by_key),
     )
     for slot in slots:
       key = slot.get("key")
-      if key in option_by_key:
-        slot["label"] = option_by_key[key]["label"]
+      if key in favorite_option_by_key:
+        slot["label"] = favorite_option_by_key[key]["label"]
+    controller_slots = load_controller_action_slots(params, set(controller_option_by_key))
+    for slot in controller_slots:
+      key = slot.get("key")
+      if key in controller_option_by_key:
+        slot["label"] = controller_option_by_key[key]["label"]
     status["slots"] = slots
+    status["controller_slots"] = controller_slots
+    status["controller_options"] = controller_options
+    is_metric = params.get_bool("IsMetric")
+    speed_minimum, speed_maximum = controller_speed_bounds(is_metric)
+    status["speed_unit"] = "km/h" if is_metric else "mph"
+    status["speed_minimum"] = speed_minimum
+    status["speed_maximum"] = speed_maximum
     return jsonify(status), 200
 
   @app.route("/api/wheel-controls/<operation>", methods=["POST"])
   def wheel_controls_operation(operation):
-    if operation not in {"learn", "cancel", "delete", "clear", "test", "test-stop", "joystick"}:
+    if operation not in {"action", "learn", "cancel", "delete", "clear", "test", "test-stop", "joystick"}:
       return jsonify({"error": "Unknown wheel control operation."}), 404
     if not params.get_bool("IsOffroad"):
       return jsonify({"error": "Wheel controls can only be configured offroad."}), 409
 
     data = request.get_json(silent=True) or {}
     try:
+      if operation == "action":
+        slot_index = int(data.get("slot", -1))
+        key = str(data.get("key") or "").strip()
+        options = _get_available_controller_action_options()
+        option_by_key = {option["key"]: option for option in options}
+        if not 0 <= slot_index < CONTROLLER_ACTION_SLOT_COUNT:
+          return jsonify({"error": f"Controller action must be between 1 and {CONTROLLER_ACTION_SLOT_COUNT}."}), 400
+        if key and key not in option_by_key:
+          return jsonify({"error": "That controller action is not available."}), 400
+        value = None
+        if key == CONTROLLER_ACTION_SET_SPEED:
+          try:
+            value = float(data.get("value"))
+          except (TypeError, ValueError):
+            return jsonify({"error": "Enter a valid set speed."}), 400
+          speed_minimum, speed_maximum = controller_speed_bounds(params.get_bool("IsMetric"))
+          if not math.isfinite(value) or not speed_minimum <= value <= speed_maximum:
+            unit = "km/h" if params.get_bool("IsMetric") else "mph"
+            return jsonify({"error": f"Set speed must be between {speed_minimum} and {speed_maximum} {unit}."}), 400
+        cancel_wheel_control_learning(params_memory, params)
+        set_controller_action_slot(
+          slot_index,
+          key or None,
+          str(option_by_key.get(key, {}).get("label") or ""),
+          params,
+          value=value,
+          eligible_keys=set(option_by_key),
+        )
+        return jsonify({"message": f"Controller Action #{slot_index + 1} updated."}), 200
       if operation == "joystick":
         device_id = str(data.get("device_id") or "").strip()
         enabled = bool(data.get("enabled", False))
@@ -4992,16 +5102,28 @@ def setup(app):
       if operation == "learn":
         stop_wheel_control_testing(params_memory)
         slot_index = int(data.get("slot", -1))
-        options = _get_available_favorite_slot_options()
+        favorite_options = _get_available_favorite_slot_options()
+        favorite_eligible_keys = {option["key"] for option in favorite_options}
+        controller_options = _get_available_controller_action_options()
+        controller_eligible_keys = {option["key"] for option in controller_options}
         slots = normalize_favorite_slots(
           params.get(FAVORITE_SLOTS_PARAM),
           params=params,
-          eligible_keys={option["key"] for option in options},
+          eligible_keys=favorite_eligible_keys,
         )
-        if not 0 <= slot_index < len(slots) or not slots[slot_index].get("enabled") or not slots[slot_index].get("key"):
-          return jsonify({"error": "Configure and enable that Favorite before learning a button."}), 400
+        if 0 <= slot_index < FAVORITE_SLOT_COUNT:
+          target = slots[slot_index]
+          target_name = f"Favorite #{slot_index + 1}"
+        elif FAVORITE_SLOT_COUNT <= slot_index < FAVORITE_SLOT_COUNT + CONTROLLER_ACTION_SLOT_COUNT:
+          controller_index = slot_index - FAVORITE_SLOT_COUNT
+          target = load_controller_action_slots(params, controller_eligible_keys)[controller_index]
+          target_name = f"Controller Action #{controller_index + 1}"
+        else:
+          return jsonify({"error": "Unknown controller mapping target."}), 400
+        if not target.get("enabled") or not target.get("key"):
+          return jsonify({"error": f"Configure {target_name} before learning a button."}), 400
         start_wheel_control_learning(slot_index, params_memory, params)
-        return jsonify({"message": f"Press a button for Favorite #{slot_index + 1}."}), 200
+        return jsonify({"message": f"Press a button for {target_name}."}), 200
       if operation == "cancel":
         cancel_wheel_control_learning(params_memory, params)
         return jsonify({"message": "Button learning cancelled."}), 200
@@ -7876,6 +7998,33 @@ def setup(app):
     })
     return jsonify({"capturedAt": captured_at, "imageUrls": event["imageUrls"]})
 
+  @app.route("/api/sentry/selfie", methods=["POST"])
+  def sentry_selfie():
+    if request.remote_addr not in {None, "127.0.0.1", "::1"}:
+      return jsonify({"error": "Comma Selfies must originate on the device."}), 403
+
+    with _SENTRY_LIVE_CAPTURE_LOCK:
+      jpeg = _get_live_driver_jpeg()
+    if jpeg is None:
+      return jsonify({"error": "Unable to capture the driver camera."}), 503
+
+    captured_at = datetime.now(timezone.utc).isoformat()
+    event_id = f"selfie-{int(time.time())}-{secrets.token_hex(4)}"
+    directory = _sentry_event_roots()[0] / event_id
+    directory.mkdir(parents=True, exist_ok=True)
+    image_path = directory / "driver.jpg"
+    image_path.write_bytes(jpeg)
+    event = {
+      "eventId": event_id,
+      "kind": "selfie",
+      "detectedAt": captured_at,
+      "imagePaths": [str(image_path)],
+      "message": "Comma Selfie",
+    }
+    _record_sentry_event(event)
+    params.put("SentryModeLastEvent", json.dumps(event, separators=(",", ":")))
+    return jsonify({"accepted": True, "capturedAt": captured_at, "eventId": event_id}), 201
+
   @app.route("/api/sentry/test", methods=["POST"])
   def sentry_test():
     if request.remote_addr not in {None, "127.0.0.1", "::1"}:
@@ -9031,56 +9180,6 @@ def setup(app):
       return Response(jpeg, mimetype="image/jpeg")
     return jsonify({"error": "Unable to capture live frame from driver camera."}), 503
 
-
-  def _get_live_driver_jpeg():
-    from openpilot.system.manager.process_config import managed_processes
-    started = False
-    try:
-      try:
-        subprocess.check_call(["pgrep", "camerad"])
-      except subprocess.CalledProcessError:
-        managed_processes['camerad'].start()
-        started = True
-
-      client = VisionIpcClient("camerad", VisionStreamType.VISION_STREAM_DRIVER, True)
-      if not client.connect(True):
-        return None
-
-      if started:
-        settle_deadline = time.monotonic() + 4.0
-        while time.monotonic() < settle_deadline:
-          client.recv(timeout_ms=100)
-
-      buf = client.recv(timeout_ms=5000)
-      if buf is None:
-        return None
-
-      y = np.array(buf.data[:buf.uv_offset], dtype=np.uint8).reshape((-1, buf.stride))[:buf.height, :buf.width]
-      u = np.array(buf.data[buf.uv_offset::2], dtype=np.uint8).reshape((-1, buf.stride // 2))[:buf.height // 2, :buf.width // 2]
-      v = np.array(buf.data[buf.uv_offset + 1::2], dtype=np.uint8).reshape((-1, buf.stride // 2))[:buf.height // 2, :buf.width // 2]
-
-      ul = np.repeat(np.repeat(u, 2).reshape(u.shape[0], y.shape[1]), 2, axis=0).reshape(y.shape)
-      vl = np.repeat(np.repeat(v, 2).reshape(v.shape[0], y.shape[1]), 2, axis=0).reshape(y.shape)
-
-      yuv = np.dstack((y, ul, vl)).astype(np.int16)
-      yuv[:, :, 1:] -= 128
-
-      m = np.array([
-        [1.00000,  1.00000, 1.00000],
-        [0.00000, -0.39465, 2.03211],
-        [1.13983, -0.58060, 0.00000],
-      ])
-      rgb = np.dot(yuv, m).clip(0, 255).astype(np.uint8)
-
-      img = Image.fromarray(rgb)
-      buf_io = BytesIO()
-      img.save(buf_io, format="JPEG", quality=85)
-      return buf_io.getvalue()
-    except Exception:
-      return None
-    finally:
-      if started:
-        managed_processes['camerad'].stop()
 
   @app.route("/api/v_asm/config", methods=["GET"])
   def v_asm_get_config():

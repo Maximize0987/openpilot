@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import selectors
 import struct
+import threading
 import time
+import urllib.request
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,14 +18,38 @@ from typing import Any
 
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
+from openpilot.common.constants import CV
+from openpilot.starpilot.common.favorite_slots import FAVORITE_SLOT_COUNT
 
 
 MAPPINGS_PARAM = "WheelControlMappings"
+CONTROLLER_ACTIONS_PARAM = "ControllerActionSlots"
 LEARN_SLOT_PARAM = "WheelControlLearnSlot"
 STATUS_PARAM = "WheelControlStatus"
 TEST_ACTIVE_PARAM = "WheelControlTestActive"
 ENABLED_PARAM = "WheelControlsEnabled"
 JOYSTICK_DEVICE_PARAM = "JoystickControlDevice"
+CONTROLLER_ACTION_SLOT_COUNT = 10
+MAPPING_SLOT_COUNT = FAVORITE_SLOT_COUNT + CONTROLLER_ACTION_SLOT_COUNT
+CONTROLLER_ACTION_SET_SPEED = "__starpilot_controller_action__:set_speed"
+CONTROLLER_ACTION_SELFIE = "__starpilot_controller_action__:selfie"
+CONTROLLER_ACTION_OPTIONS = (
+  {
+    "key": CONTROLLER_ACTION_SET_SPEED,
+    "label": "Set Speed To",
+    "description": "Immediately changes the software-controlled cruise set speed while engaged.",
+    "section": "Controller Actions",
+    "value_type": "speed",
+    "default_value": 30,
+  },
+  {
+    "key": CONTROLLER_ACTION_SELFIE,
+    "label": "Take Comma Selfie",
+    "description": "Captures the driver camera and saves it in Sentry history.",
+    "section": "Controller Actions",
+  },
+)
+CONTROLLER_ACTION_KEYS = {option["key"] for option in CONTROLLER_ACTION_OPTIONS}
 LEARN_TIMEOUT_SECONDS = 20.0
 DEVICE_SCAN_INTERVAL_SECONDS = 1.0
 STATUS_INTERVAL_SECONDS = 0.5
@@ -35,6 +62,7 @@ HAT_EVENT_BASE = 0x10000
 EXTERNAL_INPUT_BUSES = {0x0003, 0x0005}
 INPUT_EVENT = struct.Struct("@llHHi")
 MODALIAS_RE = re.compile(r"input:b([0-9a-f]{4})v([0-9a-f]{4})p([0-9a-f]{4})e([0-9a-f]{4})", re.IGNORECASE)
+_SELFIE_REQUEST_LOCK = threading.Lock()
 
 try:
   from inputs import KEYS_AND_BUTTONS
@@ -139,6 +167,110 @@ def mapping_id(device_id: str, code: int) -> str:
   return hashlib.sha256(f"{device_id}:{code}".encode()).hexdigest()[:16]
 
 
+def default_controller_action_slots() -> list[dict[str, Any]]:
+  return [{"enabled": False, "key": None, "label": "", "value": None} for _ in range(CONTROLLER_ACTION_SLOT_COUNT)]
+
+
+def normalize_controller_action_slots(value: Any, eligible_keys: set[str] | None = None) -> list[dict[str, Any]]:
+  if isinstance(value, bytes):
+    value = value.decode("utf-8", errors="replace")
+  if isinstance(value, str):
+    try:
+      value = json.loads(value)
+    except json.JSONDecodeError:
+      value = []
+  if not isinstance(value, list):
+    value = []
+
+  slots = default_controller_action_slots()
+  for index, raw in enumerate(value[:CONTROLLER_ACTION_SLOT_COUNT]):
+    if not isinstance(raw, dict):
+      continue
+    key = str(raw.get("key") or "").strip() or None
+    if key is not None and eligible_keys is not None and key not in eligible_keys:
+      key = None
+    label = str(raw.get("label") or "").strip()[:64] if key else ""
+    value = None
+    if key == CONTROLLER_ACTION_SET_SPEED:
+      try:
+        candidate = float(raw.get("value"))
+        value = candidate if math.isfinite(candidate) and candidate > 0 else None
+      except (TypeError, ValueError):
+        pass
+    enabled = key is not None and (key != CONTROLLER_ACTION_SET_SPEED or value is not None)
+    slots[index] = {"enabled": enabled, "key": key, "label": label, "value": value}
+  return slots
+
+
+def load_controller_action_slots(params: Params | None = None,
+                                 eligible_keys: set[str] | None = None) -> list[dict[str, Any]]:
+  params = params or Params(return_defaults=True)
+  try:
+    raw = params.get(CONTROLLER_ACTIONS_PARAM)
+  except Exception:
+    raw = None
+  return normalize_controller_action_slots(raw, eligible_keys)
+
+
+def save_controller_action_slots(slots: list[dict[str, Any]], params: Params | None = None, *,
+                                 eligible_keys: set[str] | None = None) -> list[dict[str, Any]]:
+  params = params or Params(return_defaults=True)
+  normalized = normalize_controller_action_slots(slots, eligible_keys)
+  params.put(CONTROLLER_ACTIONS_PARAM, normalized)
+  return normalized
+
+
+def set_controller_action_slot(index: int, key: str | None, label: str, params: Params | None = None, *, value: float | None = None,
+                               eligible_keys: set[str] | None = None) -> list[dict[str, Any]]:
+  if not 0 <= index < CONTROLLER_ACTION_SLOT_COUNT:
+    raise ValueError(f"Controller action must be between 1 and {CONTROLLER_ACTION_SLOT_COUNT}")
+  key = str(key or "").strip() or None
+  if key is not None and eligible_keys is not None and key not in eligible_keys:
+    raise ValueError("That controller action is not available")
+  params = params or Params(return_defaults=True)
+  slots = load_controller_action_slots(params, eligible_keys)
+  slots[index] = {"enabled": key is not None, "key": key, "label": label if key else "", "value": value}
+  return save_controller_action_slots(slots, params, eligible_keys=eligible_keys)
+
+
+def controller_speed_bounds(is_metric: bool) -> tuple[int, int]:
+  return (8, 145) if is_metric else (5, 90)
+
+
+def set_controller_cruise_speed(value: Any, params: Params, params_memory: Params) -> bool:
+  if not params.get_bool("IsOnroad") or not params.get_bool("IsEngaged"):
+    return False
+  try:
+    native_speed = float(value)
+  except (TypeError, ValueError):
+    return False
+  minimum, maximum = controller_speed_bounds(params.get_bool("IsMetric"))
+  if not math.isfinite(native_speed) or not minimum <= native_speed <= maximum:
+    return False
+  conversion = CV.KPH_TO_MS if params.get_bool("IsMetric") else CV.MPH_TO_MS
+  params_memory.put_float("SLCForceCruiseSpeed", native_speed * conversion)
+  return True
+
+
+def _request_comma_selfie() -> None:
+  if not _SELFIE_REQUEST_LOCK.acquire(blocking=False):
+    return
+  try:
+    port = os.environ.get("SP_GALAXY_PORT", "8082")
+    request = urllib.request.Request(f"http://127.0.0.1:{port}/api/sentry/selfie", method="POST")
+    with urllib.request.urlopen(request, timeout=10.0):
+      pass
+  except Exception:
+    cloudlog.exception("wheel controls: Comma Selfie capture failed")
+  finally:
+    _SELFIE_REQUEST_LOCK.release()
+
+
+def request_comma_selfie() -> bool:
+  threading.Thread(target=_request_comma_selfie, name="comma-selfie", daemon=True).start()
+  return True
+
+
 def normalize_mappings(value: Any) -> list[dict[str, Any]]:
   if isinstance(value, bytes):
     value = value.decode("utf-8", errors="replace")
@@ -162,7 +294,7 @@ def normalize_mappings(value: Any) -> list[dict[str, Any]]:
       slot = int(raw.get("slot"))
     except (TypeError, ValueError):
       continue
-    if not device_id or code < 0 or not 0 <= slot < 3:
+    if not device_id or code < 0 or not 0 <= slot < MAPPING_SLOT_COUNT:
       continue
     signature = (device_id, code)
     if signature in seen:
@@ -229,8 +361,8 @@ def clear_mappings(params: Params | None = None) -> None:
 
 
 def start_learning(slot: int, params_memory: Params | None = None, params: Params | None = None) -> None:
-  if not 0 <= slot < 3:
-    raise ValueError("Favorite slot must be between 1 and 3")
+  if not 0 <= slot < MAPPING_SLOT_COUNT:
+    raise ValueError(f"Mapping target must be between 1 and {MAPPING_SLOT_COUNT}")
   params_memory = params_memory or Params(memory=True)
   (params or Params()).put_bool(ENABLED_PARAM, True)
   params_memory.put_int(LEARN_SLOT_PARAM, slot + 1)
@@ -299,6 +431,27 @@ def execute_favorite_slot(slot: int, params: Params, params_memory: Params) -> b
   return toggle_favorite_slot(slot, params, params_memory)
 
 
+def execute_controller_action(index: int, params: Params, params_memory: Params) -> bool:
+  from openpilot.starpilot.common.favorite_slots import execute_favorite_key
+  slots = load_controller_action_slots(params)
+  if not 0 <= index < len(slots):
+    return False
+  slot = slots[index]
+  if not slot.get("enabled"):
+    return False
+  if slot.get("key") == CONTROLLER_ACTION_SET_SPEED:
+    return set_controller_cruise_speed(slot.get("value"), params, params_memory)
+  if slot.get("key") == CONTROLLER_ACTION_SELFIE:
+    return request_comma_selfie()
+  return execute_favorite_key(slot.get("key"), params, params_memory)
+
+
+def execute_mapping_slot(slot: int, params: Params, params_memory: Params) -> bool:
+  if slot < FAVORITE_SLOT_COUNT:
+    return execute_favorite_slot(slot, params, params_memory)
+  return execute_controller_action(slot - FAVORITE_SLOT_COUNT, params, params_memory)
+
+
 class WheelControlsDaemon:
   def __init__(self, params: Params | None = None, params_memory: Params | None = None):
     self.params = params or Params(return_defaults=True)
@@ -364,7 +517,7 @@ class WheelControlsDaemon:
       return
 
     requested = self.params_memory.get_int(LEARN_SLOT_PARAM)
-    if 1 <= requested <= 3:
+    if 1 <= requested <= MAPPING_SLOT_COUNT:
       slot = requested - 1
       if slot != self.learning_slot:
         self.learning_slot = slot
@@ -413,9 +566,9 @@ class WheelControlsDaemon:
     for mapping in mappings:
       if mapping["device_id"] == source.device_id and mapping["event_code"] == code:
         try:
-          execute_favorite_slot(mapping["slot"], self.params, self.params_memory)
+          execute_mapping_slot(mapping["slot"], self.params, self.params_memory)
         except Exception:
-          cloudlog.exception("wheel control favorite action failed")
+          cloudlog.exception("wheel control action failed")
         return
 
   def _read_events(self, fd: int) -> None:

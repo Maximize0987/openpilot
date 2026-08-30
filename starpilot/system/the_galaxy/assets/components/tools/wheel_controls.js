@@ -9,6 +9,11 @@ const state = reactive({
   joystickDevice: "",
   mappings: [],
   slots: [],
+  controllerSlots: [],
+  controllerOptions: [],
+  speedUnit: "mph",
+  speedMinimum: 5,
+  speedMaximum: 90,
   learning: false,
   learningSlot: null,
   remainingSeconds: 0,
@@ -30,6 +35,11 @@ async function refresh() {
     state.joystickDevice = typeof payload.joystick_device === "string" ? payload.joystick_device : ""
     state.mappings = Array.isArray(payload.mappings) ? payload.mappings : []
     state.slots = Array.isArray(payload.slots) ? payload.slots : []
+    state.controllerSlots = Array.isArray(payload.controller_slots) ? payload.controller_slots : []
+    state.controllerOptions = Array.isArray(payload.controller_options) ? payload.controller_options : []
+    state.speedUnit = typeof payload.speed_unit === "string" ? payload.speed_unit : "mph"
+    state.speedMinimum = Number(payload.speed_minimum || 5)
+    state.speedMaximum = Number(payload.speed_maximum || 90)
     state.learning = !!payload.learning
     state.learningSlot = Number.isInteger(payload.learning_slot) ? payload.learning_slot : null
     state.remainingSeconds = Number(payload.remaining_seconds || 0)
@@ -117,6 +127,71 @@ function slotCard(slot, index) {
   `
 }
 
+function controllerSlotCard(slot, index) {
+  const targetIndex = 3 + index
+  const selectedKey = slot?.key || ""
+  const selectedOption = state.controllerOptions.find(option => option.key === selectedKey)
+  const mappings = () => state.mappings.filter(mapping => mapping.slot === targetIndex)
+  const learning = () => state.learning && state.learningSlot === targetIndex
+  const selectAction = event => {
+    const key = event.currentTarget.value
+    const option = state.controllerOptions.find(candidate => candidate.key === key)
+    const value = option?.value_type === "speed" ? Number(slot?.value || option.default_value || 30) : null
+    request("action", { slot: index, key, value })
+  }
+  return html`
+    <section class="wheelCard wheelControllerCard">
+      <div class="wheelCardHeader">
+        <div>
+          <span class="wheelSlotLabel">Controller Action #${index + 1}</span>
+          <h3>${slot?.label || "Not configured"}</h3>
+        </div>
+        <button class="${() => learning() ? "learning" : ""}"
+                disabled="${() => !slot?.enabled || !state.offroad || state.testing || !!state.busy}"
+                @click="${() => request(learning() ? "cancel" : "learn", { slot: targetIndex })}">
+          ${() => learning() ? `Listening (${Math.ceil(state.remainingSeconds)}s)` : "Learn Button"}
+        </button>
+      </div>
+      <label class="wheelActionPicker">
+        <span>Action</span>
+        <select disabled="${() => !state.offroad || !!state.busy}"
+                @change="${selectAction}">
+          <option value="" selected="${() => selectedKey === ""}">Not configured</option>
+          ${state.controllerOptions.map(option => html`
+            <option value="${option.key}" selected="${() => selectedKey === option.key}">${option.label}</option>
+          `)}
+        </select>
+      </label>
+      ${selectedOption?.value_type === "speed" ? html`
+        <label class="wheelActionPicker wheelSpeedPicker">
+          <span>Set speed (${() => state.speedUnit})</span>
+          <input type="number" inputmode="decimal"
+                 min="${() => state.speedMinimum}" max="${() => state.speedMaximum}" step="1"
+                 value="${slot?.value || selectedOption.default_value || 30}"
+                 disabled="${() => !state.offroad || !!state.busy}"
+                 @change="${event => request("action", { slot: index, key: selectedKey, value: Number(event.currentTarget.value) })}" />
+        </label>
+      ` : ""}
+      <p class="wheelHint">${selectedOption?.value_type === "speed"
+        ? "Uses the current mph/km/h setting and applies while openpilot is engaged on software-controlled cruise."
+        : selectedKey === "__starpilot_controller_action__:selfie"
+          ? "Captures in the background and saves the driver-camera image in Galaxy → Sentry Mode."
+          : "Controller-only action. It does not create an on-screen Favorite button."}</p>
+      ${() => learning() ? html`
+        <div class="wheelLearnPrompt"><span></span>Press one button on your controller, macropad, or keyboard.</div>
+      ` : ""}
+      <div class="wheelMappings">
+        ${() => mappings().length ? mappings().map(mappingRow) : html`<span class="wheelEmpty">No buttons mapped.</span>`}
+      </div>
+    </section>
+  `
+}
+
+function mappingTargetName(slot) {
+  const index = Number(slot)
+  return index < 3 ? `Favorite #${index + 1}` : `Controller Action #${index - 2}`
+}
+
 function testResultClass() {
   if (!state.lastTested) return "waiting"
   return state.lastTested.mapped ? "success" : "failure"
@@ -137,7 +212,7 @@ function testPanel() {
         const device = state.lastTested.device_name || "External input"
         const button = state.lastTested.event_name || `Button ${state.lastTested.event_code}`
         return state.lastTested.mapped
-          ? `${button} on ${device} is mapped to Favorite #${Number(state.lastTested.slot) + 1}.`
+          ? `${button} on ${device} is mapped to ${mappingTargetName(state.lastTested.slot)}.`
           : `${button} on ${device} does not have a mapping.`
       }}</p>
     </section>
@@ -170,7 +245,7 @@ export function WheelControls() {
       <header class="wheelHeader">
         <div>
           <h2>Controllers</h2>
-          <p>Map buttons to favorites, or explicitly select one gamepad for Joystick Mode.</p>
+          <p>Map buttons to favorites or controller-only actions, or explicitly select one gamepad for Joystick Mode.</p>
         </div>
         <div class="wheelHeaderActions">
           <button class="${() => state.testing ? "testing" : ""}"
@@ -193,16 +268,32 @@ export function WheelControls() {
       <div class="wheelDeviceSummary">
         <div class="wheelDeviceHeading">
           <strong>Connected input devices</strong>
-          <span>Favorite buttons are the default. Only the selected gamepad controls Joystick Mode.</span>
+          <span>Favorite buttons are the default, with controller-only actions available below. Only the selected gamepad controls Joystick Mode.</span>
         </div>
         ${() => state.devices.length
           ? html`<div class="wheelDeviceList">${state.devices.map(deviceRow)}</div>`
           : html`<span class="wheelMuted">Connect or pair a controller, macropad, or keyboard.</span>`}
       </div>
 
-      <div class="wheelSlotGrid">
-        ${() => state.loading ? html`<div class="wheelCard">Loading...</div>` : state.slots.map(slotCard)}
-      </div>
+      <section class="wheelSection">
+        <div class="wheelSectionHeading">
+          <h3>On-screen Favorites</h3>
+          <p>These remain linked to the three Favorite Slots shown elsewhere in StarPilot.</p>
+        </div>
+        <div class="wheelSlotGrid">
+          ${() => state.loading ? html`<div class="wheelCard">Loading...</div>` : state.slots.map(slotCard)}
+        </div>
+      </section>
+
+      <section class="wheelSection">
+        <div class="wheelSectionHeading">
+          <h3>Controller-only Actions</h3>
+          <p>Ten additional actions for physical buttons. These never appear as on-screen Favorites.</p>
+        </div>
+        <div class="wheelControllerGrid">
+          ${() => state.controllerSlots.map(controllerSlotCard)}
+        </div>
+      </section>
     </div>
   `
 }
