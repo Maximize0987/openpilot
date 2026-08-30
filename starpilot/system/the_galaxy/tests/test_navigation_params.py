@@ -1,5 +1,6 @@
 import json
 import sys
+from dataclasses import asdict
 
 from openpilot.common.params import ParamKeyType
 
@@ -110,6 +111,188 @@ def _params_client(monkeypatch, values, device_type):
   app = the_galaxy.Flask(f"params_test_{device_type}")
   the_galaxy.setup(app)
   return app.test_client(), fake_params
+
+
+class FakeBluetoothClient:
+  calls = []
+
+  def __init__(self, timeout=0):
+    self.timeout = timeout
+
+  def status(self):
+    from openpilot.starpilot.system.bluetooth.protocol import BluetoothStatus
+    return BluetoothStatus(available=True, enabled=True, powered=True, offroad=True)
+
+  @staticmethod
+  def serialize_status(status):
+    return asdict(status)
+
+  def set_power(self, enabled):
+    self.calls.append(("set_power", {"enabled": enabled}))
+
+  def call(self, command, **payload):
+    self.calls.append((command, payload))
+    return {"audio_test_delay_ms": 3000} if command == "test_audio" else {}
+
+
+def test_bluetooth_status_api(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  monkeypatch.setattr(the_galaxy, "BluetoothClient", FakeBluetoothClient)
+
+  response = client.get("/api/bluetooth/status")
+
+  assert response.status_code == 200
+  assert response.get_json() == {
+    "available": True,
+    "devices": [],
+    "discovering": False,
+    "enabled": True,
+    "error": "",
+    "offroad": True,
+    "powered": True,
+    "prompt": None,
+    "selected_audio": "",
+  }
+
+
+def test_bluetooth_api_enforces_offroad(monkeypatch):
+  FakeBluetoothClient.calls = []
+  client, _ = _params_client(monkeypatch, {"IsOffroad": False}, "mici")
+  monkeypatch.setattr(the_galaxy, "BluetoothClient", FakeBluetoothClient)
+
+  response = client.post("/api/bluetooth/pair", json={"address": "00:11:22:33:44:55"})
+
+  assert response.status_code == 409
+  assert FakeBluetoothClient.calls == []
+
+  response = client.post("/api/bluetooth/test_audio", json={"address": "00:11:22:33:44:55"})
+  assert response.status_code == 409
+  assert FakeBluetoothClient.calls == []
+
+
+def test_bluetooth_api_allows_connection_recovery_onroad(monkeypatch):
+  FakeBluetoothClient.calls = []
+  client, _ = _params_client(monkeypatch, {"IsOffroad": False}, "mici")
+  monkeypatch.setattr(the_galaxy, "BluetoothClient", FakeBluetoothClient)
+
+  response = client.post("/api/bluetooth/connect", json={"address": "00:11:22:33:44:55"})
+
+  assert response.status_code == 200
+  assert FakeBluetoothClient.calls == [("connect", {"address": "00:11:22:33:44:55"})]
+
+
+def test_bluetooth_api_dispatches_operations(monkeypatch):
+  FakeBluetoothClient.calls = []
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  monkeypatch.setattr(the_galaxy, "BluetoothClient", FakeBluetoothClient)
+
+  assert client.post("/api/bluetooth/power", json={"enabled": True}).status_code == 200
+  assert client.post("/api/bluetooth/select_audio", json={"address": "00:11:22:33:44:55"}).status_code == 200
+  assert client.post("/api/bluetooth/select_audio", json={"address": ""}).status_code == 200
+  audio_response = client.post("/api/bluetooth/test_audio", json={"address": "00:11:22:33:44:55"})
+  assert audio_response.status_code == 200
+  assert audio_response.get_json()["audio_test_delay_ms"] == 3000
+
+  assert FakeBluetoothClient.calls == [
+    ("set_power", {"enabled": True}),
+    ("select_audio", {"address": "00:11:22:33:44:55"}),
+    ("select_audio", {"address": ""}),
+    ("test_audio", {"address": "00:11:22:33:44:55"}),
+  ]
+
+
+def test_wheel_controls_status_includes_favorite_slots(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True, "FavoriteSlots": []}, "mici")
+  monkeypatch.setattr(the_galaxy, "wheel_control_status", lambda *_args: {"available": True, "mappings": [], "devices": []})
+  monkeypatch.setattr(the_galaxy, "_get_available_favorite_slot_options", lambda: [{"key": "ForceOffroad", "label": "Force Offroad"}])
+  monkeypatch.setattr(the_galaxy, "normalize_favorite_slots", lambda *_args, **_kwargs: [
+    {"enabled": True, "key": "ForceOffroad", "label": ""},
+    {"enabled": False, "key": None, "label": ""},
+    {"enabled": False, "key": None, "label": ""},
+  ])
+
+  response = client.get("/api/wheel-controls/status")
+
+  assert response.status_code == 200
+  assert response.get_json()["slots"][0]["label"] == "Force Offroad"
+
+
+def test_wheel_controls_learning_requires_offroad(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": False}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "start_wheel_control_learning", lambda *args: calls.append(args))
+
+  response = client.post("/api/wheel-controls/learn", json={"slot": 0})
+
+  assert response.status_code == 409
+  assert calls == []
+
+
+def test_wheel_controls_learning_targets_configured_favorite(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True, "FavoriteSlots": []}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "start_wheel_control_learning", lambda *args: calls.append(args))
+  monkeypatch.setattr(the_galaxy, "_get_available_favorite_slot_options", lambda: [{"key": "ForceOffroad", "label": "Force Offroad"}])
+  monkeypatch.setattr(the_galaxy, "normalize_favorite_slots", lambda *_args, **_kwargs: [
+    {"enabled": True, "key": "ForceOffroad", "label": "Force Offroad"},
+    {"enabled": False, "key": None, "label": ""},
+    {"enabled": False, "key": None, "label": ""},
+  ])
+
+  response = client.post("/api/wheel-controls/learn", json={"slot": 0})
+
+  assert response.status_code == 200
+  assert calls == [(0, the_galaxy.params_memory, the_galaxy.params)]
+
+
+def test_wheel_controls_test_mode_has_explicit_start_and_stop(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "start_wheel_control_testing", lambda *args: calls.append(("start", args)))
+  monkeypatch.setattr(the_galaxy, "stop_wheel_control_testing", lambda *args: calls.append(("stop", args)))
+
+  assert client.post("/api/wheel-controls/test").status_code == 200
+  assert client.post("/api/wheel-controls/test-stop").status_code == 200
+  assert calls == [
+    ("start", (the_galaxy.params_memory, the_galaxy.params)),
+    ("stop", (the_galaxy.params_memory,)),
+  ]
+
+
+def test_wheel_controls_joystick_selection_is_explicit_and_offroad(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "wheel_control_status", lambda *_args: {"devices": [
+    {"device_id": "bt-pad", "joystick_capable": True},
+  ]})
+  monkeypatch.setattr(the_galaxy, "set_joystick_device", lambda *args: calls.append(args))
+
+  response = client.post("/api/wheel-controls/joystick", json={"device_id": "bt-pad", "enabled": True})
+
+  assert response.status_code == 200
+  assert calls == [("bt-pad", True, the_galaxy.params)]
+
+
+def test_wheel_controls_rejects_button_only_joystick_source(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": True}, "mici")
+  monkeypatch.setattr(the_galaxy, "wheel_control_status", lambda *_args: {"devices": [
+    {"device_id": "media-remote", "joystick_capable": False},
+  ]})
+
+  response = client.post("/api/wheel-controls/joystick", json={"device_id": "media-remote", "enabled": True})
+
+  assert response.status_code == 400
+
+
+def test_wheel_controls_joystick_selection_requires_offroad(monkeypatch):
+  client, _ = _params_client(monkeypatch, {"IsOffroad": False}, "mici")
+  calls = []
+  monkeypatch.setattr(the_galaxy, "set_joystick_device", lambda *args: calls.append(args))
+
+  response = client.post("/api/wheel-controls/joystick", json={"device_id": "bt-pad", "enabled": True})
+
+  assert response.status_code == 409
+  assert calls == []
 
 
 def test_params_compat_accepts_json_strings_for_json_keys():

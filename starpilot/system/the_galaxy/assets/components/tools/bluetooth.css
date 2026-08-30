@@ -1,0 +1,139 @@
+.bluetoothPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bluetoothHeader,
+.bluetoothTitle,
+.bluetoothDeviceHeader,
+.bluetoothToolbar,
+.bluetoothActions,
+.bluetoothBadges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bluetoothHeader,
+.bluetoothDeviceHeader {
+  justify-content: space-between;
+}
+
+.bluetoothTitle > i {
+  color: #a98ce5;
+  font-size: 2.5rem;
+}
+
+.bluetoothHeader h2,
+.bluetoothHeader p,
+.bluetoothCard h3 {
+  margin: 0;
+}
+
+.bluetoothHeader p {
+  margin-top: 6px;
+  opacity: 0.8;
+}
+
+.bluetoothCard,
+.bluetoothNotice,
+.bluetoothError,
+.bluetoothPrompt {
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 16px;
+}
+
+.bluetoothDeviceList {
+  display: grid;
+  gap: 12px;
+}
+
+.bluetoothNotice,
+.bluetoothPrompt {
+  color: #ffe2a3;
+}
+
+.bluetoothAudioCountdown {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 20px;
+  border: 1px solid rgba(64, 201, 124, 0.45);
+  border-radius: var(--border-radius-lg);
+  background: rgba(64, 201, 124, 0.12);
+}
+
+.bluetoothAudioCountdown strong {
+  min-width: 72px;
+  color: #b8ffd4;
+  font-size: 2rem;
+  text-align: center;
+}
+
+.bluetoothError {
+  color: #ff9ab3;
+}
+
+.bluetoothAddress {
+  display: inline-block;
+  margin-top: 5px;
+  font-family: monospace;
+  opacity: 0.65;
+}
+
+.bluetoothBadge {
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.bluetoothBadgePaired {
+  color: #d9c9ff;
+  background: rgba(139, 108, 197, 0.22);
+}
+
+.bluetoothBadgeConnected {
+  color: #b8ffd4;
+  background: rgba(64, 201, 124, 0.2);
+}
+
+.bluetoothToolbar button,
+.bluetoothActions button,
+.bluetoothSwitch {
+  border: 0;
+  border-radius: var(--border-radius-md);
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #7a62b8, #8b6cc5);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bluetoothActions {
+  margin-top: 14px;
+}
+
+.bluetoothActions button.selected {
+  background: linear-gradient(135deg, #258b58, #40c97c);
+}
+
+.bluetoothActions button.danger {
+  background: linear-gradient(135deg, #b14a6b, #d95a7b);
+}
+
+.bluetoothToolbar button:disabled,
+.bluetoothActions button:disabled,
+.bluetoothSwitch:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.bluetoothSwitch input {
+  margin: 0;
+}

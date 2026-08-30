@@ -318,6 +318,17 @@ def _install_server_import_stubs():
     "openpilot.starpilot.system.the_galaxy.flm_workspace",
   )
   sys.modules["openpilot.starpilot.system.the_galaxy.utilities"] = utilities
+  sys.modules["openpilot.starpilot.system.wheel_controls"] = _simple_module(
+    "openpilot.starpilot.system.wheel_controls",
+    cancel_learning=lambda *args, **kwargs: None,
+    clear_mappings=lambda *args, **kwargs: None,
+    delete_mapping=lambda *args, **kwargs: True,
+    public_status=lambda *args, **kwargs: {"mappings": [], "devices": [], "available": True},
+    set_joystick_device=lambda *args, **kwargs: None,
+    start_learning=lambda *args, **kwargs: None,
+    start_testing=lambda *args, **kwargs: None,
+    stop_testing=lambda *args, **kwargs: None,
+  )
 
 
 class FakeParams:

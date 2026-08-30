@@ -102,6 +102,17 @@ from openpilot.starpilot.navigation.destination_store import normalize_destinati
 from openpilot.starpilot.system.the_galaxy.factory_reset import remove_path as _run_factory_reset_delete
 from openpilot.starpilot.system.the_galaxy import flm_workspace, utilities
 from openpilot.starpilot.system.the_galaxy.update_recovery import inspect_interrupted_update, public_recovery_status, recover_interrupted_update
+from openpilot.starpilot.system.bluetooth import BluetoothClient
+from openpilot.starpilot.system.wheel_controls import (
+  cancel_learning as cancel_wheel_control_learning,
+  clear_mappings as clear_wheel_control_mappings,
+  delete_mapping as delete_wheel_control_mapping,
+  public_status as wheel_control_status,
+  set_joystick_device,
+  start_learning as start_wheel_control_learning,
+  start_testing as start_wheel_control_testing,
+  stop_testing as stop_wheel_control_testing,
+)
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 # Keep Galaxy independent of opendbc's generated car bindings while matching RivianFlags.ANGLE_HARNESS.
@@ -4853,6 +4864,10 @@ def setup(app):
       "/assets/components/tools/pip_sidecam.js",
       "/assets/components/tools/pip_sidecam.css",
       "/assets/components/tools/toggles.js",
+      "/assets/components/tools/bluetooth.js",
+      "/assets/components/tools/bluetooth.css",
+      "/assets/components/tools/wheel_controls.js",
+      "/assets/components/tools/wheel_controls.css",
     }:
       response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
       response.headers["Pragma"] = "no-cache"
@@ -4874,6 +4889,145 @@ def setup(app):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+  @app.route("/api/bluetooth/status", methods=["GET"])
+  def bluetooth_status():
+    try:
+      status = BluetoothClient(timeout=3.0).status()
+      return jsonify(BluetoothClient.serialize_status(status)), 200
+    except Exception as error:
+      return jsonify({
+        "available": False,
+        "enabled": params.get_bool("BluetoothEnabled"),
+        "offroad": params.get_bool("IsOffroad"),
+        "selected_audio": params.get("BluetoothAudioAddress", encoding="utf-8") or "",
+        "devices": [],
+        "error": str(error),
+      }), 503
+
+  @app.route("/api/bluetooth/<operation>", methods=["POST"])
+  def bluetooth_operation(operation):
+    commands = {
+      "power": "set_power",
+      "scan": "start_scan",
+      "stop_scan": "stop_scan",
+      "pair": "pair",
+      "connect": "connect",
+      "disconnect": "disconnect",
+      "forget": "forget",
+      "select_audio": "select_audio",
+      "test_audio": "test_audio",
+      "pairing_response": "pairing_response",
+    }
+    command = commands.get(operation)
+    if command is None:
+      return jsonify({"error": "Unknown Bluetooth operation."}), 404
+    offroad_only = {"power", "scan", "stop_scan", "pair", "forget", "test_audio", "pairing_response"}
+    if operation in offroad_only and not params.get_bool("IsOffroad"):
+      return jsonify({"error": "Bluetooth settings can only be changed offroad."}), 409
+
+    data = request.get_json(silent=True) or {}
+    payload = {}
+    if command == "set_power":
+      payload["enabled"] = bool(data.get("enabled", False))
+    elif command == "pairing_response":
+      payload = {
+        "prompt_id": str(data.get("prompt_id", "")),
+        "accepted": bool(data.get("accepted", False)),
+        "value": str(data.get("value", "")),
+      }
+    elif command not in {"start_scan", "stop_scan"}:
+      payload["address"] = str(data.get("address", ""))
+      if not payload["address"] and command != "select_audio":
+        return jsonify({"error": "Bluetooth device address is required."}), 400
+    try:
+      client = BluetoothClient(timeout=10.0)
+      if command == "set_power":
+        client.set_power(payload["enabled"])
+        result = {}
+      else:
+        result = client.call(command, **payload)
+      return jsonify({"message": "Bluetooth operation started.", **result}), 200
+    except Exception as error:
+      return jsonify({"error": str(error)}), 503
+
+  @app.route("/api/wheel-controls/status", methods=["GET"])
+  def wheel_controls_status():
+    status = wheel_control_status(params, params_memory)
+    options = _get_available_favorite_slot_options()
+    option_by_key = {option["key"]: option for option in options}
+    slots = normalize_favorite_slots(
+      params.get(FAVORITE_SLOTS_PARAM),
+      params=params,
+      eligible_keys=set(option_by_key),
+    )
+    for slot in slots:
+      key = slot.get("key")
+      if key in option_by_key:
+        slot["label"] = option_by_key[key]["label"]
+    status["slots"] = slots
+    return jsonify(status), 200
+
+  @app.route("/api/wheel-controls/<operation>", methods=["POST"])
+  def wheel_controls_operation(operation):
+    if operation not in {"learn", "cancel", "delete", "clear", "test", "test-stop", "joystick"}:
+      return jsonify({"error": "Unknown wheel control operation."}), 404
+    if not params.get_bool("IsOffroad"):
+      return jsonify({"error": "Wheel controls can only be configured offroad."}), 409
+
+    data = request.get_json(silent=True) or {}
+    try:
+      if operation == "joystick":
+        device_id = str(data.get("device_id") or "").strip()
+        enabled = bool(data.get("enabled", False))
+        if enabled:
+          devices = wheel_control_status(params, params_memory).get("devices", [])
+          device = next((item for item in devices if item.get("device_id") == device_id), None)
+          if device is None:
+            return jsonify({"error": "Controller is not connected."}), 404
+          if not device.get("joystick_capable"):
+            return jsonify({"error": "This device does not expose joystick axes."}), 400
+        set_joystick_device(device_id, enabled, params)
+        return jsonify({"message": "Joystick controller updated."}), 200
+      if operation == "learn":
+        stop_wheel_control_testing(params_memory)
+        slot_index = int(data.get("slot", -1))
+        options = _get_available_favorite_slot_options()
+        slots = normalize_favorite_slots(
+          params.get(FAVORITE_SLOTS_PARAM),
+          params=params,
+          eligible_keys={option["key"] for option in options},
+        )
+        if not 0 <= slot_index < len(slots) or not slots[slot_index].get("enabled") or not slots[slot_index].get("key"):
+          return jsonify({"error": "Configure and enable that Favorite before learning a button."}), 400
+        start_wheel_control_learning(slot_index, params_memory, params)
+        return jsonify({"message": f"Press a button for Favorite #{slot_index + 1}."}), 200
+      if operation == "cancel":
+        cancel_wheel_control_learning(params_memory, params)
+        return jsonify({"message": "Button learning cancelled."}), 200
+      if operation == "test":
+        cancel_wheel_control_learning(params_memory, params)
+        start_wheel_control_testing(params_memory, params)
+        return jsonify({"message": "Button testing enabled."}), 200
+      if operation == "test-stop":
+        stop_wheel_control_testing(params_memory)
+        return jsonify({"message": "Button testing disabled."}), 200
+      if operation == "clear":
+        clear_wheel_control_mappings(params)
+        cancel_wheel_control_learning(params_memory, params)
+        stop_wheel_control_testing(params_memory)
+        return jsonify({"message": "Wheel control mappings cleared."}), 200
+
+      identifier = str(data.get("id") or "").strip()
+      if not identifier:
+        return jsonify({"error": "Mapping id is required."}), 400
+      if not delete_wheel_control_mapping(identifier, params):
+        return jsonify({"error": "Wheel control mapping was not found."}), 404
+      return jsonify({"message": "Wheel control mapping removed."}), 200
+    except (TypeError, ValueError) as error:
+      return jsonify({"error": str(error)}), 400
+    except Exception as error:
+      return jsonify({"error": str(error)}), 503
 
   @app.route("/assets/components/tools/device_settings_layout.json", methods=["GET"])
   def device_settings_layout_asset():
