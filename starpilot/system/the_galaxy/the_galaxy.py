@@ -73,7 +73,12 @@ from openpilot.starpilot.common.maps_catalog import (
   schedule_label,
   schedule_param_value,
 )
-from openpilot.starpilot.common.maps_download_progress import load_size_cache, nonnegative_int, selection_key
+from openpilot.starpilot.common.maps_download_progress import (
+  MAPS_STORAGE_CACHE_PARAM,
+  load_maps_storage_cache,
+  nonnegative_int,
+  selection_key,
+)
 from openpilot.starpilot.common.experimental_state import sync_persist_chill_state, sync_persist_experimental_state
 from openpilot.starpilot.common.favorite_slots import (
   FAVORITE_SLOTS_PARAM,
@@ -1511,7 +1516,7 @@ MODEL_USER_FAVORITES_PARAM = "UserFavorites"
 MAPS_DOWNLOAD_PARAM = "DownloadMaps"
 MAPS_CANCEL_DOWNLOAD_PARAM = "CancelDownloadMaps"
 MAPS_DOWNLOAD_PROGRESS_PARAM = "MapsDownloadProgress"
-MAPS_DOWNLOAD_SIZE_CACHE_PARAM = "MapsDownloadSizeCache"
+MAPS_DOWNLOAD_SIZE_CACHE_PARAM = MAPS_STORAGE_CACHE_PARAM
 
 
 def _get_galaxy_dir():
@@ -6332,13 +6337,10 @@ def setup(app):
 
     selected_entries = get_selected_map_entries(selected_raw)
     selected_locations = [entry["token"] for entry in selected_entries]
-    maps_present = MAPS_PATH.exists() and any(path.is_file() for path in MAPS_PATH.rglob("*"))
-    storage_bytes = 0
-    if MAPS_PATH.exists():
-      try:
-        storage_bytes = sum(path.stat().st_size for path in MAPS_PATH.rglob("*") if path.is_file())
-      except Exception:
-        storage_bytes = 0
+    size_cache = load_maps_storage_cache(params.get(MAPS_DOWNLOAD_SIZE_CACHE_PARAM, encoding="utf-8") or "")
+    storage_known = size_cache.storage_known
+    storage_bytes = size_cache.storage_bytes if storage_known else 0
+    maps_present = bool(size_cache.maps_present)
 
     selected_key = selection_key(selected_locations)
     raw_progress = params_memory.get(MAPS_DOWNLOAD_PROGRESS_PARAM, encoding="utf-8") or ""
@@ -6349,10 +6351,13 @@ def setup(app):
     if not isinstance(download_progress, dict):
       download_progress = {}
 
+    if params_memory.get_bool(MAPS_DOWNLOAD_PARAM) and "storageBytes" in download_progress:
+      storage_known = bool(download_progress.get("storageKnown", True))
+      storage_bytes = nonnegative_int(download_progress.get("storageBytes", 0)) if storage_known else 0
+      maps_present = storage_bytes > 0 if storage_known else False
+
     if not params_memory.get_bool(MAPS_DOWNLOAD_PARAM) and selected_key and download_progress.get("selectedKey") != selected_key:
-      size_cache = load_size_cache(params.get(MAPS_DOWNLOAD_SIZE_CACHE_PARAM, encoding="utf-8") or "")
-      cached_entry = size_cache.get(selected_key, {})
-      cached_bytes = nonnegative_int(cached_entry.get("downloadBytes", 0)) if isinstance(cached_entry, dict) else 0
+      cached_bytes = size_cache.selection_estimate_bytes(selected_key)
       if cached_bytes > 0:
         download_progress = {
           "active": False,
@@ -6361,7 +6366,7 @@ def setup(app):
           "downloadedBytes": 0,
           "downloadedFiles": 0,
           "estimatedDownloadBytes": cached_bytes,
-          "estimateSource": "previous_download",
+          "estimateSource": "previous_additional_storage",
           "etaSeconds": 0,
           "percent": 0,
           "phase": "idle",
@@ -6369,8 +6374,9 @@ def setup(app):
           "selectedKey": selected_key,
           "selectedLocations": selected_locations,
           "storageBytes": storage_bytes,
-          "totalFiles": nonnegative_int(cached_entry.get("totalFiles", 0)),
-          "updatedAt": cached_entry.get("updatedAt", ""),
+          "storageKnown": storage_known,
+          "totalFiles": size_cache.selection_total_files(selected_key),
+          "updatedAt": size_cache.selection_updated_at(selected_key),
           "bytesPerSecond": 0,
         }
       else:
@@ -6389,6 +6395,7 @@ def setup(app):
           "selectedKey": selected_key,
           "selectedLocations": selected_locations,
           "storageBytes": storage_bytes,
+          "storageKnown": storage_known,
           "totalFiles": 0,
           "updatedAt": "",
           "bytesPerSecond": 0,
@@ -6404,6 +6411,7 @@ def setup(app):
       "isOnroad": params.get_bool("IsOnroad"),
       "lastUpdate": params.get("LastMapsUpdate", encoding="utf-8") or "Never",
       "mapsPresent": maps_present,
+      "storageKnown": storage_known,
       "scheduleLabel": schedule_label(params.get("PreferredSchedule")),
       "scheduleOptions": MAP_SCHEDULE_OPTIONS,
       "scheduleValue": schedule_param_value(params.get("PreferredSchedule")),
@@ -6489,6 +6497,11 @@ def setup(app):
 
     if MAPS_PATH.exists():
       shutil.rmtree(MAPS_PATH, ignore_errors=True)
+
+    size_cache = load_maps_storage_cache(params.get(MAPS_DOWNLOAD_SIZE_CACHE_PARAM, encoding="utf-8") or "")
+    size_cache.clear()
+    params.put(MAPS_DOWNLOAD_SIZE_CACHE_PARAM, size_cache.to_json())
+    params_memory.remove(MAPS_DOWNLOAD_PROGRESS_PARAM)
 
     return jsonify({"message": "Maps removed.", "status": _get_maps_status_payload()}), 200
 

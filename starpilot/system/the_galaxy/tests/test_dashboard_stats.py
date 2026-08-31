@@ -1736,6 +1736,55 @@ def test_clear_generated_build_state_preserves_prebuilts_and_user_data(tmp_path)
   assert user_model.read_text() == "test"
 
 
+def test_maps_status_uses_cache_without_scanning_legacy_storage(monkeypatch):
+  server = _load_server_module()
+  assert server._import_galaxy_web_symbols()
+
+  app = server.Flask(
+    "maps_status_test",
+    template_folder=str(MODULE_DIR / "templates"),
+    static_folder=str(MODULE_DIR / "assets"),
+  )
+  server.setup(app)
+  monkeypatch.setattr(server, "params", FakeParams({
+    "MapsDownloadSizeCache": '{"country:CA":{"downloadBytes":123}}',
+    "MapsSelected": "",
+  }))
+  monkeypatch.setattr(server, "params_memory", FakeParams())
+  monkeypatch.setattr(server, "MAPS_PATH", SimpleNamespace(rglob=lambda *_args: (_ for _ in ()).throw(AssertionError("status must not scan maps"))))
+
+  response = app.test_client().get("/api/maps/status")
+  payload = response.get_json()
+
+  assert response.status_code == 200
+  assert payload["storageKnown"] is False
+  assert payload["storageBytes"] == 0
+  assert payload["mapsPresent"] is False
+
+
+def test_maps_status_returns_known_storage_from_v2_cache(monkeypatch):
+  server = _load_server_module()
+  assert server._import_galaxy_web_symbols()
+
+  app = server.Flask(
+    "maps_status_known_test",
+    template_folder=str(MODULE_DIR / "templates"),
+    static_folder=str(MODULE_DIR / "assets"),
+  )
+  server.setup(app)
+  monkeypatch.setattr(server, "params", FakeParams({
+    "MapsDownloadSizeCache": '{"version":2,"storageBytes":4096,"selections":{}}',
+    "MapsSelected": "",
+  }))
+  monkeypatch.setattr(server, "params_memory", FakeParams())
+
+  payload = app.test_client().get("/api/maps/status").get_json()
+
+  assert payload["storageKnown"] is True
+  assert payload["storageBytes"] == 4096
+  assert payload["mapsPresent"] is True
+
+
 def test_sentry_notification_rate_limit_persists_and_expires(monkeypatch, tmp_path):
   server = _load_server_module()
   rate_limit_path = tmp_path / "sentry_notification_rate_limit.json"
