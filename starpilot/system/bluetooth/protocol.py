@@ -17,7 +17,7 @@ A2DP_SINK_UUID = "0000110b-0000-1000-8000-00805f9b34fb"
 HID_UUID = "00001124-0000-1000-8000-00805f9b34fb"
 HOG_UUID = "00001812-0000-1000-8000-00805f9b34fb"
 COMMAND_TIMEOUTS = {
-  "set_power": 55.0,
+  "set_power": 90.0,
   "start_scan": 20.0,
   "stop_scan": 20.0,
   "connect": 35.0,
@@ -151,7 +151,6 @@ class _DesktopFakeBluetooth:
         self._enabled = bool(payload.get("enabled", False))
         self._discovering = False
         if not self._enabled:
-          self._selected_audio = ""
           self._devices = tuple(replace(device, connected=False) for device in self._devices)
       elif command == "start_scan":
         self._require_enabled()
@@ -265,7 +264,7 @@ class BluetoothClient:
     bootstrap = enabled and not os.path.exists(self.socket_path)
     if bootstrap:
       params.put_bool("BluetoothEnabled", True)
-      deadline = time.monotonic() + max(self.timeout, 10.0)
+      deadline = time.monotonic() + max(self.timeout, 45.0)
       while not os.path.exists(self.socket_path):
         if time.monotonic() >= deadline:
           params.put_bool("BluetoothEnabled", False)

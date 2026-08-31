@@ -99,7 +99,8 @@ class BluetoothController:
           prompt["name"] = device["name"] if device else self._pairing_address
       except Exception as error:
         result["error"] = str(error)
-        self._reset_client()
+        if not self._pairing_address:
+          self._reset_client()
       return result
 
   def _require_offroad(self, command: str) -> None:
@@ -166,7 +167,6 @@ class BluetoothController:
           finally:
             self._reset_client()
             self._radio.stop()
-            self.params.remove("BluetoothAudioAddress")
             self.params.put_bool("BluetoothEnabled", False)
             self._scan_deadline = 0.0
     elif command == "start_scan":

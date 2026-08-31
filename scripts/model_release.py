@@ -29,7 +29,7 @@ from pathlib import Path
 
 OPENPILOT_REPO = "commaai/openpilot"
 RESOURCES_REPO = os.environ.get("STARPILOT_RESOURCES_REPO", "firestar5683/StarPilot-Resources")
-HF_BUCKET = os.environ.get("STARPILOT_HF_BUCKET", "firestar4430/StarPilot-Resources")
+HF_BUCKET = os.environ.get("STARPILOT_HF_BUCKET", "StarPilot-Driving/StarPilot-Resources")
 RESOURCE_BRANCH = "Models"
 MANIFEST_VERSION = "v24"
 DEFAULT_BEHAVIOR_VERSION = "v16"

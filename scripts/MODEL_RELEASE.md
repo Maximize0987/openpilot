@@ -48,7 +48,7 @@ rerun with `--allow-runtime-changes` only after Firestar approves it.
 
 The default resources checkout is `~/StarPilot-Resources` on branch `Models`.
 It must be clean and synchronized before starting. The default Hugging Face
-bucket is `firestar4430/StarPilot-Resources`; authenticate with `hf auth login`
+bucket is `StarPilot-Driving/StarPilot-Resources`; authenticate with `hf auth login`
 before use. Use `--dry-run` to test parsing and the runtime scan without
 touching the device or either resource store.
 

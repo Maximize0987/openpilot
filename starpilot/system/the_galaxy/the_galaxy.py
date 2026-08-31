@@ -4969,7 +4969,7 @@ def setup(app):
   @app.route("/api/bluetooth/status", methods=["GET"])
   def bluetooth_status():
     try:
-      status = BluetoothClient(timeout=3.0).status()
+      status = BluetoothClient(timeout=10.0).status()
       return jsonify(BluetoothClient.serialize_status(status)), 200
     except Exception as error:
       return jsonify({

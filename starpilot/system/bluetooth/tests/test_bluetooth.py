@@ -201,10 +201,12 @@ def test_desktop_fake_bluetooth_is_stateful_and_interactive(monkeypatch, tmp_pat
   client.set_power(False)
   disabled = client.status()
   assert not disabled.enabled and not disabled.powered and not disabled.discovering
+  assert disabled.selected_audio == speaker.address
   with pytest.raises(RuntimeError, match="Enable Bluetooth"):
     client.start_scan()
   client.set_power(True)
-  assert client.status().enabled
+  enabled = client.status()
+  assert enabled.enabled and enabled.selected_audio == speaker.address
 
 
 def test_desktop_fake_bluetooth_cannot_activate_on_device(monkeypatch, tmp_path):
@@ -263,6 +265,16 @@ def test_power_pair_audio_and_offroad_enforcement():
   params.values["IsOffroad"] = True
   controller.handle({"command": "set_power", "enabled": False})
   assert not params.get_bool("BluetoothEnabled") and radio.stops == 1 and clients[0].closed
+
+
+def test_power_off_preserves_saved_audio_selection():
+  params = FakeParams(IsOffroad=True, BluetoothEnabled=False, BluetoothAudioAddress="00:11:22:33:44:55")
+  controller = BluetoothController(params, FakeBlueZ, FakeRadio())
+
+  controller.handle({"command": "set_power", "enabled": True})
+  controller.handle({"command": "set_power", "enabled": False})
+
+  assert params.get("BluetoothAudioAddress") == "00:11:22:33:44:55"
 
 
 def test_status_does_not_restart_radio_during_disable():

@@ -4,6 +4,7 @@ import { galaxyPath } from "/assets/js/utils.js"
 const state = reactive({
   loading: true,
   busy: "",
+  powerTarget: null,
   available: false,
   enabled: false,
   powered: false,
@@ -38,7 +39,8 @@ function pollDelay() {
 function schedulePoll(delay = pollDelay()) {
   if (pollTimer !== null) clearTimeout(pollTimer)
   pollTimer = setTimeout(async () => {
-    if (bluetoothPageActive()) await refresh()
+    pollTimer = null
+    if (bluetoothPageActive() && state.busy !== "power") await refresh()
     schedulePoll()
   }, delay)
 }
@@ -69,6 +71,7 @@ function startAudioTestCountdown(address, delayMs, requestStartedAt) {
 async function request(operation, body = {}) {
   const requestStartedAt = performance.now()
   state.busy = operation
+  if (operation === "power") state.powerTarget = !!body.enabled
   schedulePoll(250)
   try {
     const response = await fetch(galaxyPath(`/api/bluetooth/${operation}`), {
@@ -88,6 +91,7 @@ async function request(operation, body = {}) {
     state.error = error?.message || "Bluetooth operation failed"
   } finally {
     state.busy = ""
+    if (operation === "power") state.powerTarget = null
     schedulePoll(250)
   }
 }
@@ -155,7 +159,8 @@ async function refresh() {
 }
 
 function initialize() {
-  if (!initialized) initialized = true
+  if (initialized) return
+  initialized = true
   schedulePoll(0)
 }
 
@@ -203,7 +208,7 @@ function deviceActions(device) {
   const pairing = () => isPairing(device)
   return html`
     <div class="bluetoothActions">
-      ${!device.paired ? html`
+      ${!device.paired && !device.connected ? html`
         <button disabled="${() => !state.offroad || !!state.busy || pairing()}" @click="${() => request("pair", { address: device.address })}">
           ${() => pairing() ? "Pairing…" : "Pair"}
         </button>
@@ -222,10 +227,10 @@ function deviceActions(device) {
             </button>
           ` : ""}
         ` : ""}
-        <button class="bluetoothIconButton bluetoothForgetButton" title="Forget device" aria-label="Forget ${device.name}"
+        ${device.paired ? html`<button class="bluetoothIconButton bluetoothForgetButton" title="Forget device" aria-label="Forget ${device.name}"
                 disabled="${() => !state.offroad || !!state.busy}" @click="${() => {
           if (window.confirm(`Forget ${device.name}?`)) request("forget", { address: device.address })
-        }}"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+        }}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ""}
       `}
     </div>
   `
@@ -279,7 +284,9 @@ export function Bluetooth() {
         <label class="bluetoothSwitch">
           <input type="checkbox" checked="${() => state.enabled}" disabled="${() => !state.available || !state.offroad || !!state.busy}"
                  @change="${(event) => request("power", { enabled: event.target.checked })}" />
-          <span>${() => state.enabled ? "On" : "Off"}</span>
+          <span>${() => state.busy === "power"
+            ? `Turning Bluetooth ${state.powerTarget ? "on" : "off"}…`
+            : state.enabled ? "On" : "Off"}</span>
         </label>
       </div>
 
