@@ -43,7 +43,7 @@
 #define VOLVO_ANGLE_DEG_TO_CAN 17.869907f
 #define VOLVO_MAX_ANGLE_CAN 9650
 #define VOLVO_RELAY_ANGLE_TOLERANCE 54  // approximately 3 degrees
-#define VOLVO_DRIVER_OVERRIDE 2
+#define VOLVO_DRIVER_OVERRIDE 5
 
 
 // CAN bus definitions for Volvo

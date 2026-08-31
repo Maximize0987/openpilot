@@ -128,6 +128,20 @@ def get_test_toggles() -> SimpleNamespace:
 
 
 class TestHyundaiFingerprint:
+  def test_carnival_hev_low_speed_torque_rate_limits(self):
+    CP = CarInterface.get_params(CAR.KIA_CARNIVAL_HEV_4TH_GEN, gen_empty_fingerprint(), [],
+                                 False, False, False, None)
+    carnival_2025_cp = CarInterface.get_params(CAR.KIA_CARNIVAL_2025, gen_empty_fingerprint(), [],
+                                                False, False, False, None)
+
+    low_speed = CarControllerParams(CP, 10.0)
+    high_speed = CarControllerParams(CP, 20.0)
+    carnival_2025_low_speed = CarControllerParams(carnival_2025_cp, 10.0)
+
+    assert (low_speed.STEER_DELTA_UP, low_speed.STEER_DELTA_DOWN) == (2, 3)
+    assert (high_speed.STEER_DELTA_UP, high_speed.STEER_DELTA_DOWN) == (2, 3)
+    assert (carnival_2025_low_speed.STEER_DELTA_UP, carnival_2025_low_speed.STEER_DELTA_DOWN) == (10, 8)
+
   @pytest.mark.parametrize("candidate", (CAR.KIA_CARNIVAL_4TH_GEN, CAR.KIA_CARNIVAL_2025, CAR.KIA_CARNIVAL_HEV_4TH_GEN))
   def test_carnival_uses_clean_canfd_lfa_status(self, candidate):
     assert not preserve_stock_canfd_lfa_status(candidate)

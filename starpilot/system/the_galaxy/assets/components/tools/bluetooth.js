@@ -1,4 +1,5 @@
 import { html, reactive } from "/assets/vendor/arrow-core.js"
+import { galaxyPath } from "/assets/js/utils.js"
 
 const state = reactive({
   loading: true,
@@ -20,6 +21,27 @@ const state = reactive({
 let initialized = false
 let lastPromptId = ""
 let audioTestTimer = null
+let pollTimer = null
+let refreshRequested = false
+let refreshPromise = null
+
+function bluetoothPageActive() {
+  const currentPath = window.location.pathname.replace(/\/+$/, "")
+  const bluetoothPath = galaxyPath("/bluetooth").replace(/\/+$/, "")
+  return currentPath === bluetoothPath
+}
+
+function pollDelay() {
+  return state.busy || state.discovering || state.pairingAddress ? 500 : 2000
+}
+
+function schedulePoll(delay = pollDelay()) {
+  if (pollTimer !== null) clearTimeout(pollTimer)
+  pollTimer = setTimeout(async () => {
+    if (bluetoothPageActive()) await refresh()
+    schedulePoll()
+  }, delay)
+}
 
 function startAudioTestCountdown(address, delayMs, requestStartedAt) {
   if (audioTestTimer !== null) clearInterval(audioTestTimer)
@@ -47,9 +69,11 @@ function startAudioTestCountdown(address, delayMs, requestStartedAt) {
 async function request(operation, body = {}) {
   const requestStartedAt = performance.now()
   state.busy = operation
+  schedulePoll(250)
   try {
-    const response = await fetch(`/api/bluetooth/${operation}`, {
+    const response = await fetch(galaxyPath(`/api/bluetooth/${operation}`), {
       method: "POST",
+      cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
@@ -64,6 +88,7 @@ async function request(operation, body = {}) {
     state.error = error?.message || "Bluetooth operation failed"
   } finally {
     state.busy = ""
+    schedulePoll(250)
   }
 }
 
@@ -87,36 +112,51 @@ async function handlePrompt(prompt) {
   await request("pairing_response", { prompt_id: prompt.id, accepted, value })
 }
 
+async function refreshOnce() {
+  const statusUrl = `${galaxyPath("/api/bluetooth/status")}?_=${Date.now()}`
+  const response = await fetch(statusUrl, { cache: "no-store" })
+  const payload = await response.json()
+  state.available = !!payload.available
+  state.enabled = !!payload.enabled
+  state.powered = !!payload.powered
+  state.discovering = !!payload.discovering
+  state.offroad = !!payload.offroad
+  state.selectedAudio = String(payload.selected_audio || "")
+  state.pairingAddress = String(payload.pairing_address || "")
+  state.devices = Array.isArray(payload.devices) ? payload.devices : []
+  state.prompt = payload.prompt || null
+  state.error = payload.error || (response.ok ? "" : "Bluetooth service unavailable")
+  handlePrompt(state.prompt)
+}
+
 async function refresh() {
+  refreshRequested = true
+  if (refreshPromise !== null) return refreshPromise
+
+  refreshPromise = (async () => {
+    while (refreshRequested) {
+      refreshRequested = false
+      try {
+        await refreshOnce()
+      } catch (error) {
+        state.available = false
+        state.error = error?.message || "Bluetooth service unavailable"
+      } finally {
+        state.loading = false
+      }
+    }
+  })()
+
   try {
-    const response = await fetch("/api/bluetooth/status", { cache: "no-store" })
-    const payload = await response.json()
-    state.available = !!payload.available
-    state.enabled = !!payload.enabled
-    state.powered = !!payload.powered
-    state.discovering = !!payload.discovering
-    state.offroad = !!payload.offroad
-    state.selectedAudio = String(payload.selected_audio || "")
-    state.pairingAddress = String(payload.pairing_address || "")
-    state.devices = Array.isArray(payload.devices) ? payload.devices : []
-    state.prompt = payload.prompt || null
-    state.error = payload.error || (response.ok ? "" : "Bluetooth service unavailable")
-    handlePrompt(state.prompt)
-  } catch (error) {
-    state.available = false
-    state.error = error?.message || "Bluetooth service unavailable"
+    await refreshPromise
   } finally {
-    state.loading = false
+    refreshPromise = null
   }
 }
 
 function initialize() {
-  if (initialized) return
-  initialized = true
-  refresh()
-  setInterval(() => {
-    if (window.location.pathname === "/bluetooth") refresh()
-  }, 2000)
+  if (!initialized) initialized = true
+  schedulePoll(0)
 }
 
 function normalizedAddress(device) {

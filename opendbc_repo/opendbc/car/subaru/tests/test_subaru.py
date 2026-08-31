@@ -194,6 +194,7 @@ def test_outback_2023_uses_d_platform_bus_layout():
   assert CP.flags & SubaruFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.STOP_START_BUTTON
+  assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.AVH_BUTTON)
   assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.LEGACY_2025_ANGLE_LIMITS)
   assert CanBus.main_for_cp(CP) == CanBus.alt
   assert CanBus.angle_for_cp(CP) == CanBus.main
@@ -222,6 +223,21 @@ def test_stop_start_inputs_are_captured_for_supported_models(platform):
   assert car_state.dashlights_msg["COUNTER"] == 6
   assert car_state.dashlights_dat == raw_dashlights
   assert car_state.stop_start_state == 3
+
+
+def test_avh_inputs_are_captured_for_legacy_2025():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
+  car_state = CarState(CP, None)
+  parsers = car_state.get_can_parsers(CP)
+  raw_avh = bytes.fromhex("230f1c4208800000")
+  parsers[Bus.alt].vl["AVH"]["COUNTER"] = 15
+  parsers[Bus.alt].vl["AVH"]["AVH"] = 0
+  parsers[Bus.alt].vl_raw["AVH"] = raw_avh
+
+  car_state.update(parsers, SimpleNamespace(subaru_sng=False))
+
+  assert car_state.avh_msg["COUNTER"] == 15
+  assert car_state.avh_dat == raw_avh
 
 
 @pytest.mark.parametrize("platform, expected_bus, start_frame", [
@@ -276,6 +292,51 @@ def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expect
   assert controller.stop_start_acknowledged
 
 
+def test_avh_request_sets_observed_bit_and_is_bounded():
+  CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
+  controller = CarController({}, CP)
+  controller.frame = 101
+
+  class TestActuators:
+    steeringAngleDeg = 0.0
+
+    def as_builder(self):
+      return SimpleNamespace(steeringAngleDeg=self.steeringAngleDeg)
+
+  CC = SimpleNamespace(
+    enabled=False,
+    latActive=False,
+    longActive=False,
+    actuators=TestActuators(),
+    hudControl=SimpleNamespace(leadVisible=False),
+    cruiseControl=SimpleNamespace(cancel=False),
+  )
+  CS = SimpleNamespace(
+    canValid=True,
+    avh_msg={"COUNTER": 15, "AVH": 0},
+    avh_dat=bytes.fromhex("230f1c4208800000"),
+    out=SimpleNamespace(
+      standstill=True,
+      gearShifter=structs.CarState.GearShifter.park,
+    ),
+  )
+  toggles = SimpleNamespace(subaru_stop_start_off=False, subaru_avh_on=True, subaru_sng=False)
+
+  _, can_sends = controller.update(CC, CS, 0, toggles)
+  avh_msgs = [msg for msg in can_sends if msg[0] == 0x32b]
+  assert avh_msgs == [(0x32b, bytes.fromhex("34001c4208a00000"), CanBus.alt)]
+
+  parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("AVH", 0)], CanBus.alt)
+  parser.update([(CanBus.alt, avh_msgs)])
+  assert parser.vl["AVH"]["AVH"] == 1
+  assert parser.vl["AVH"]["COUNTER"] == 0
+
+  controller.frame = 131
+  _, can_sends = controller.update(CC, CS, 0, toggles)
+  assert not any(msg[0] == 0x32b for msg in can_sends)
+  assert controller.avh_attempted
+
+
 def test_legacy_2025_uses_gen2_angle_bus_layout():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
   parsers = CarState.get_can_parsers(CP)
@@ -287,6 +348,7 @@ def test_legacy_2025_uses_gen2_angle_bus_layout():
   assert not (CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.D_PLATFORM_CAMERA)
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.FIXED_ANGLE_LIMITS
   assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.STOP_START_BUTTON
+  assert CP.safetyConfigs[0].safetyParam & SubaruSafetyFlags.AVH_BUTTON
   assert CanBus.main_for_cp(CP) == CanBus.main
   assert CanBus.angle_for_cp(CP) == CanBus.main
   assert parsers[Bus.pt].bus == CanBus.main

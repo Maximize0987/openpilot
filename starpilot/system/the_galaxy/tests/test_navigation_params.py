@@ -142,6 +142,7 @@ def test_bluetooth_status_api(monkeypatch):
   response = client.get("/api/bluetooth/status")
 
   assert response.status_code == 200
+  assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate, max-age=0"
   assert response.get_json() == {
     "available": True,
     "devices": [],
