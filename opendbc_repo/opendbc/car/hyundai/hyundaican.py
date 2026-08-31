@@ -80,6 +80,9 @@ def create_lkas11(packer, frame, CP, apply_torque, steer_req,
     # Genesis and Optima fault when forwarding while engaged
     values["CF_Lkas_LdwsActivemode"] = 2
 
+  if CP.carFingerprint == CAR.KIA_RAY_EV:
+    values["CF_Lkas_LdwsOpt_USM"] = 0
+
   dat = packer.make_can_msg("LKAS11", 0, values)[1]
 
   if CP.flags & HyundaiFlags.CHECKSUM_CRC8:

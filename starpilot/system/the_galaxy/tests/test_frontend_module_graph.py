@@ -44,7 +44,7 @@ def test_bluetooth_actions_use_reactive_disabled_bindings():
   assert "state.pairingAddress" in source
   assert "state.busy !== \"power\"" in source
   assert "Turning Bluetooth" in source
-  assert "!device.paired && !device.connected" in source
+  assert "!device.paired" in source
   assert 'galaxyPath("/bluetooth")' in source
   assert 'window.location.pathname === "/bluetooth"' not in source
   assert "schedulePoll(250)" in source

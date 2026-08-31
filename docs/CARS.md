@@ -4,7 +4,7 @@
 
 A supported vehicle is one that just works when you install a comma device. All supported cars provide a better experience than any stock system. Supported vehicles reference the US market unless otherwise specified.
 
-# 452 Supported Cars
+# 453 Supported Cars
 
 |Make|Model|Supported Package|ACC|No ACC accel below|No ALC below|Steering Torque|Resume from stop|<a href="##"><img width=2000></a>Hardware Needed<br>&nbsp;|Video|Setup Video|
 |---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -465,7 +465,7 @@ A supported vehicle is one that just works when you install a comma device. All 
 
 These additional vehicle ports are maintained by StarPilot rather than upstream openpilot.
 
-# 16 Community Cars
+# 17 Community Cars
 
 |Make|Model|Supported Package|ACC|No ACC accel below|No ALC below|Steering Torque|Resume from stop|<a href="##"><img width=2000></a>Hardware Needed<br>&nbsp;|Video|Setup Video|
 |---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -478,6 +478,7 @@ These additional vehicle ports are maintained by StarPilot rather than upstream 
 |Kia|Ceed Plug-in Hybrid Non-SCC 2022|No Smart Cruise Control (Non-SCC)|Stock|0 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-full.svg)](##)|<details><summary>Parts</summary><sub>- 1 Hyundai I connector<br>- 1 OBD-C cable (2 ft)<br>- 1 comma four<br>- 1 comma power v3<br>- 1 harness box<br>- 1 mount<br><a href="https://comma.ai/shop/comma-3x?harness=Kia Ceed Plug-in Hybrid Non-SCC 2022">Buy Here</a></sub></details>|||
 |Kia|Forte Non-SCC 2019|No Smart Cruise Control (Non-SCC)|Stock|0 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-full.svg)](##)|<details><summary>Parts</summary><sub>- 1 Hyundai G connector<br>- 1 OBD-C cable (2 ft)<br>- 1 comma four<br>- 1 comma power v3<br>- 1 harness box<br>- 1 mount<br><a href="https://comma.ai/shop/comma-3x?harness=Kia Forte Non-SCC 2019">Buy Here</a></sub></details>|||
 |Kia|Forte Non-SCC 2021|No Smart Cruise Control (Non-SCC)|Stock|0 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-full.svg)](##)|<details><summary>Parts</summary><sub>- 1 Hyundai G connector<br>- 1 OBD-C cable (2 ft)<br>- 1 comma four<br>- 1 comma power v3<br>- 1 harness box<br>- 1 mount<br><a href="https://comma.ai/shop/comma-3x?harness=Kia Forte Non-SCC 2021">Buy Here</a></sub></details>|||
+|Kia|Ray EV 2025|No Smart Cruise Control (Non-SCC)|Stock|0 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-full.svg)](##)|<details><summary>Parts</summary><sub>- 1 Hyundai H connector<br>- 1 OBD-C cable (2 ft)<br>- 1 comma four<br>- 1 comma power v3<br>- 1 harness box<br>- 1 mount<br><a href="https://comma.ai/shop/comma-3x?harness=Kia Ray EV 2025">Buy Here</a></sub></details>|||
 |Kia|Seltos Non-SCC 2023-24|No Smart Cruise Control (Non-SCC)|Stock|0 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-full.svg)](##)|<details><summary>Parts</summary><sub>- 1 Hyundai L connector<br>- 1 OBD-C cable (2 ft)<br>- 1 comma four<br>- 1 comma power v3<br>- 1 harness box<br>- 1 mount<br><a href="https://comma.ai/shop/comma-3x?harness=Kia Seltos Non-SCC 2023-24">Buy Here</a></sub></details>|||
 |Tesla|Model S (Pre-AP) 2012-14|All|Stock|0 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-full.svg)](##)|None|||
 |Toyota|Matrix Retrofit 2005|Custom retrofit|Stock|19 mph|0 mph|[![star](assets/icon-star-full.svg)](##)|[![star](assets/icon-star-empty.svg)](##)|<details><summary>Parts</summary><sub>- 1 OBD-C cable (2 ft)<br>- 1 Toyota A connector<br>- 1 comma four<br>- 1 comma power v3<br>- 1 harness box<br>- 1 mount<br><a href="https://comma.ai/shop/comma-3x?harness=Toyota Matrix Retrofit 2005">Buy Here</a></sub></details>|||

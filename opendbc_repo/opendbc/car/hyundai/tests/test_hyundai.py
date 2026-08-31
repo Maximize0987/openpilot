@@ -79,6 +79,7 @@ HYUNDAI_NON_SCC_CARS = (
   CAR.HYUNDAI_ELANTRA_HEV_2022_NON_SCC,
   CAR.HYUNDAI_KONA_NON_SCC,
   CAR.HYUNDAI_KONA_EV_NON_SCC,
+  CAR.KIA_RAY_EV,
   CAR.KIA_CEED_PHEV_2022_NON_SCC,
   CAR.KIA_FORTE_2019_NON_SCC,
   CAR.KIA_FORTE_2021_NON_SCC,
@@ -709,6 +710,19 @@ class TestHyundaiFingerprint:
     assert parser.vl["LKAS11"]["CF_Lkas_LdwsActivemode"] == 0
     assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 0
 
+  def test_kia_ray_ev_preserves_stock_lkas_option(self):
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, gen_empty_fingerprint(), [], False, False, False, None)
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
+
+    msg = hyundaican.create_lkas11(
+      packer, 0, CP, 0, True, False, parser.vl["LKAS11"], False, 4, False,
+      True, True, 0, 0, 2,
+    )
+    parser.update([(1, [msg])])
+
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsOpt_USM"] == 0
+
   @pytest.mark.parametrize("candidate", (CAR.HYUNDAI_ELANTRA_2024, CAR.HYUNDAI_ELANTRA_HEV_2024))
   def test_hyundai_can_refresh_platforms_use_refresh_dbc_and_safety_param(self, candidate):
     CP = CarInterface.get_params(candidate, gen_empty_fingerprint(), [], False, False, False, None)
@@ -821,6 +835,7 @@ class TestHyundaiFingerprint:
     (CAR.HYUNDAI_ELANTRA_2022_NON_SCC, ("EMS16", "LVR12"), ()),
     (CAR.HYUNDAI_ELANTRA_HEV_2022_NON_SCC, ("E_CRUISE_CONTROL", "ELECT_GEAR"), ("EMS16",)),
     (CAR.HYUNDAI_KONA_EV_NON_SCC, ("LABEL11", "EMS12", "E_EMS11"), ()),
+    (CAR.KIA_RAY_EV, ("LABEL11", "EMS12", "E_EMS11"), ()),
   ])
   def test_non_scc_cruise_message_selection(self, candidate, expected_msgs, unexpected_msgs):
     toggles = get_test_toggles()
@@ -3511,13 +3526,17 @@ class TestHyundaiFingerprint:
   def test_platform_code_ecus_available(self, subtests):
     # TODO: add queries for these non-CAN FD cars to get EPS
     no_eps_platforms = CANFD_CAR | {CAR.KIA_SORENTO, CAR.KIA_OPTIMA_G4, CAR.KIA_OPTIMA_G4_FL, CAR.KIA_OPTIMA_H,
-                                    CAR.KIA_OPTIMA_H_G4_FL, CAR.HYUNDAI_SONATA_LF, CAR.HYUNDAI_TUCSON, CAR.GENESIS_G90, CAR.GENESIS_G80, CAR.HYUNDAI_ELANTRA}
+                                    CAR.KIA_OPTIMA_H_G4_FL, CAR.HYUNDAI_SONATA_LF, CAR.HYUNDAI_TUCSON, CAR.GENESIS_G90, CAR.GENESIS_G80,
+                                    CAR.HYUNDAI_ELANTRA, CAR.KIA_RAY_EV}
+    no_fwd_radar_platforms = {CAR.KIA_RAY_EV}
 
     # Asserts ECU keys essential for fuzzy fingerprinting are available on all platforms
     for car_model, ecus in FW_VERSIONS.items():
       with subtests.test(car_model=car_model.value):
         for platform_code_ecu in PLATFORM_CODE_ECUS:
           if platform_code_ecu in (Ecu.fwdRadar, Ecu.eps) and car_model == CAR.HYUNDAI_GENESIS:
+            continue
+          if platform_code_ecu == Ecu.fwdRadar and car_model in no_fwd_radar_platforms:
             continue
           if platform_code_ecu == Ecu.eps and car_model in no_eps_platforms:
             continue

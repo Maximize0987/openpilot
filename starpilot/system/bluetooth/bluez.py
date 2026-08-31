@@ -107,7 +107,11 @@ class BlueZClient:
     return reply.body
 
   def _register_agent(self) -> None:
-    self._call("/org/bluez", AGENT_MANAGER_IFACE, "RegisterAgent", "os", (AGENT_PATH, "KeyboardDisplay"))
+    try:
+      self._call("/org/bluez", AGENT_MANAGER_IFACE, "RegisterAgent", "os", (AGENT_PATH, "KeyboardDisplay"))
+    except RuntimeError as error:
+      if "alreadyexists" not in str(error).replace(" ", "").lower():
+        raise
     self._call("/org/bluez", AGENT_MANAGER_IFACE, "RequestDefaultAgent", "o", (AGENT_PATH,))
 
   def _agent_loop(self) -> None:
@@ -163,7 +167,8 @@ class BlueZClient:
         return path, interfaces[ADAPTER_IFACE]
     raise RuntimeError("Bluetooth adapter is not available")
 
-  def devices(self, objects: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+  def devices(self, objects: dict[str, Any] | None = None, include_hidden: bool = False,
+              include_discovering: bool = False) -> list[dict[str, Any]]:
     objects = self.managed_objects() if objects is None else objects
     devices = []
     for path, interfaces in objects.items():
@@ -185,8 +190,8 @@ class BlueZClient:
         "audio": audio,
         "controller": controller,
       }
-      if show_pairing_device(device["address"], device["name"], device["paired"], device["trusted"], device["connected"],
-                             device["blocked"], audio, controller):
+      if include_hidden or show_pairing_device(device["address"], device["name"], device["paired"], device["trusted"], device["connected"],
+                                               device["blocked"], audio, controller, include_discovering):
         devices.append(device)
     return sorted(devices, key=lambda device: (not device["connected"], not device["paired"], -(device["rssi"] or -127), device["name"].lower()))
 
@@ -196,7 +201,7 @@ class BlueZClient:
     return {
       "powered": bool(adapter.get("Powered", False)),
       "discovering": bool(adapter.get("Discovering", False)),
-      "devices": self.devices(objects),
+      "devices": self.devices(objects, include_discovering=bool(adapter.get("Discovering", False))),
       "prompt": self.agent.prompt,
     }
 
@@ -218,7 +223,7 @@ class BlueZClient:
 
   def device_for_address(self, address: str) -> dict[str, Any]:
     normalized = address.upper()
-    for device in self.devices():
+    for device in self.devices(self.managed_objects(), include_hidden=True):
       if device["address"].upper() == normalized:
         return device
     raise RuntimeError(f"Bluetooth device {address} was not found")
@@ -230,8 +235,9 @@ class BlueZClient:
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else f"Unable to set {name}"))
 
-  def pair(self, address: str) -> None:
-    device = self.device_for_address(address)
+  def pair(self, address: str, device_path: str | None = None) -> None:
+    self._register_agent()
+    device = {"path": device_path} if device_path else self.device_for_address(address)
     self._call(device["path"], DEVICE_IFACE, "Pair", timeout=90.0)
     self.set_device_property(address, "Trusted", "b", True)
     self.agent.clear()

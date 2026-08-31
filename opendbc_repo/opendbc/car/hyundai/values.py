@@ -945,6 +945,11 @@ class CAR(Platforms):
     HYUNDAI_KONA_EV.specs,
     flags=HyundaiFlags.EV | HyundaiFlags.ALT_LIMITS,
   )
+  KIA_RAY_EV = HyundaiNonSccPlatformConfig(
+    [HyundaiNonSccCarDocs("Kia Ray EV 2025", car_parts=CarParts.common([CarHarness.hyundai_h]))],
+    CarSpecs(mass=1295, wheelbase=2.52, steerRatio=14.5),
+    flags=HyundaiFlags.EV | HyundaiFlags.CHECKSUM_CRC8,
+  )
   KIA_CEED_PHEV_2022_NON_SCC = HyundaiNonSccPlatformConfig(
     [HyundaiNonSccCarDocs("Kia Ceed Plug-in Hybrid Non-SCC 2022", car_parts=CarParts.common([CarHarness.hyundai_i]))],
     CarSpecs(mass=1650, wheelbase=2.65, steerRatio=13.75, tireStiffnessFactor=0.5),

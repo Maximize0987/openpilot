@@ -20,7 +20,6 @@ const state = reactive({
 })
 
 let initialized = false
-let lastPromptId = ""
 let audioTestTimer = null
 let pollTimer = null
 let refreshRequested = false
@@ -29,7 +28,7 @@ let refreshPromise = null
 function bluetoothPageActive() {
   const currentPath = window.location.pathname.replace(/\/+$/, "")
   const bluetoothPath = galaxyPath("/bluetooth").replace(/\/+$/, "")
-  return currentPath === bluetoothPath
+  return document.querySelector(".bluetoothPage") !== null || currentPath === bluetoothPath
 }
 
 function pollDelay() {
@@ -96,26 +95,6 @@ async function request(operation, body = {}) {
   }
 }
 
-async function handlePrompt(prompt) {
-  if (!prompt || prompt.id === lastPromptId) return
-  lastPromptId = prompt.id
-  if (prompt.display_only) return
-
-  let accepted = true
-  let value = ""
-  if (prompt.kind === "pin") {
-    value = window.prompt(`Enter the PIN for ${prompt.name || "Bluetooth device"}`) ?? ""
-    accepted = value.length > 0
-  } else if (prompt.kind === "passkey") {
-    value = window.prompt(`Enter the passkey for ${prompt.name || "Bluetooth device"}`) ?? ""
-    accepted = /^\d{1,6}$/.test(value)
-  } else {
-    const suffix = prompt.value ? `\n\nPasskey: ${prompt.value}` : ""
-    accepted = window.confirm(`Allow ${prompt.name || "Bluetooth device"} to pair?${suffix}`)
-  }
-  await request("pairing_response", { prompt_id: prompt.id, accepted, value })
-}
-
 async function refreshOnce() {
   const statusUrl = `${galaxyPath("/api/bluetooth/status")}?_=${Date.now()}`
   const response = await fetch(statusUrl, { cache: "no-store" })
@@ -130,7 +109,61 @@ async function refreshOnce() {
   state.devices = Array.isArray(payload.devices) ? payload.devices : []
   state.prompt = payload.prompt || null
   state.error = payload.error || (response.ok ? "" : "Bluetooth service unavailable")
-  handlePrompt(state.prompt)
+}
+
+function pairingPromptNeedsValue() {
+  return state.prompt && (state.prompt.kind === "pin" || state.prompt.kind === "passkey")
+}
+
+function respondToPairingPrompt(accepted) {
+  const prompt = state.prompt
+  if (!prompt || state.busy === "pairing_response") return
+  const input = document.getElementById("bluetoothPairingValue")
+  const value = input?.value.trim() || ""
+  if (accepted && prompt.kind === "pin" && !value) {
+    state.error = "Enter the PIN to continue pairing."
+    input?.focus()
+    return
+  }
+  if (accepted && prompt.kind === "passkey" && !/^\d{1,6}$/.test(value)) {
+    state.error = "Enter the numeric passkey to continue pairing."
+    input?.focus()
+    return
+  }
+  request("pairing_response", { prompt_id: prompt.id, accepted, value })
+}
+
+function pairingPrompt() {
+  const prompt = state.prompt
+  if (!prompt) return ""
+  const name = prompt.name || "Bluetooth device"
+  const valuePrompt = pairingPromptNeedsValue()
+  const message = prompt.kind === "confirmation"
+    ? "Confirm the pairing request on this device."
+    : prompt.kind === "authorization"
+      ? "Allow this device to connect?"
+      : prompt.kind === "pin"
+        ? "Enter the PIN supplied by the device."
+        : prompt.kind === "passkey"
+          ? "Enter the device passkey."
+          : "Follow the instructions on the device."
+  return html`
+    <div class="bluetoothPrompt">
+      <div class="bluetoothPromptHeader"><i class="bi bi-shield-check" aria-hidden="true"></i><strong>Bluetooth pairing request</strong></div>
+      <p><strong>${name}</strong> — ${message}</p>
+      ${prompt.value ? html`<p class="bluetoothPromptPasskey">Passkey: <strong>${prompt.value}</strong></p>` : ""}
+      ${() => valuePrompt ? html`
+        <input id="bluetoothPairingValue" class="bluetoothPromptInput" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="${() => prompt.kind === "pin" ? "PIN" : "Passkey"}" disabled="${() => state.busy === "pairing_response"}" />
+      ` : ""}
+      ${prompt.display_only ? "" : html`
+        <div class="bluetoothPromptActions">
+          <button class="bluetoothPromptReject" disabled="${() => state.busy === "pairing_response"}" @click="${() => respondToPairingPrompt(false)}">Cancel</button>
+          <button disabled="${() => state.busy === "pairing_response"}" @click="${() => respondToPairingPrompt(true)}">Allow</button>
+        </div>
+      `}
+    </div>
+  `
 }
 
 async function refresh() {
@@ -190,6 +223,7 @@ function deviceStatus(device) {
   if (isPairing(device)) return "Pairing…"
   if (device.connected) {
     const audioSelected = state.selectedAudio.toUpperCase() === normalizedAddress(device)
+    if (!device.paired) return audioSelected ? "Connected · Ready to pair · Audio output" : "Connected · Ready to pair"
     return audioSelected ? "Connected · Audio output" : "Connected"
   }
   return device.paired ? "Saved" : "Ready to pair"
@@ -208,14 +242,17 @@ function deviceActions(device) {
   const pairing = () => isPairing(device)
   return html`
     <div class="bluetoothActions">
-      ${!device.paired && !device.connected ? html`
+      ${!device.paired ? html`
         <button disabled="${() => !state.offroad || !!state.busy || pairing()}" @click="${() => request("pair", { address: device.address })}">
           ${() => pairing() ? "Pairing…" : "Pair"}
         </button>
-      ` : html`
+      ` : ""}
+      ${device.paired || device.connected ? html`
         <button disabled="${() => !!state.busy}" @click="${() => request(device.connected ? "disconnect" : "connect", { address: device.address })}">
           ${device.connected ? "Disconnect" : "Connect"}
         </button>
+      ` : ""}
+      ${device.paired || device.connected ? html`
         ${device.audio ? html`
           <button class="${() => audioSelected() ? "selected" : ""}"
                   disabled="${() => !!state.busy}" @click="${() => request("select_audio", { address: audioSelected() ? "" : device.address })}">
@@ -231,7 +268,7 @@ function deviceActions(device) {
                 disabled="${() => !state.offroad || !!state.busy}" @click="${() => {
           if (window.confirm(`Forget ${device.name}?`)) request("forget", { address: device.address })
         }}"><i class="bi bi-trash3" aria-hidden="true"></i></button>` : ""}
-      `}
+      ` : ""}
     </div>
   `
 }
@@ -292,9 +329,7 @@ export function Bluetooth() {
 
       ${() => !state.offroad ? html`<div class="bluetoothNotice">Scanning, pairing, and forgetting devices are available offroad only.</div>` : ""}
       ${() => state.error ? html`<div class="bluetoothError">${state.error}</div>` : ""}
-      ${() => state.prompt?.display_only ? html`
-        <div class="bluetoothPrompt">${state.prompt.name || "Bluetooth device"}: ${state.prompt.value}</div>
-      ` : ""}
+      ${pairingPrompt}
       ${() => state.audioTestLabel ? html`
         <div class="bluetoothAudioCountdown">
           <strong>${state.audioTestLabel}</strong>

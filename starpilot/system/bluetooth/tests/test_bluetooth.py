@@ -75,6 +75,7 @@ class FakeBlueZ:
 
   def stop_discovery(self):
     self.discovering = False
+    self.actions.append(("stop_scan", ""))
 
   def device_for_address(self, _address):
     return dict(self.device)
@@ -391,6 +392,20 @@ def test_scan_stops_after_timeout():
 
   controller._maintain_scan(controller.status(), controller._scan_deadline)
   assert not client.discovering and controller._scan_deadline == 0.0
+
+
+def test_pair_stops_discovery_before_starting_pair():
+  params = FakeParams(IsOffroad=True, BluetoothEnabled=True)
+  client = FakeBlueZ()
+  controller = BluetoothController(params, lambda: client, FakeRadio())
+  controller.handle({"command": "start_scan"})
+  controller.handle({"command": "pair", "address": client.device["address"]})
+
+  deadline = time.monotonic() + 1.0
+  while not any(action[0] == "pair" for action in client.actions) and time.monotonic() < deadline:
+    time.sleep(0.01)
+
+  assert client.actions.index(("stop_scan", "")) < client.actions.index(("pair", client.device["address"]))
 
 
 def test_audio_queue_is_nonblocking_and_falls_back():

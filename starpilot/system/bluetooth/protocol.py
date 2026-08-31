@@ -95,10 +95,12 @@ def device_capabilities(uuids: list[str] | tuple[str, ...], bluetooth_class: int
 
 
 def show_pairing_device(address: str, name: str, paired: bool, trusted: bool, connected: bool, blocked: bool,
-                        audio: bool, controller: bool) -> bool:
+                        audio: bool, controller: bool, discovering: bool = False) -> bool:
   known = paired or trusted or connected
-  named = bool(name) and name not in {address, "Unknown device"}
-  return known or (named and not blocked and (audio or controller))
+  normalized_address = "".join(character for character in address.upper() if character.isalnum())
+  normalized_name = "".join(character for character in name.upper() if character.isalnum())
+  named = bool(name) and name != "Unknown device" and normalized_name != normalized_address
+  return known or (named and not blocked and (audio or controller or discovering))
 
 
 class _DesktopFakeBluetooth:

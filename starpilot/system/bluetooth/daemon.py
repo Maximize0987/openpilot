@@ -107,9 +107,9 @@ class BluetoothController:
     if command in OFFROAD_COMMANDS and not self._offroad():
       raise RuntimeError("Bluetooth settings can only be changed offroad")
 
-  def _pair_worker(self, address: str) -> None:
+  def _pair_worker(self, address: str, device_path: str | None = None) -> None:
     try:
-      self._client().pair(address)
+      self._client().pair(address, device_path)
       status = self._client().device_for_address(address)
       if status.get("audio") and not self.params.get("BluetoothAudioAddress", encoding="utf-8"):
         self.params.put("BluetoothAudioAddress", address)
@@ -172,6 +172,7 @@ class BluetoothController:
     elif command == "start_scan":
       if not self.params.get_bool("BluetoothEnabled"):
         raise RuntimeError("Enable Bluetooth before scanning")
+      self._pairing_error = ""
       self._client().start_discovery()
       self._scan_deadline = time.monotonic() + SCAN_DURATION
     elif command == "stop_scan":
@@ -180,9 +181,15 @@ class BluetoothController:
     elif command == "pair":
       if self._pairing_address:
         raise RuntimeError("Another Bluetooth device is already pairing")
+      device = self._client().device_for_address(address)
+      try:
+        self._client().stop_discovery()
+      except Exception as error:
+        cloudlog.warning(f"Bluetooth discovery stop before pairing failed: {error}")
+      self._scan_deadline = 0.0
       self._pairing_address = address
       self._pairing_error = ""
-      threading.Thread(target=self._pair_worker, args=(address,), daemon=True).start()
+      threading.Thread(target=self._pair_worker, args=(address, device["path"]), daemon=True).start()
     elif command == "connect":
       self._client().connect(address)
     elif command == "disconnect":
