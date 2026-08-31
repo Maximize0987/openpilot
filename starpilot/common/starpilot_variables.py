@@ -30,6 +30,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import KP
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.starpilot.common.model_versions import is_tinygrad_model_version
 from openpilot.starpilot.common.lateral_delay import full_lateral_delay
+from openpilot.starpilot.common.lateral_only_experimental import lateral_only_experimental_available
 from openpilot.starpilot.common.accel_profile import (
   ACCELERATION_PROFILES,
   CUSTOM_ACCEL_PROFILE_PARAM_KEYS,
@@ -655,6 +656,9 @@ class StarPilotVariables:
     hyundai_can_use_lkas_for_aol = toggle.car_make == "hyundai" and toggle.lkas_allowed_for_aol
     longitudinalActuatorDelay = CP.longitudinalActuatorDelay
     toggle.openpilot_longitudinal = CP.openpilotLongitudinalControl and not toggle.disable_openpilot_long
+    toggle.experimental_mode_available = (
+      toggle.openpilot_longitudinal or lateral_only_experimental_available(CP)
+    )
     if not toggle.redneck_cruise_available or (toggle.openpilot_longitudinal and FPCP.pcmCruiseSpeed):
       self.params.put_bool("RedneckCruise", False)
     toggle.redneck_cruise = self.get_value(
@@ -1000,7 +1004,9 @@ class StarPilotVariables:
     )
 
     distance_button_control = self.get_button_function("DistanceButtonControl")
-    toggle.experimental_mode_via_distance = toggle.openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_distance = (
+      toggle.experimental_mode_available and distance_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press = toggle.experimental_mode_via_distance
     toggle.force_coast_via_distance = toggle.openpilot_longitudinal and distance_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_distance = toggle.pulse_and_glide_available and distance_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1013,7 +1019,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "distance", distance_button_control)
 
     distance_button_control_long = self.get_button_function("LongDistanceButtonControl")
-    toggle.experimental_mode_via_distance_long = toggle.openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_distance_long = (
+      toggle.experimental_mode_available and distance_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_distance_long
     toggle.force_coast_via_distance_long = toggle.openpilot_longitudinal and distance_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_distance_long = toggle.pulse_and_glide_available and distance_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1026,7 +1034,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "distance_long", distance_button_control_long)
 
     distance_button_control_very_long = self.get_button_function("VeryLongDistanceButtonControl")
-    toggle.experimental_mode_via_distance_very_long = toggle.openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_distance_very_long = (
+      toggle.experimental_mode_available and distance_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_distance_very_long
     toggle.force_coast_via_distance_very_long = toggle.openpilot_longitudinal and distance_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_distance_very_long = toggle.pulse_and_glide_available and distance_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1039,7 +1049,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "distance_very_long", distance_button_control_very_long)
 
     cancel_button_control = self.get_button_function("CancelButtonControl", condition=toggle.remap_cancel_to_distance)
-    toggle.experimental_mode_via_cancel = toggle.openpilot_longitudinal and cancel_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_cancel = (
+      toggle.experimental_mode_available and cancel_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_cancel
     toggle.force_coast_via_cancel = toggle.openpilot_longitudinal and cancel_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_cancel = toggle.pulse_and_glide_available and cancel_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1052,7 +1064,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "cancel", cancel_button_control)
 
     cancel_button_control_long = self.get_button_function("LongCancelButtonControl", condition=toggle.remap_cancel_to_distance)
-    toggle.experimental_mode_via_cancel_long = toggle.openpilot_longitudinal and cancel_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_cancel_long = (
+      toggle.experimental_mode_available and cancel_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_cancel_long
     toggle.force_coast_via_cancel_long = toggle.openpilot_longitudinal and cancel_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_cancel_long = toggle.pulse_and_glide_available and cancel_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1065,7 +1079,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "cancel_long", cancel_button_control_long)
 
     cancel_button_control_very_long = self.get_button_function("VeryLongCancelButtonControl", condition=toggle.remap_cancel_to_distance)
-    toggle.experimental_mode_via_cancel_very_long = toggle.openpilot_longitudinal and cancel_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_cancel_very_long = (
+      toggle.experimental_mode_available and cancel_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_cancel_very_long
     toggle.force_coast_via_cancel_very_long = toggle.openpilot_longitudinal and cancel_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_cancel_very_long = toggle.pulse_and_glide_available and cancel_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1122,7 +1138,9 @@ class StarPilotVariables:
     toggle.use_turn_desires = self.get_value("TurnDesires", condition=lateral_tuning)
 
     lkas_button_control = self.get_button_function("LKASButtonControl", condition=toggle.car_make != "subaru")
-    toggle.experimental_mode_via_lkas = toggle.openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_lkas = (
+      toggle.experimental_mode_available and lkas_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_lkas
     toggle.force_coast_via_lkas = toggle.openpilot_longitudinal and lkas_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_lkas = toggle.pulse_and_glide_available and lkas_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1136,7 +1154,9 @@ class StarPilotVariables:
 
     has_canfd_media_buttons = toggle.car_make == "hyundai" and bool(CP.flags & HyundaiFlags.CANFD)
     mode_button_control = self.get_button_function("ModeButtonControl", condition=has_canfd_media_buttons)
-    toggle.experimental_mode_via_mode = toggle.openpilot_longitudinal and mode_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_mode = (
+      toggle.experimental_mode_available and mode_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_mode
     toggle.force_coast_via_mode = toggle.openpilot_longitudinal and mode_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_mode = toggle.pulse_and_glide_available and mode_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1149,7 +1169,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "mode", mode_button_control)
 
     mode_button_control_long = self.get_button_function("LongModeButtonControl", condition=has_canfd_media_buttons)
-    toggle.experimental_mode_via_mode_long = toggle.openpilot_longitudinal and mode_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_mode_long = (
+      toggle.experimental_mode_available and mode_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_mode_long
     toggle.force_coast_via_mode_long = toggle.openpilot_longitudinal and mode_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_mode_long = toggle.pulse_and_glide_available and mode_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1162,7 +1184,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "mode_long", mode_button_control_long)
 
     mode_button_control_very_long = self.get_button_function("VeryLongModeButtonControl", condition=has_canfd_media_buttons)
-    toggle.experimental_mode_via_mode_very_long = toggle.openpilot_longitudinal and mode_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_mode_very_long = (
+      toggle.experimental_mode_available and mode_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_mode_very_long
     toggle.force_coast_via_mode_very_long = toggle.openpilot_longitudinal and mode_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_mode_very_long = toggle.pulse_and_glide_available and mode_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1175,7 +1199,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "mode_very_long", mode_button_control_very_long)
 
     star_button_control = self.get_button_function("StarButtonControl", condition=has_canfd_media_buttons)
-    toggle.experimental_mode_via_star = toggle.openpilot_longitudinal and star_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_star = (
+      toggle.experimental_mode_available and star_button_control == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_star
     toggle.force_coast_via_star = toggle.openpilot_longitudinal and star_button_control == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_star = toggle.pulse_and_glide_available and star_button_control == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1188,7 +1214,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "star", star_button_control)
 
     star_button_control_long = self.get_button_function("LongStarButtonControl", condition=has_canfd_media_buttons)
-    toggle.experimental_mode_via_star_long = toggle.openpilot_longitudinal and star_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_star_long = (
+      toggle.experimental_mode_available and star_button_control_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_star_long
     toggle.force_coast_via_star_long = toggle.openpilot_longitudinal and star_button_control_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_star_long = toggle.pulse_and_glide_available and star_button_control_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]
@@ -1201,7 +1229,9 @@ class StarPilotVariables:
     self.set_favorite_button_flags(toggle, "star_long", star_button_control_long)
 
     star_button_control_very_long = self.get_button_function("VeryLongStarButtonControl", condition=has_canfd_media_buttons)
-    toggle.experimental_mode_via_star_very_long = toggle.openpilot_longitudinal and star_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    toggle.experimental_mode_via_star_very_long = (
+      toggle.experimental_mode_available and star_button_control_very_long == BUTTON_FUNCTIONS["EXPERIMENTAL_MODE"]
+    )
     toggle.experimental_mode_via_press |= toggle.experimental_mode_via_star_very_long
     toggle.force_coast_via_star_very_long = toggle.openpilot_longitudinal and star_button_control_very_long == BUTTON_FUNCTIONS["FORCE_COAST"]
     toggle.pulse_and_glide_via_star_very_long = toggle.pulse_and_glide_available and star_button_control_very_long == BUTTON_FUNCTIONS["PULSE_AND_GLIDE"]

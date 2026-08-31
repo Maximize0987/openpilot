@@ -17,6 +17,13 @@ from openpilot.starpilot.common.experimental_state import (
 )
 from openpilot.starpilot.common.favorite_slots import FAVORITE_ACTION_TRAFFIC_MODE_COUNTER, toggle_favorite_slot
 from openpilot.starpilot.common.starpilot_variables import ERROR_LOGS_PATH, GearShifter, NON_DRIVING_GEARS
+from openpilot.starpilot.common.lateral_only_experimental import experimental_mode_available
+from openpilot.starpilot.system.wheel_controls import (
+  CONTROLLER_ACTION_COUNTERS,
+  CONTROLLER_ACTION_FORCE_COAST,
+  CONTROLLER_ACTION_PULSE_AND_GLIDE,
+  CONTROLLER_ACTION_TOGGLE_AOL,
+)
 
 HYUNDAI_MAIN_CRUISE_AOL_CONFIRM_TIMEOUT_FRAMES = 100
 
@@ -57,6 +64,11 @@ class StarPilotCard:
     self.distancePressed_previously = False
     self.force_coast = False
     self.pulse_and_glide = False
+    self._controller_action_counters = {
+      key: self._get_controller_action_counter(counter)
+      for key, counter in CONTROLLER_ACTION_COUNTERS.items()
+      if counter != "WheelButtonBookmarkCounter"
+    }
     self.modePressed_previously = False
     self.mode_counter = 0
     self.customPressed_previously = False
@@ -79,7 +91,13 @@ class StarPilotCard:
     self.error_log = ERROR_LOGS_PATH / "error.txt"
 
   def handle_button_event(self, key, sm, starpilot_toggles):
-    if sm["carControl"].longActive and getattr(starpilot_toggles, f"experimental_mode_via_{key}"):
+    experimental_active = bool(getattr(sm["carControl"], "longActive", False) or
+                                getattr(sm["carControl"], "latActive", False))
+    mode_available = getattr(starpilot_toggles, "experimental_mode_available",
+                             bool(getattr(sm["carControl"], "longActive", False) or
+                                  experimental_mode_available(self.CP)))
+    if (experimental_active and mode_available and
+        getattr(starpilot_toggles, f"experimental_mode_via_{key}")):
       self.handle_experimental_mode(sm, starpilot_toggles)
     elif getattr(starpilot_toggles, f"bookmark_via_{key}"):
       self.handle_bookmark()
@@ -107,6 +125,49 @@ class StarPilotCard:
   def handle_bookmark(self):
     counter = self.params_memory.get_int("WheelButtonBookmarkCounter")
     self.params_memory.put_int("WheelButtonBookmarkCounter", counter + 1)
+
+  def _get_controller_action_counter(self, key):
+    try:
+      return self.params_memory.get_int(key)
+    except Exception:
+      return 0
+
+  def _pending_controller_action_count(self, key):
+    counter_key = CONTROLLER_ACTION_COUNTERS[key]
+    current = self._get_controller_action_counter(counter_key)
+    previous = self._controller_action_counters[key]
+    self._controller_action_counters[key] = current
+    return max(0, current - previous)
+
+  def _toggle_controller_aol(self, carState, starpilot_toggles, button_aol_supported):
+    if not button_aol_supported or not getattr(starpilot_toggles, "always_on_lateral", False):
+      return False
+    if self.hyundai_aol_needs_engagement:
+      self.hyundai_aol_ready = True
+    self.always_on_lateral_allowed = not self.always_on_lateral_allowed
+    if carState.cruiseState.enabled or self.pause_lateral:
+      self.pause_lateral = not self.always_on_lateral_allowed
+    return True
+
+  def _handle_controller_actions(self, carState, sm, starpilot_toggles, button_aol_supported):
+    force_coast_count = self._pending_controller_action_count(
+      CONTROLLER_ACTION_FORCE_COAST
+    )
+    if force_coast_count % 2 and getattr(starpilot_toggles, "openpilot_longitudinal", False):
+      self.force_coast = not self.force_coast
+
+    pulse_and_glide_count = self._pending_controller_action_count(
+      CONTROLLER_ACTION_PULSE_AND_GLIDE
+    )
+    if (pulse_and_glide_count % 2 and getattr(starpilot_toggles, "pulse_and_glide_available", False) and
+        (getattr(sm["carControl"], "longActive", False) or self.pulse_and_glide)):
+      self.pulse_and_glide = not self.pulse_and_glide
+
+    aol_count = self._pending_controller_action_count(
+      CONTROLLER_ACTION_TOGGLE_AOL
+    )
+    if aol_count % 2:
+      self._toggle_controller_aol(carState, starpilot_toggles, button_aol_supported)
 
   def _handle_favorite_traffic_mode_action(self, sm):
     counter = self.params_memory.get_int(FAVORITE_ACTION_TRAFFIC_MODE_COUNTER)
@@ -338,6 +399,8 @@ class StarPilotCard:
           self.pause_lateral = not self.pause_lateral
         else:
           self.handle_button_event("lkas", sm, starpilot_toggles)
+
+    self._handle_controller_actions(carState, sm, starpilot_toggles, button_aol_supported)
 
     if getattr(starpilot_toggles, "has_canfd_media_buttons", False):
       if starpilotCarState.modePressed:

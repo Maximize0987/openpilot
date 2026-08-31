@@ -45,6 +45,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_standstill_gap_settle_max_extra_gap,
   get_standstill_stopped_lead_guard_distance_margin,
   get_standstill_stopped_lead_guard_max_lead_speed,
+  is_ford_f150_lightning_stopped_radar_follow_lead,
   get_tracked_lead_catchup_bias_gain,
   get_tracked_lead_catchup_bias_cap,
   get_tracked_lead_catchup_speed_range,
@@ -2066,9 +2067,20 @@ class LongitudinalPlanner:
       any(is_toyota_rav4_tss2_radar_follow_lead(self.CP, lead, scene_v_ego)
           for lead in (self.lead_one, self.lead_two))
     )
+    lightning_stopped_radar_follow = (
+      experimental_mode and
+      not bool(getattr(sm['starpilotPlan'], 'forcingStop', False)) and
+      not bool(getattr(sm['starpilotPlan'], 'redLight', False)) and
+      not bool(getattr(sm['starpilotPlan'], 'stopSignConfirmed', False)) and
+      any(is_ford_f150_lightning_stopped_radar_follow_lead(self.CP, lead, scene_v_ego)
+          for lead in (self.lead_one, self.lead_two))
+    )
     # StarPilot trackingLead is debounce/model-length based. Keep a raw close-lead
     # safety path so ACC/chill does not ignore a visible lead during that debounce.
-    lead_control_active = tracking_lead or raw_close_lead_control or early_truck_follow or rav4_radar_follow
+    lead_control_active = (
+      tracking_lead or raw_close_lead_control or early_truck_follow or rav4_radar_follow or
+      lightning_stopped_radar_follow
+    )
     lead_one_active = bool(self.lead_one.status and lead_control_active)
     effective_t_follow = self.get_dynamic_t_follow(sm['starpilotPlan'].tFollow, self.lead_one if lead_one_active else None, v_ego)
 

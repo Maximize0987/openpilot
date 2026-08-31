@@ -224,6 +224,10 @@ def test_wheel_controls_status_includes_favorite_slots(monkeypatch):
     "ForceOffroad",
     "__starpilot_controller_action__:set_speed",
     "__starpilot_controller_action__:selfie",
+    "__starpilot_controller_action__:bookmark",
+    "__starpilot_controller_action__:pulse_and_glide",
+    "__starpilot_controller_action__:force_coast",
+    "__starpilot_controller_action__:toggle_aol",
   }
   assert response.get_json()["speed_unit"] == "mph"
 
@@ -241,6 +245,10 @@ def test_wheel_controls_configures_a_controller_only_action(monkeypatch):
     "ForceOffroad",
     "__starpilot_controller_action__:set_speed",
     "__starpilot_controller_action__:selfie",
+    "__starpilot_controller_action__:bookmark",
+    "__starpilot_controller_action__:pulse_and_glide",
+    "__starpilot_controller_action__:force_coast",
+    "__starpilot_controller_action__:toggle_aol",
   }
   assert calls == [((9, "ForceOffroad", "Force Offroad", the_galaxy.params), {"value": None, "eligible_keys": expected_keys})]
 

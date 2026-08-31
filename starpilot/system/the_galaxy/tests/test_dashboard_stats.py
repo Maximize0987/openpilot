@@ -323,6 +323,10 @@ def _install_server_import_stubs():
     CONTROLLER_ACTION_OPTIONS=(
       {"key": "__starpilot_controller_action__:set_speed", "label": "Set Speed To", "section": "Controller Actions", "value_type": "speed"},
       {"key": "__starpilot_controller_action__:selfie", "label": "Take Comma Selfie", "section": "Controller Actions"},
+      {"key": "__starpilot_controller_action__:bookmark", "label": "Bookmark", "section": "Controller Actions"},
+      {"key": "__starpilot_controller_action__:pulse_and_glide", "label": "Pulse and Glide", "section": "Controller Actions"},
+      {"key": "__starpilot_controller_action__:force_coast", "label": "Force Coasting", "section": "Controller Actions"},
+      {"key": "__starpilot_controller_action__:toggle_aol", "label": "Toggle AOL", "section": "Controller Actions"},
     ),
     CONTROLLER_ACTION_SET_SPEED="__starpilot_controller_action__:set_speed",
     CONTROLLER_ACTION_SLOT_COUNT=10,

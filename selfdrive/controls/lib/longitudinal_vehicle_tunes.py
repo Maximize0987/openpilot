@@ -33,6 +33,10 @@ FORD_LIGHTNING_FOLLOW_PREBRAKE_MIN_HEADWAY = 0.75
 FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN = 0.10
 FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN = 0.25
 FORD_LIGHTNING_TRACKED_LEAD_CATCHUP_BIAS_GAIN = 1.0
+FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_EGO_SPEED = 4.5
+FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_DISTANCE = 18.0
+FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_LEAD_SPEED = 2.0
+FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_LATERAL_OFFSET = 1.25
 HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_MIN_HEADWAY_MARGIN = 0.10
 HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_FULL_HEADWAY_MARGIN = 0.35
 HONDA_CRV_5G_TRACKED_LEAD_CATCHUP_BIAS_GAIN = 1.25
@@ -339,6 +343,23 @@ def is_ford_f150_lightning(CP):
     getattr(CP, "brand", "") == "ford" and
     str(getattr(CP, "carFingerprint", "")) == "FORD_F_150_LIGHTNING_MK1"
   )
+
+
+def is_ford_f150_lightning_stopped_radar_follow_lead(CP, lead, v_ego):
+  """Keep a credible stopped radar lead active after the CEM model horizon collapses."""
+  if (
+    not is_ford_f150_lightning(CP) or
+    lead is None or not bool(getattr(lead, "status", False)) or
+    not bool(getattr(lead, "radar", False)) or
+    float(v_ego) < 0.0 or
+    float(v_ego) > FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_EGO_SPEED or
+    float(getattr(lead, "dRel", float("inf"))) > FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_DISTANCE or
+    max(float(getattr(lead, "vLead", 0.0)), 0.0) > FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_LEAD_SPEED or
+    abs(float(getattr(lead, "yRel", 0.0))) > FORD_LIGHTNING_STOPPED_RADAR_FOLLOW_MAX_LATERAL_OFFSET
+  ):
+    return False
+
+  return float(getattr(lead, "dRel", 0.0)) > 0.0
 
 
 def is_toyota_rav4_tss2_post_departure_tune(CP):

@@ -403,6 +403,8 @@ class Controls:
     self.turn_blinker_swept = 0.0
     self.twitch_guard_remaining = 0.0
     self.kona_non_scc_lateral_active = False
+    self.kona_non_scc_lateral_faulted = False
+    self.elantra_hev_2024_lateral_faulted = False
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -499,15 +501,37 @@ class Controls:
     # Check which actuators can be enabled
     standstill = abs(CS.vEgo) <= max(self.CP.minSteerSpeed, 0.3) or CS.standstill
     if self.CP.carFingerprint == HYUNDAI_CAR.HYUNDAI_KONA_NON_SCC:
+      always_on_lateral_enabled = self.sm['starpilotCarState'].alwaysOnLateralEnabled
+      lateral_requested = (CC.enabled and self.sm['selfdriveState'].active) or always_on_lateral_enabled
+      if not lateral_requested:
+        self.kona_non_scc_lateral_faulted = False
+      elif CS.steerFaultTemporary:
+        self.kona_non_scc_lateral_faulted = True
       CC.latActive = get_kona_non_scc_lateral_active(
         CC.enabled, self.sm['selfdriveState'].active,
-        self.sm['starpilotCarState'].alwaysOnLateralEnabled,
+        always_on_lateral_enabled,
         CS.steerFaultTemporary, CS.steerFaultPermanent,
         standstill, self.CP.steerAtStandstill,
         self.sm['starpilotPlan'].lateralCheck,
         CS.steeringPressed, self.kona_non_scc_lateral_active,
+        self.kona_non_scc_lateral_faulted,
       )
       self.kona_non_scc_lateral_active = CC.latActive
+    elif self.CP.carFingerprint == HYUNDAI_CAR.HYUNDAI_ELANTRA_HEV_2024:
+      always_on_lateral_enabled = self.sm['starpilotCarState'].alwaysOnLateralEnabled
+      lateral_requested = (CC.enabled and self.sm['selfdriveState'].active) or always_on_lateral_enabled
+      if not lateral_requested:
+        self.elantra_hev_2024_lateral_faulted = False
+      elif CS.steerFaultTemporary:
+        self.elantra_hev_2024_lateral_faulted = True
+      CC.latActive = get_lateral_active(
+        CC.enabled, self.sm['selfdriveState'].active,
+        always_on_lateral_enabled,
+        CS.steerFaultTemporary, CS.steerFaultPermanent,
+        standstill, self.CP.steerAtStandstill,
+        self.sm['starpilotPlan'].lateralCheck,
+        self.elantra_hev_2024_lateral_faulted,
+      )
     else:
       CC.latActive = get_lateral_active(CC.enabled, self.sm['selfdriveState'].active,
                                         self.sm['starpilotCarState'].alwaysOnLateralEnabled,

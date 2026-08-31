@@ -34,6 +34,7 @@ from openpilot.starpilot.common.favorite_slots import (
   FAVORITE_ACTION_DECEL_COUNTER,
 )
 from openpilot.starpilot.common.starpilot_variables import get_starpilot_toggles, update_starpilot_toggles
+from openpilot.starpilot.common.lateral_only_experimental import experimental_mode_available
 from openpilot.starpilot.controls.starpilot_card import StarPilotCard
 
 REPLAY = "REPLAY" in os.environ
@@ -203,7 +204,11 @@ class Car:
 
     self.is_metric = self.params.get_bool("IsMetric")
     self.safe_mode = self.params.get_bool("SafeMode")
-    self.experimental_mode = self.params.get_bool("ExperimentalMode") and not self.safe_mode
+    self.experimental_mode = (
+      self.params.get_bool("ExperimentalMode") and
+      experimental_mode_available(self.CP) and
+      not self.safe_mode
+    )
 
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
@@ -546,7 +551,11 @@ class Car:
     while not evt.is_set():
       self.safe_mode = self.params.get_bool("SafeMode")
       self.is_metric = self.params.get_bool("IsMetric")
-      self.experimental_mode = self.params.get_bool("ExperimentalMode") and self.CP.openpilotLongitudinalControl and not self.safe_mode
+      self.experimental_mode = (
+        self.params.get_bool("ExperimentalMode") and
+        experimental_mode_available(self.CP) and
+        not self.safe_mode
+      )
       time.sleep(0.1)
 
   def card_thread(self):

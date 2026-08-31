@@ -40,6 +40,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_standstill_stopped_lead_guard_distance_margin,
   get_standstill_stopped_lead_guard_max_lead_speed,
   get_stop_sign_low_speed_hold,
+  is_ford_f150_lightning_stopped_radar_follow_lead,
   get_tracked_lead_catchup_bias_cap,
   get_tracked_lead_catchup_bias_gain,
   get_tracked_lead_catchup_cruise_error_full,
@@ -805,6 +806,22 @@ def test_lightning_stopped_lead_guard_tune_is_vehicle_specific():
   assert get_tracked_lead_catchup_bias_gain(lightning) == pytest.approx(1.0)
   assert get_tracked_lead_catchup_headway_margins(civic) is None
   assert get_tracked_lead_catchup_bias_gain(civic) is None
+
+
+def test_lightning_stopped_radar_lead_handoff_is_narrow_and_vehicle_specific():
+  lightning = FordCarInterface.get_non_essential_params(FORD_CAR.FORD_F_150_LIGHTNING_MK1)
+  civic = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  lead = make_lead(status=True, d_rel=17.2, v_lead=0.2, radar=True, model_prob=1.0, y_rel=0.1)
+
+  assert is_ford_f150_lightning_stopped_radar_follow_lead(lightning, lead, v_ego=2.6)
+  assert is_ford_f150_lightning_stopped_radar_follow_lead(lightning, lead, v_ego=0.0)
+  assert not is_ford_f150_lightning_stopped_radar_follow_lead(lightning, make_lead(
+    status=True, d_rel=18.1, v_lead=0.2, radar=True, model_prob=1.0, y_rel=0.1,
+  ), v_ego=2.6)
+  assert not is_ford_f150_lightning_stopped_radar_follow_lead(lightning, make_lead(
+    status=True, d_rel=17.2, v_lead=2.1, radar=True, model_prob=1.0, y_rel=0.1,
+  ), v_ego=2.6)
+  assert not is_ford_f150_lightning_stopped_radar_follow_lead(civic, lead, v_ego=2.6)
 
 
 def test_crv_tracked_lead_catchup_tune_is_vehicle_specific():

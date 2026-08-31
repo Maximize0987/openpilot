@@ -692,6 +692,23 @@ class TestHyundaiFingerprint:
 
     assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 2
 
+  def test_kona_non_scc_uses_no_individual_lane_lkas_status(self):
+    CP = CarInterface.get_params(CAR.HYUNDAI_KONA_NON_SCC, gen_empty_fingerprint(), [], False, False, False, None)
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
+
+    lkas11 = parser.vl["LKAS11"]
+    msg = hyundaican.create_lkas11(
+      packer, 0, CP, 0, True, False, lkas11, False, 4, False,
+      True, True, 0, 0, 2,
+    )
+    parser.update([(1, [msg])])
+
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsSysState"] == 2
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsOpt_USM"] == 2
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsActivemode"] == 0
+    assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 0
+
   @pytest.mark.parametrize("candidate", (CAR.HYUNDAI_ELANTRA_2024, CAR.HYUNDAI_ELANTRA_HEV_2024))
   def test_hyundai_can_refresh_platforms_use_refresh_dbc_and_safety_param(self, candidate):
     CP = CarInterface.get_params(candidate, gen_empty_fingerprint(), [], False, False, False, None)

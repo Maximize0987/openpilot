@@ -77,6 +77,15 @@ def test_controller_action_slots_are_separate_and_fixed_at_ten():
   assert wheel_controlsd.CONTROLLER_ACTIONS_PARAM != "StarPilotFavoriteSlots"
 
 
+def test_controller_action_options_include_vehicle_controls():
+  options = {option["key"]: option for option in wheel_controlsd.CONTROLLER_ACTION_OPTIONS}
+
+  assert options[wheel_controlsd.CONTROLLER_ACTION_BOOKMARK]["label"] == "Bookmark"
+  assert options[wheel_controlsd.CONTROLLER_ACTION_PULSE_AND_GLIDE]["label"] == "Pulse and Glide"
+  assert options[wheel_controlsd.CONTROLLER_ACTION_FORCE_COAST]["label"] == "Force Coasting"
+  assert options[wheel_controlsd.CONTROLLER_ACTION_TOGGLE_AOL]["label"] == "Toggle AOL"
+
+
 def test_joystick_selection_is_explicit_and_exclusive():
   params = FakeParams()
 
@@ -202,6 +211,28 @@ def test_controller_custom_actions_dispatch_their_own_payload(monkeypatch):
   assert wheel_controlsd.execute_controller_action(1, params, memory)
   assert speeds == [60]
   assert selfies == [True]
+
+
+def test_controller_actions_trigger_runtime_counters():
+  params = FakeParams({
+    wheel_controlsd.CONTROLLER_ACTIONS_PARAM: [
+      {"enabled": True, "key": wheel_controlsd.CONTROLLER_ACTION_BOOKMARK, "label": "Bookmark"},
+      {"enabled": True, "key": wheel_controlsd.CONTROLLER_ACTION_PULSE_AND_GLIDE, "label": "Pulse and Glide"},
+      {"enabled": True, "key": wheel_controlsd.CONTROLLER_ACTION_FORCE_COAST, "label": "Force Coasting"},
+      {"enabled": True, "key": wheel_controlsd.CONTROLLER_ACTION_TOGGLE_AOL, "label": "Toggle AOL"},
+    ],
+  })
+  memory = FakeParams()
+
+  for index in range(4):
+    assert wheel_controlsd.execute_controller_action(index, params, memory)
+
+  assert memory.values == {
+    "WheelButtonBookmarkCounter": 1,
+    "WheelControlPulseGlideCounter": 1,
+    "WheelControlForceCoastCounter": 1,
+    "WheelControlAOLCounter": 1,
+  }
 
 
 def test_learning_accepts_the_tenth_controller_action():
