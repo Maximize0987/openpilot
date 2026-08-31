@@ -39,8 +39,7 @@ _STOP_START_PULSE_FRAMES = 30
 _STOP_START_PULSE_PERIOD_FRAMES = 5
 _AVH_STARTUP_DELAY_FRAMES = _STOP_START_STARTUP_DELAY_FRAMES
 _AVH_STARTUP_DEADLINE_FRAMES = _STOP_START_STARTUP_DEADLINE_FRAMES
-_AVH_PULSE_FRAMES = _STOP_START_PULSE_FRAMES
-_AVH_PULSE_PERIOD_FRAMES = _STOP_START_PULSE_PERIOD_FRAMES
+_AVH_PULSE_MESSAGES = 10  # Match the native 10 Hz AVH frame for roughly one second
 
 
 def get_safety_CP():
@@ -93,8 +92,8 @@ class CarController(CarControllerBase):
     self.stop_start_acknowledged = False
     self.avh_attempted = False
     self.avh_request_started = False
-    self.avh_request_frame = 0
-    self.avh_counter = 0
+    self.avh_last_counter = None
+    self.avh_messages_sent = 0
 
   def _stop_start_off_request(self, CC, CS, starpilot_toggles):
     """Send one bounded Subaru Stop/Start OFF request after ignition.
@@ -182,22 +181,22 @@ class CarController(CarControllerBase):
 
     if not self.avh_request_started:
       self.avh_request_started = True
-      self.avh_request_frame = self.frame
-      self.avh_counter = (int(avh_msg.get("COUNTER", 0)) + 1) % 0x10
+      self.avh_last_counter = int(avh_msg.get("COUNTER", 0)) % 0x10
 
-    elapsed = self.frame - self.avh_request_frame
-    if elapsed >= _AVH_PULSE_FRAMES:
+    if self.avh_messages_sent >= _AVH_PULSE_MESSAGES:
       self.avh_attempted = True
       return None
 
-    if elapsed % _AVH_PULSE_PERIOD_FRAMES != 0:
+    counter = int(avh_msg.get("COUNTER", 0)) % 0x10
+    if counter == self.avh_last_counter:
       return None
 
     msg = subarucan.create_avh_control(
       self.packer, avh_msg, raw_dat=avh_dat,
-      counter=self.avh_counter, bus=CanBus.alt_for_cp(self.CP),
+      counter=counter, bus=CanBus.alt_for_cp(self.CP),
     )
-    self.avh_counter = (self.avh_counter + 1) % 0x10
+    self.avh_last_counter = counter
+    self.avh_messages_sent += 1
     return msg
 
   def _reset_legacy_2025_handoff(self):

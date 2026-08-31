@@ -322,6 +322,16 @@ def test_avh_request_sets_observed_bit_and_is_bounded():
   )
   toggles = SimpleNamespace(subaru_stop_start_off=False, subaru_avh_on=True, subaru_sng=False)
 
+  # Start the request from the current live counter. AVH is a native 10 Hz
+  # frame, so the controller waits for each next live counter before sending
+  # its matching button frame.
+  _, can_sends = controller.update(CC, CS, 0, toggles)
+  avh_msgs = [msg for msg in can_sends if msg[0] == 0x32b]
+  assert not avh_msgs
+
+  CS.avh_msg["COUNTER"] = 0
+  CS.avh_dat = bytes.fromhex("14001c4208800000")
+  controller.frame = 103
   _, can_sends = controller.update(CC, CS, 0, toggles)
   avh_msgs = [msg for msg in can_sends if msg[0] == 0x32b]
   assert avh_msgs == [(0x32b, bytes.fromhex("34001c4208a00000"), CanBus.alt)]
@@ -331,7 +341,21 @@ def test_avh_request_sets_observed_bit_and_is_bounded():
   assert parser.vl["AVH"]["AVH"] == 1
   assert parser.vl["AVH"]["COUNTER"] == 0
 
-  controller.frame = 131
+  for counter in range(1, 10):
+    CS.avh_msg["COUNTER"] = counter
+    raw_dat = bytearray.fromhex("14001c4208800000")
+    raw_dat[1] = counter
+    raw_dat[0] = ((0x32B & 0xFF) + ((0x32B >> 8) & 0xFF) + sum(raw_dat[1:])) & 0xFF
+    CS.avh_dat = bytes(raw_dat)
+    controller.frame = 103 + (counter * 10)
+    _, can_sends = controller.update(CC, CS, 0, toggles)
+    avh_msgs.extend(msg for msg in can_sends if msg[0] == 0x32b)
+
+  assert len(avh_msgs) == 10
+  assert [msg[1][1] & 0x0F for msg in avh_msgs] == list(range(10))
+  assert all(msg[1][5] & 0x20 for msg in avh_msgs)
+
+  controller.frame = 203
   _, can_sends = controller.update(CC, CS, 0, toggles)
   assert not any(msg[0] == 0x32b for msg in can_sends)
   assert controller.avh_attempted
