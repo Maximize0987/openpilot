@@ -38,6 +38,7 @@ class PairingAgent:
     self._response: tuple[bool, str] | None = None
     self._generation = 0
     self._auto_accept_paths: set[str] = set()
+    self._auto_accept_incoming = False
 
   @property
   def prompt(self) -> dict[str, Any] | None:
@@ -94,9 +95,13 @@ class PairingAgent:
       else:
         self._auto_accept_paths.discard(device_path)
 
+  def set_auto_accept_incoming(self, enabled: bool) -> None:
+    with self._condition:
+      self._auto_accept_incoming = enabled
+
   def auto_accept(self, kind: str, device_path: str) -> bool:
     with self._condition:
-      return kind in {"confirmation", "authorization"} and device_path in self._auto_accept_paths
+      return kind in {"confirmation", "authorization"} and (self._auto_accept_incoming or device_path in self._auto_accept_paths)
 
 class BlueZClient:
   def __init__(self):

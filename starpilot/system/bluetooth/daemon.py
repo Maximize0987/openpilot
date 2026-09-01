@@ -58,11 +58,20 @@ class BluetoothController:
         self._radio.start()
         self._bluez = self._bluez_factory()
         self._bluez.set_powered(True)
+        self._bluez.agent.set_auto_accept_incoming(self._offroad())
         try:
           self._bluez.set_discoverable(True)
         except Exception as error:
           cloudlog.warning(f"Bluetooth discoverability setup failed: {error}")
       return self._bluez
+
+  def initialize(self) -> None:
+    if not self.params.get_bool("BluetoothEnabled"):
+      return
+    try:
+      self._client()
+    except Exception:
+      cloudlog.exception("Bluetooth initialization failed")
 
   def _reset_client(self) -> None:
     with self._lock:
@@ -96,6 +105,7 @@ class BluetoothController:
       try:
         result.update(self._client().status())
         result["available"] = True
+        self._bluez.agent.set_auto_accept_incoming(result["offroad"])
         prompt = result.get("prompt")
         if prompt is not None and self._pairing_address:
           prompt["address"] = self._pairing_address
@@ -111,9 +121,9 @@ class BluetoothController:
     if command in OFFROAD_COMMANDS and not self._offroad():
       raise RuntimeError("Bluetooth settings can only be changed offroad")
 
-  def _pair_worker(self, address: str, device_path: str | None = None) -> None:
+  def _pair_worker(self, address: str) -> None:
     try:
-      self._client().pair(address, device_path)
+      self._client().pair(address)
       status = self._client().device_for_address(address)
       if status.get("audio") and not self.params.get("BluetoothAudioAddress", encoding="utf-8"):
         self.params.put("BluetoothAudioAddress", address)
@@ -189,10 +199,11 @@ class BluetoothController:
     elif command == "pair":
       if self._pairing_address:
         raise RuntimeError("Another Bluetooth device is already pairing")
-      device = self._client().device_for_address(address)
+      self._client().device_for_address(address)
+      self._scan_deadline = 0.0
       self._pairing_address = address
       self._pairing_error = ""
-      threading.Thread(target=self._pair_worker, args=(address, device["path"]), daemon=True).start()
+      threading.Thread(target=self._pair_worker, args=(address,), daemon=True).start()
     elif command == "connect":
       self._client().connect(address)
     elif command == "disconnect":
@@ -290,6 +301,7 @@ def main() -> None:
   except FileNotFoundError:
     pass
   controller = BluetoothController()
+  threading.Thread(target=controller.initialize, daemon=True).start()
   threading.Thread(target=controller.maintain_connections, daemon=True).start()
   try:
     with BluetoothServer(BLUETOOTH_SOCKET_PATH, controller) as server:

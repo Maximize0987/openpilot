@@ -39,6 +39,9 @@ class FakeAgent:
   def __init__(self):
     self.responses = []
 
+  def set_auto_accept_incoming(self, _enabled):
+    pass
+
   def respond(self, prompt_id, accepted, value):
     self.responses.append((prompt_id, accepted, value))
     return prompt_id == "prompt"
@@ -230,6 +233,9 @@ def test_desktop_fake_bluetooth_cannot_activate_on_device(monkeypatch, tmp_path)
 
 def test_pairing_agent_accept_reject_and_timeout():
   agent = PairingAgent()
+  agent.set_auto_accept_incoming(True)
+  assert agent.request("confirmation", "/incoming", "123456") == (True, "")
+  agent.set_auto_accept_incoming(False)
   result = []
   worker = threading.Thread(target=lambda: result.append(agent.request("confirmation", "/device", "123456", timeout=1.0)))
   worker.start()
@@ -251,6 +257,18 @@ def test_disabled_status_does_not_start_radio_or_bluez():
   status = controller.status()
   assert status["available"] and not status["enabled"] and not status["powered"]
   assert radio.starts == 0 and created == []
+
+
+def test_enabled_initialization_registers_bluetooth_agent_without_ui_poll():
+  params = FakeParams(IsOffroad=True, BluetoothEnabled=True)
+  radio = FakeRadio()
+  created = []
+  controller = BluetoothController(params, lambda: created.append(FakeBlueZ()) or created[-1], radio)
+
+  controller.initialize()
+
+  assert radio.starts == 1 and len(created) == 1
+  assert created[0].powered
 
 
 def test_power_pair_audio_and_offroad_enforcement():
@@ -401,7 +419,7 @@ def test_scan_stops_after_timeout():
   assert not client.discovering and controller._scan_deadline == 0.0
 
 
-def test_pair_stops_discovery_before_starting_pair():
+def test_pair_keeps_discovery_until_pair_starts():
   params = FakeParams(IsOffroad=True, BluetoothEnabled=True)
   client = FakeBlueZ()
   controller = BluetoothController(params, lambda: client, FakeRadio())
@@ -412,7 +430,9 @@ def test_pair_stops_discovery_before_starting_pair():
   while not any(action[0] == "pair" for action in client.actions) and time.monotonic() < deadline:
     time.sleep(0.01)
 
-  assert client.actions.index(("stop_scan", "")) < client.actions.index(("pair", client.device["address"]))
+  pair_index = client.actions.index(("pair", client.device["address"]))
+  assert client.actions[-1] == ("stop_scan", "")
+  assert pair_index < len(client.actions) - 1
 
 
 def test_audio_queue_is_nonblocking_and_falls_back():
