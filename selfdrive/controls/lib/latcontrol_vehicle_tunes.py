@@ -219,7 +219,7 @@ GENESIS_GV70_FRICTION_CENTER_LAT = 0.28
 GENESIS_GV70_FRICTION_CENTER_LAT_WIDTH = 0.12
 GENESIS_GV70_FRICTION_CALM_JERK = 0.35
 GENESIS_GV70_FRICTION_CALM_JERK_WIDTH = 0.10
-GENESIS_GV70_FRICTION_JERK_DEADZONE_MAX = 0.36
+GENESIS_GV70_FRICTION_JERK_DEADZONE_MAX = 0.55
 GENESIS_GV70_FRICTION_JERK_DEADZONE_LAT = 0.30
 GENESIS_GV70_FRICTION_JERK_DEADZONE_LAT_WIDTH = 0.08
 GENESIS_GV70_FRICTION_JERK_DEADZONE_SPEED = 12.0 * CV.MPH_TO_MS
@@ -302,6 +302,7 @@ GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR = 0.18
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR_WIDTH = 0.15
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK = 0.15
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK_WIDTH = 0.10
+GENESIS_G70_HIGH_SPEED_OVERSHOOT_PHASE_WEIGHT = 0.60
 GENESIS_G70_ANGLE_OUTPUT_TAPER_MIN = 0.45
 GENESIS_G70_ANGLE_OUTPUT_TAPER_START = 70.0
 GENESIS_G70_ANGLE_OUTPUT_TAPER_WIDTH = 6.0
@@ -1044,6 +1045,7 @@ PRIUS_CENTER_FRICTION_THRESHOLD_LAT_WIDTH = 0.07
 PRIUS_CENTER_FRICTION_THRESHOLD_SPEED = 18.0
 PRIUS_CENTER_FRICTION_THRESHOLD_SPEED_WIDTH = 2.2
 PRIUS_FRICTION_JERK_DEADZONE_MAX = 0.24
+PRIUS_STANDARD_FRICTION_JERK_DEADZONE_MAX = 0.30
 PRIUS_FRICTION_JERK_DEADZONE_LAT = 0.30
 PRIUS_FRICTION_JERK_DEADZONE_LAT_WIDTH = 0.07
 PRIUS_FRICTION_JERK_DEADZONE_SPEED = 18.0
@@ -1508,12 +1510,13 @@ def get_prius_center_taper_scale(desired_lateral_accel: float, v_ego: float) -> 
   return 1.0 - reduction
 
 
-def get_prius_friction_jerk_deadzone(v_ego: float, desired_lateral_accel: float) -> float:
+def get_prius_friction_jerk_deadzone(v_ego: float, desired_lateral_accel: float,
+                                     deadzone_max: float = PRIUS_FRICTION_JERK_DEADZONE_MAX) -> float:
   speed_weight = _prius_sigmoid((v_ego - PRIUS_FRICTION_JERK_DEADZONE_SPEED) /
                                 PRIUS_FRICTION_JERK_DEADZONE_SPEED_WIDTH)
   center_weight = _prius_sigmoid((PRIUS_FRICTION_JERK_DEADZONE_LAT - abs(desired_lateral_accel)) /
                                  PRIUS_FRICTION_JERK_DEADZONE_LAT_WIDTH)
-  return PRIUS_FRICTION_JERK_DEADZONE_MAX * speed_weight * center_weight
+  return deadzone_max * speed_weight * center_weight
 
 
 def get_prius_high_speed_output_taper_scale(desired_lateral_accel: float, v_ego: float,
@@ -3235,6 +3238,8 @@ def get_genesis_g70_high_speed_error_scale(setpoint: float, measured_lateral_acc
   jerk_weight = _sigmoid((abs(desired_lateral_jerk) - GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK) /
                          GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_JERK_WIDTH)
   phase_weight = 1.0 if setpoint * desired_lateral_jerk < 0.0 else 0.45
+  if setpoint * measured_lateral_accel > 0.0 and abs(measured_lateral_accel) > abs(setpoint):
+    phase_weight = max(phase_weight, GENESIS_G70_HIGH_SPEED_OVERSHOOT_PHASE_WEIGHT)
   reduction = (GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_MAX * speed_weight * error_weight *
                (0.35 + (0.65 * jerk_weight)) * phase_weight)
   return 1.0 - reduction

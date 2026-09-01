@@ -13,6 +13,7 @@ const state = reactive({
   selectedAudio: "",
   pairingAddress: "",
   devices: [],
+  revision: 0,
   prompt: null,
   audioTestAddress: "",
   audioTestLabel: "",
@@ -31,17 +32,11 @@ function bluetoothPageActive() {
   return document.querySelector(".bluetoothPage") !== null || currentPath === bluetoothPath
 }
 
-function pollDelay() {
-  return state.busy || state.discovering || state.pairingAddress ? 500 : 2000
-}
-
-function schedulePoll(delay = pollDelay()) {
-  if (pollTimer !== null) clearTimeout(pollTimer)
-  pollTimer = setTimeout(async () => {
-    pollTimer = null
-    if (bluetoothPageActive() && state.busy !== "power") await refresh()
-    schedulePoll()
-  }, delay)
+function schedulePoll() {
+  if (pollTimer !== null) return
+  pollTimer = setInterval(() => {
+    if (bluetoothPageActive() && state.busy !== "power") refresh()
+  }, 750)
 }
 
 function startAudioTestCountdown(address, delayMs, requestStartedAt) {
@@ -107,6 +102,7 @@ async function refreshOnce() {
   state.selectedAudio = String(payload.selected_audio || "")
   state.pairingAddress = String(payload.pairing_address || "")
   state.devices = Array.isArray(payload.devices) ? payload.devices : []
+  state.revision++
   state.prompt = payload.prompt || null
   state.error = payload.error || (response.ok ? "" : "Bluetooth service unavailable")
 }
@@ -194,7 +190,12 @@ async function refresh() {
 function initialize() {
   if (initialized) return
   initialized = true
-  schedulePoll(0)
+  window.addEventListener("focus", refresh)
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && bluetoothPageActive()) refresh()
+  })
+  refresh()
+  schedulePoll()
 }
 
 function normalizedAddress(device) {
@@ -359,10 +360,14 @@ export function Bluetooth() {
             <p>Turn it on to reconnect saved devices or find something new.</p>
           </div>
         ` : ""}
-        ${() => !state.loading && state.enabled ? html`
-          ${deviceSection("My Devices", "bi-check2-circle", knownDevices(), "No saved devices yet.")}
-          ${deviceSection("Available Devices", "bi-radar", availableDevices(), state.discovering ? "Searching for nearby devices…" : "No nearby devices found. Start a search to try again.")}
-        ` : ""}
+        ${() => {
+          if (state.loading || !state.enabled) return ""
+          void state.revision
+          return html`
+            ${deviceSection("My Devices", "bi-check2-circle", knownDevices(), "No saved devices yet.")}
+            ${deviceSection("Available Devices", "bi-radar", availableDevices(), state.discovering ? "Searching for nearby devices…" : "No nearby devices found. Start a search to try again.")}
+          `
+        }}
       </div>
     </div>
   `

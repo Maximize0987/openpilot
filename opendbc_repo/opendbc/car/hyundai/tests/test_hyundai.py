@@ -711,7 +711,10 @@ class TestHyundaiFingerprint:
     assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 0
 
   def test_kia_ray_ev_preserves_stock_lkas_option(self):
-    CP = CarInterface.get_params(CAR.KIA_RAY_EV, gen_empty_fingerprint(), [], False, False, False, None)
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x485] = 4
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, fingerprint, [], False, False, False, None)
+    assert CP.flags & HyundaiFlags.SEND_LFA
     packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
     parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
 
@@ -721,7 +724,33 @@ class TestHyundaiFingerprint:
     )
     parser.update([(1, [msg])])
 
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsActivemode"] == 3
     assert parser.vl["LKAS11"]["CF_Lkas_LdwsOpt_USM"] == 0
+    assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 1
+
+  def test_kia_ray_ev_delays_first_lkas11(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x485] = 4
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, fingerprint, [], False, False, False, None)
+    controller = CarController(DBC[CP.carFingerprint], CP)
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
+
+    hud_control = SimpleNamespace(
+      visualAlert=CarControl.HUDControl.VisualAlert.none,
+      leftLaneVisible=True,
+      rightLaneVisible=True,
+      leftLaneDepart=False,
+      rightLaneDepart=False,
+    )
+    CS = SimpleNamespace(lkas11=parser.vl["LKAS11"], redneck_send_button=Buttons.NONE)
+    CC = SimpleNamespace(enabled=False, cruiseControl=SimpleNamespace(cancel=False, resume=False, override=False))
+    actuators = SimpleNamespace(longControlState=LongCtrlState.off)
+
+    first = controller.create_can_msgs(True, 0, False, 0.0, 0.0, False, hud_control, actuators, CS, CC, 2, 0)
+    second = controller.create_can_msgs(True, 0, False, 0.0, 0.0, False, hud_control, actuators, CS, CC, 2, 0)
+
+    assert not any(addr == 0x340 for addr, _, _ in first)
+    assert any(addr == 0x340 for addr, _, _ in second)
 
   @pytest.mark.parametrize("candidate", (CAR.HYUNDAI_ELANTRA_2024, CAR.HYUNDAI_ELANTRA_HEV_2024))
   def test_hyundai_can_refresh_platforms_use_refresh_dbc_and_safety_param(self, candidate):
@@ -835,7 +864,7 @@ class TestHyundaiFingerprint:
     (CAR.HYUNDAI_ELANTRA_2022_NON_SCC, ("EMS16", "LVR12"), ()),
     (CAR.HYUNDAI_ELANTRA_HEV_2022_NON_SCC, ("E_CRUISE_CONTROL", "ELECT_GEAR"), ("EMS16",)),
     (CAR.HYUNDAI_KONA_EV_NON_SCC, ("LABEL11", "EMS12", "E_EMS11"), ()),
-    (CAR.KIA_RAY_EV, ("LABEL11", "EMS12", "E_EMS11"), ()),
+    (CAR.KIA_RAY_EV, ("E_EMS11",), ("LABEL11", "EMS12", "SCC11", "SCC12")),
   ])
   def test_non_scc_cruise_message_selection(self, candidate, expected_msgs, unexpected_msgs):
     toggles = get_test_toggles()

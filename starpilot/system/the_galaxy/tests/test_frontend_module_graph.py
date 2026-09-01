@@ -21,8 +21,8 @@ def test_router_and_settings_cache_bust_is_consistent():
   router = ROUTER_PATH.read_text(encoding="utf-8")
   index = INDEX_PATH.read_text(encoding="utf-8")
 
-  assert "/assets/components/settings.js?v=router-cycle-fix-3" in router
-  assert "/assets/components/router.js?v=router-cycle-fix-3" in index
+  assert "/assets/components/settings.js?v=router-cycle-fix-5" in router
+  assert "/assets/components/router.js?v=router-cycle-fix-5" in index
 
 
 def test_bluetooth_actions_use_reactive_disabled_bindings():

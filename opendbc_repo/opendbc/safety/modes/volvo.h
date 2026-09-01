@@ -73,11 +73,11 @@ static const AngleSteeringLimits VOLVO_ANGLE_STEERING_LIMITS = {
   .angle_deg_to_can = VOLVO_ANGLE_DEG_TO_CAN,
   .angle_rate_up_lookup = {
     {0.0f, 5.0f, 25.0f},
-    {2.5f, 1.5f, 0.2f},
+    {5.0f, 3.0f, 0.4f},
   },
   .angle_rate_down_lookup = {
     {0.0f, 5.0f, 25.0f},
-    {5.0f, 2.0f, 0.3f},
+    {10.0f, 4.0f, 0.6f},
   },
   .frequency = 50U,
 };

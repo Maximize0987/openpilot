@@ -36,6 +36,9 @@ class PairingAgent:
     self._condition = threading.Condition()
     self._prompt: dict[str, Any] | None = None
     self._response: tuple[bool, str] | None = None
+    self._generation = 0
+    self._auto_accept_paths: set[str] = set()
+    self._auto_accept_incoming = False
 
   @property
   def prompt(self) -> dict[str, Any] | None:
@@ -44,26 +47,34 @@ class PairingAgent:
 
   def clear(self) -> None:
     with self._condition:
+      self._generation += 1
       self._prompt = None
       self._response = None
       self._condition.notify_all()
 
   def display(self, kind: str, device_path: str, value: str) -> None:
     with self._condition:
+      self._generation += 1
       self._prompt = {"id": uuid.uuid4().hex, "kind": kind, "device_path": device_path, "value": value, "display_only": True}
 
   def request(self, kind: str, device_path: str, value: str = "", timeout: float = 60.0) -> tuple[bool, str]:
+    if self.auto_accept(kind, device_path):
+      return True, ""
     prompt_id = uuid.uuid4().hex
     with self._condition:
+      self._generation += 1
+      generation = self._generation
       self._response = None
       self._prompt = {"id": prompt_id, "kind": kind, "device_path": device_path, "value": value, "display_only": False}
       deadline = time.monotonic() + timeout
-      while self._response is None:
+      while self._response is None and self._generation == generation:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
           self._prompt = None
           return False, ""
         self._condition.wait(remaining)
+      if self._generation != generation:
+        return False, ""
       response = self._response
       self._response = None
       self._prompt = None
@@ -76,6 +87,21 @@ class PairingAgent:
       self._response = accepted, value
       self._condition.notify_all()
       return True
+
+  def set_auto_accept(self, device_path: str, enabled: bool) -> None:
+    with self._condition:
+      if enabled:
+        self._auto_accept_paths.add(device_path)
+      else:
+        self._auto_accept_paths.discard(device_path)
+
+  def set_auto_accept_incoming(self, enabled: bool) -> None:
+    with self._condition:
+      self._auto_accept_incoming = enabled
+
+  def auto_accept(self, kind: str, device_path: str) -> bool:
+    with self._condition:
+      return kind in {"confirmation", "authorization"} and (self._auto_accept_incoming or device_path in self._auto_accept_paths)
 
 
 class BlueZClient:
@@ -118,34 +144,19 @@ class BlueZClient:
     while True:
       message = self._agent_queue.get()
       member = message.header.fields.get(HeaderFields.member, "")
+      device_path = str(message.body[0]) if message.body else ""
+      if member in {"RequestPinCode", "RequestPasskey", "RequestConfirmation", "RequestAuthorization", "AuthorizeService"}:
+        threading.Thread(target=self._handle_agent_request, args=(message, member, device_path), daemon=True).start()
+        continue
       try:
         response_signature = None
         response_body: tuple = ()
-        device_path = str(message.body[0]) if message.body else ""
         if member == "Release":
           self.agent.clear()
-        elif member == "RequestPinCode":
-          accepted, value = self.agent.request("pin", device_path)
-          if not accepted:
-            raise PermissionError
-          response_signature, response_body = "s", (value,)
         elif member == "DisplayPinCode":
           self.agent.display("display_pin", device_path, str(message.body[1]))
-        elif member == "RequestPasskey":
-          accepted, value = self.agent.request("passkey", device_path)
-          if not accepted:
-            raise PermissionError
-          response_signature, response_body = "u", (int(value),)
         elif member == "DisplayPasskey":
           self.agent.display("display_passkey", device_path, f"{int(message.body[1]):06d}")
-        elif member == "RequestConfirmation":
-          accepted, _ = self.agent.request("confirmation", device_path, f"{int(message.body[1]):06d}")
-          if not accepted:
-            raise PermissionError
-        elif member in ("RequestAuthorization", "AuthorizeService"):
-          accepted, _ = self.agent.request("authorization", device_path)
-          if not accepted:
-            raise PermissionError
         elif member == "Cancel":
           self.agent.clear()
         else:
@@ -155,6 +166,34 @@ class BlueZClient:
         self.router.send(new_error(message, "org.bluez.Error.Rejected", "s", ("Pairing rejected",)))
       except Exception as error:
         self.router.send(new_error(message, "org.bluez.Error.Canceled", "s", (str(error),)))
+
+  def _handle_agent_request(self, message: Any, member: str, device_path: str) -> None:
+    try:
+      response_signature = None
+      response_body: tuple = ()
+      if member == "RequestPinCode":
+        accepted, value = self.agent.request("pin", device_path)
+        if not accepted:
+          raise PermissionError
+        response_signature, response_body = "s", (value,)
+      elif member == "RequestPasskey":
+        accepted, value = self.agent.request("passkey", device_path)
+        if not accepted:
+          raise PermissionError
+        response_signature, response_body = "u", (int(value),)
+      elif member == "RequestConfirmation":
+        accepted, _ = self.agent.request("confirmation", device_path, f"{int(message.body[1]):06d}")
+        if not accepted:
+          raise PermissionError
+      else:
+        accepted, _ = self.agent.request("authorization", device_path)
+        if not accepted:
+          raise PermissionError
+      self.router.send(new_method_return(message, response_signature, response_body))
+    except PermissionError:
+      self.router.send(new_error(message, "org.bluez.Error.Rejected", "s", ("Pairing rejected",)))
+    except Exception as error:
+      self.router.send(new_error(message, "org.bluez.Error.Canceled", "s", (str(error),)))
 
   def managed_objects(self) -> dict[str, dict[str, dict[str, Any]]]:
     body = self._call("/", OBJECT_MANAGER, "GetManagedObjects")
@@ -198,11 +237,17 @@ class BlueZClient:
   def status(self) -> dict[str, Any]:
     objects = self.managed_objects()
     _, adapter = self.adapter(objects)
+    prompt = self.agent.prompt
+    if prompt is not None:
+      prompt = dict(prompt)
+      device = objects.get(prompt.get("device_path", ""), {}).get(DEVICE_IFACE, {})
+      prompt["address"] = str(device.get("Address", ""))
+      prompt["name"] = str(device.get("Alias") or device.get("Name") or prompt["address"] or "Bluetooth device")
     return {
       "powered": bool(adapter.get("Powered", False)),
       "discovering": bool(adapter.get("Discovering", False)),
       "devices": self.devices(objects, include_discovering=bool(adapter.get("Discovering", False))),
-      "prompt": self.agent.prompt,
+      "prompt": prompt,
     }
 
   def set_powered(self, powered: bool) -> None:
@@ -211,6 +256,19 @@ class BlueZClient:
     reply = self.router.send_and_get_reply(Properties(address).set("Powered", "b", powered), timeout=10.0)
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else "Unable to change Bluetooth power"))
+
+  def set_discoverable(self, discoverable: bool) -> None:
+    path, _ = self.adapter()
+    address = DBusAddress(path, bus_name=BLUEZ, interface=ADAPTER_IFACE)
+    reply = self.router.send_and_get_reply(Properties(address).set("Pairable", "b", True), timeout=10.0)
+    if reply.header.message_type == MessageType.error:
+      raise RuntimeError(str(reply.body[0] if reply.body else "Unable to enable Bluetooth pairing"))
+    reply = self.router.send_and_get_reply(Properties(address).set("DiscoverableTimeout", "u", 0), timeout=10.0)
+    if reply.header.message_type == MessageType.error:
+      raise RuntimeError(str(reply.body[0] if reply.body else "Unable to configure Bluetooth discoverability"))
+    reply = self.router.send_and_get_reply(Properties(address).set("Discoverable", "b", discoverable), timeout=10.0)
+    if reply.header.message_type == MessageType.error:
+      raise RuntimeError(str(reply.body[0] if reply.body else "Unable to change Bluetooth discoverability"))
 
   def start_discovery(self) -> None:
     path, _ = self.adapter()
@@ -238,7 +296,11 @@ class BlueZClient:
   def pair(self, address: str, device_path: str | None = None) -> None:
     self._register_agent()
     device = {"path": device_path} if device_path else self.device_for_address(address)
-    self._call(device["path"], DEVICE_IFACE, "Pair", timeout=90.0)
+    self.agent.set_auto_accept(device["path"], True)
+    try:
+      self._call(device["path"], DEVICE_IFACE, "Pair", timeout=90.0)
+    finally:
+      self.agent.set_auto_accept(device["path"], False)
     self.set_device_property(address, "Trusted", "b", True)
     self.agent.clear()
 

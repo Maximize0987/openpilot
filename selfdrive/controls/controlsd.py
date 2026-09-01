@@ -405,6 +405,7 @@ class Controls:
     self.kona_non_scc_lateral_active = False
     self.kona_non_scc_lateral_faulted = False
     self.elantra_hev_2024_lateral_faulted = False
+    self.elantra_hev_2024_previous_cruise_enabled = False
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -520,7 +521,8 @@ class Controls:
     elif self.CP.carFingerprint == HYUNDAI_CAR.HYUNDAI_ELANTRA_HEV_2024:
       always_on_lateral_enabled = self.sm['starpilotCarState'].alwaysOnLateralEnabled
       lateral_requested = (CC.enabled and self.sm['selfdriveState'].active) or always_on_lateral_enabled
-      if not lateral_requested:
+      cruise_reenabled = CS.cruiseState.enabled and not self.elantra_hev_2024_previous_cruise_enabled
+      if not lateral_requested or cruise_reenabled:
         self.elantra_hev_2024_lateral_faulted = False
       elif CS.steerFaultTemporary:
         self.elantra_hev_2024_lateral_faulted = True
@@ -532,6 +534,7 @@ class Controls:
         self.sm['starpilotPlan'].lateralCheck,
         self.elantra_hev_2024_lateral_faulted,
       )
+      self.elantra_hev_2024_previous_cruise_enabled = CS.cruiseState.enabled
     else:
       CC.latActive = get_lateral_active(CC.enabled, self.sm['selfdriveState'].active,
                                         self.sm['starpilotCarState'].alwaysOnLateralEnabled,

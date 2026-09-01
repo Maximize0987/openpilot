@@ -62,6 +62,8 @@ THRESHOLD = 1 - 1 / math.e                # Requires the condition to be true fo
 
 NON_DRIVING_GEARS = [GearShifter.neutral, GearShifter.park, GearShifter.reverse, GearShifter.unknown]
 
+ALWAYS_ON_LATERAL_UNSUPPORTED_CAR_MAKES = frozenset({"volvo"})
+
 # Temporary fallback until the weather-compatible API is hosted locally.
 STARPILOT_API = os.getenv("STARPILOT_API", "https://frogpilot.com/api")
 
@@ -327,6 +329,11 @@ def default_ev_tuning_enabled(CP):
   ev_vehicle = gm_ev_vehicle or (car_make == "hyundai" and car_model in HYUNDAI_EV_CAR)
   ev_vehicle |= getattr(CP, "transmissionType", None) == car.CarParams.TransmissionType.direct
   return bool(ev_vehicle)
+
+
+def always_on_lateral_available(CP) -> bool:
+  return getattr(CP, "brand", None) not in ALWAYS_ON_LATERAL_UNSUPPORTED_CAR_MAKES
+
 
 def get_starpilot_toggles(sm=messaging.SubMaster(["starpilotPlan"]), *, read_persisted_force_params=False):
   toggles_text = sm["starpilotPlan"].starpilotToggles
@@ -810,7 +817,7 @@ class StarPilotVariables:
     toggle.warningSoft_volume = self.get_value("WarningSoftVolume", cast=float, condition=toggle.alert_volume_controller)
     toggle.warningImmediate_volume = max(self.get_value("WarningImmediateVolume", cast=float, condition=toggle.alert_volume_controller, default=25), 25)
 
-    toggle.always_on_lateral = self.get_value("AlwaysOnLateral")
+    toggle.always_on_lateral = self.get_value("AlwaysOnLateral") and always_on_lateral_available(CP)
     lkas_button_assigned_to_aol = self.get_button_function("LKASButtonControl") == BUTTON_FUNCTIONS["AOL_TOGGLE"]
     toggle.ford_lkas_aol_toggle = toggle.car_make == "ford" and lkas_button_assigned_to_aol
     toggle.always_on_lateral_lkas = (

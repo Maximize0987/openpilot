@@ -16,7 +16,12 @@ from openpilot.starpilot.common.experimental_state import (
   sync_manual_ce_state,
 )
 from openpilot.starpilot.common.favorite_slots import FAVORITE_ACTION_TRAFFIC_MODE_COUNTER, toggle_favorite_slot
-from openpilot.starpilot.common.starpilot_variables import ERROR_LOGS_PATH, GearShifter, NON_DRIVING_GEARS
+from openpilot.starpilot.common.starpilot_variables import (
+  ERROR_LOGS_PATH,
+  GearShifter,
+  NON_DRIVING_GEARS,
+  always_on_lateral_available,
+)
 from openpilot.starpilot.common.lateral_only_experimental import experimental_mode_available
 from openpilot.starpilot.system.wheel_controls import (
   CONTROLLER_ACTION_COUNTERS,
@@ -36,6 +41,7 @@ class StarPilotCard:
 
   def __init__(self, CP, FPCP):
     self.CP = CP
+    self.always_on_lateral_supported = always_on_lateral_available(CP)
 
     self.params = Params(return_defaults=True)
     self.params_memory = Params(memory=True)
@@ -84,7 +90,10 @@ class StarPilotCard:
     self._distance_poll_counter = 0
     self._onroad_distance_pressed = False
 
-    self.always_on_lateral_set = bool(FPCP.alternativeExperience & ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL)
+    self.always_on_lateral_set = (
+      self.always_on_lateral_supported and
+      bool(FPCP.alternativeExperience & ALTERNATIVE_EXPERIENCE.ALWAYS_ON_LATERAL)
+    )
     self.long_press_threshold = CRUISE_LONG_PRESS
     self.very_long_press_threshold = CRUISE_LONG_PRESS * 5
 
@@ -230,9 +239,11 @@ class StarPilotCard:
       ]
 
     button_event_types = [self._button_type_raw(be) for be in carState.buttonEvents]
-    button_aol_supported = self.CP.brand == "hyundai" or starpilot_toggles.lkas_allowed_for_aol
+    button_aol_supported = self.always_on_lateral_supported and (
+      self.CP.brand == "hyundai" or starpilot_toggles.lkas_allowed_for_aol
+    )
     if getattr(self.CP, "carFingerprint", None) == HYUNDAI_CAR.HYUNDAI_SONATA_HYBRID:
-      button_aol_supported = bool(starpilot_toggles.lkas_allowed_for_aol)
+      button_aol_supported = self.always_on_lateral_supported and bool(starpilot_toggles.lkas_allowed_for_aol)
     button_managed_aol = starpilot_toggles.always_on_lateral_lkas or (button_aol_supported and starpilot_toggles.main_cruise_aol_toggle)
     g70_main_cruise_aol_managed = (
       getattr(self.CP, "carFingerprint", None) == HYUNDAI_CAR.GENESIS_G70_2020
@@ -318,6 +329,9 @@ class StarPilotCard:
     self.prev_active = sm["selfdriveState"].active
     self.prev_cruise_enabled = carState.cruiseState.enabled
     self.prev_cruise_available = carState.cruiseState.available
+
+    if not self.always_on_lateral_supported:
+      self.always_on_lateral_allowed = False
 
     self.always_on_lateral_enabled = self.always_on_lateral_allowed and self.always_on_lateral_set
     self.always_on_lateral_enabled &= carState.gearShifter not in NON_DRIVING_GEARS

@@ -175,6 +175,17 @@ class TestVolvoSafetyBase(common.CarSafetyTest):
     self.assertTrue(self._tx(self._angle_cmd_msg(10)))
     self.assertFalse(self._tx(self._angle_cmd_msg(20)))
 
+  def test_angle_tx_rate_matches_controller_cadence(self):
+    """LCA_5 is 50 Hz, so each frame may contain two 100 Hz controller steps."""
+    self._reset_speed_measurement(50)
+    self.safety.set_controls_allowed(True)
+
+    self.safety.set_desired_angle_last(0)
+    self.assertTrue(self._tx(self._angle_cmd_msg(0.4)))
+
+    self.safety.set_desired_angle_last(round(0.4 / 0.05596))
+    self.assertFalse(self._tx(self._angle_cmd_msg(0.9)))
+
   def test_lca_authority_is_bounded(self):
     self.safety.set_controls_allowed(True)
     valid = {

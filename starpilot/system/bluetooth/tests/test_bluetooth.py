@@ -39,6 +39,9 @@ class FakeAgent:
   def __init__(self):
     self.responses = []
 
+  def set_auto_accept_incoming(self, _enabled):
+    pass
+
   def respond(self, prompt_id, accepted, value):
     self.responses.append((prompt_id, accepted, value))
     return prompt_id == "prompt"
@@ -48,6 +51,7 @@ class FakeBlueZ:
   def __init__(self):
     self.agent = FakeAgent()
     self.powered = False
+    self.discoverable = False
     self.discovering = False
     self.closed = False
     self.actions = []
@@ -66,6 +70,9 @@ class FakeBlueZ:
 
   def set_powered(self, powered):
     self.powered = powered
+
+  def set_discoverable(self, discoverable):
+    self.discoverable = discoverable
 
   def status(self):
     return {"powered": self.powered, "discovering": self.discovering, "devices": [dict(self.device)], "prompt": None}

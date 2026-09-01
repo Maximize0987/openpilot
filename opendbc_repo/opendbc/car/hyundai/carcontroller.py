@@ -470,6 +470,7 @@ class CarController(CarControllerBase):
     self._dash_lat_disengage_blink_frame = 0
     self._dash_lat_disengage_init = False
     self._dash_prev_lat_active = False
+    self._ray_lkas11_active = False
 
   def _update_dash_icon_state(self, CC):
     if CC.latActive:
@@ -769,10 +770,13 @@ class CarController(CarControllerBase):
                                                                   hud_control.leftLaneVisible, hud_control.rightLaneVisible,
                                                                   left_lane_warning, right_lane_warning, CS.msg_364))
     else:
-      can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.CP, apply_torque, apply_steer_req,
-                                                torque_fault, CS.lkas11, sys_warning, sys_state, CC.enabled,
-                                                hud_control.leftLaneVisible, hud_control.rightLaneVisible,
-                                                left_lane_warning, right_lane_warning, lka_icon))
+      if self.CP.carFingerprint != CAR.KIA_RAY_EV or self._ray_lkas11_active:
+        can_sends.append(hyundaican.create_lkas11(self.packer, self.frame, self.CP, apply_torque, apply_steer_req,
+                                                  torque_fault, CS.lkas11, sys_warning, sys_state, CC.enabled,
+                                                  hud_control.leftLaneVisible, hud_control.rightLaneVisible,
+                                                  left_lane_warning, right_lane_warning, lka_icon))
+      if self.CP.carFingerprint == CAR.KIA_RAY_EV:
+        self._ray_lkas11_active = True
 
     # Button messages
     if not self.long_active_ecu:
