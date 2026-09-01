@@ -56,30 +56,30 @@
   },
   {
     "name": "boot",
-    "url": "https://files.firestar.link/x/8zeqerkmm0o8/boot22.img.xz",
+    "url": "https://files.firestar.link/x/n2jco20tm4oh/boot23.img.xz",
     "fallback_urls": [
-      "https://files-east.firestar.link/x/nr1mkyo9pc3t/boot22.img.xz"
+      "https://files-east.firestar.link/x/rjthk2ij2j8a/boot23.img.xz"
     ],
-    "hash": "1d9053a37ceaba0554df53d3737874b20b4b3434dc7b50ccbb18d1a0e9e12b62",
-    "hash_raw": "1d9053a37ceaba0554df53d3737874b20b4b3434dc7b50ccbb18d1a0e9e12b62",
+    "hash": "e0cae2edf9953ba5b94ffd868d74a9b8ab4fa253625e7120641b49d6e7052586",
+    "hash_raw": "e0cae2edf9953ba5b94ffd868d74a9b8ab4fa253625e7120641b49d6e7052586",
     "size": 48302080,
     "sparse": false,
     "full_check": true,
     "has_ab": true,
-    "ondevice_hash": "fb3e364add23d3f2e1a830d399d9fadfa2deabca5ad5c1192474a47855ad0b0f"
+    "ondevice_hash": "e0cae2edf9953ba5b94ffd868d74a9b8ab4fa253625e7120641b49d6e7052586"
   },
   {
     "name": "system",
-    "url": "https://files.firestar.link/x/7usmdhczabkc/system22.img.xz",
+    "url": "https://files.firestar.link/x/5y3tzu7fic02/system23.img.xz",
     "fallback_urls": [
-      "https://files-east.firestar.link/x/wofvq9aaqpjj/system22.img.xz"
+      "https://files-east.firestar.link/x/nuxu72xr6z2y/system23.img.xz"
     ],
-    "hash": "b1c118fd4d94c17a9a4a75e17fd806b0dfd45a0e0967c51f7b4b3232e75a774a",
-    "hash_raw": "d66df96f7098d147a12fbd306af75c93d80995c3bd31ad58f9953ba78b3e2ed8",
+    "hash": "a896e86181114e32b028dc08a27c16571a9f58a120af50018d0a410323013ce7",
+    "hash_raw": "a896e86181114e32b028dc08a27c16571a9f58a120af50018d0a410323013ce7",
     "size": 4718592000,
-    "sparse": true,
+    "sparse": false,
     "full_check": false,
     "has_ab": true,
-    "ondevice_hash": "9c7ebd0447aaca0785326ecff695b2f12e2ed05c8ca05008ed6a19e1208ee6cf"
+    "ondevice_hash": "a896e86181114e32b028dc08a27c16571a9f58a120af50018d0a410323013ce7"
   }
 ]
