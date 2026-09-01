@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from opendbc.car.ford.values import CAR
 from ..lateral import HANDOFF_PAUSE_FRAMES, HANDOFF_PAUSE_MIN_FRAMES, FordLateralController, HumanTurnDetector
 
 
@@ -63,6 +64,17 @@ def test_curvature_lookahead_tracks_bounded_live_delay(controller):
 
   controller.sm["liveDelay"].lateralDelay = 0.6
   assert controller._curvature_lookahead() == pytest.approx(0.4)
+
+
+def test_explorer_curvature_lookahead_does_not_follow_actuator_delay(monkeypatch):
+  messaging = SimpleNamespace(SubMaster=FakeSubMaster)
+  monkeypatch.setitem(sys.modules, "cereal.messaging", messaging)
+  CP = SimpleNamespace(flags=0, carFingerprint=CAR.FORD_EXPLORER_MK6)
+  controller = FordLateralController(CP)
+  controller.sm = FakeSubMaster(["modelV2", "liveDelay"])
+  controller.sm["liveDelay"].lateralDelay = 0.42
+
+  assert controller._curvature_lookahead() == pytest.approx(0.20)
 
 
 def test_curvature_strategy_uses_learned_lookahead(controller, monkeypatch):

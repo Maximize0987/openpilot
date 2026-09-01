@@ -813,7 +813,7 @@ class TestHyundaiFingerprint:
 
   @pytest.mark.parametrize("candidate, tracks_main_cruise", (
     (CAR.HYUNDAI_ELANTRA_2021, False),
-    (CAR.HYUNDAI_ELANTRA_HEV_2024, False),
+    (CAR.HYUNDAI_ELANTRA_HEV_2024, True),
     (CAR.HYUNDAI_SONATA_HYBRID, False),
   ))
   def test_legacy_hyundai_long_main_cruise_tracking_is_vehicle_specific(self, candidate, tracks_main_cruise):
@@ -1552,6 +1552,20 @@ class TestHyundaiFingerprint:
 
     ret = update(0, 3)
     assert any(be.type == ButtonType.lkas and not be.pressed for be in ret.buttonEvents)
+
+  def test_elantra_hev_lkas_button_keeps_a_short_parser_cycle_edge(self):
+    car_state = CarState.__new__(CarState)
+    car_state.CP = SimpleNamespace(carFingerprint=CAR.HYUNDAI_ELANTRA_HEV_2024)
+    car_state.lda_button = 0
+    parser_cycle = SimpleNamespace(vl_all={
+      "CLU13": {"CF_Clu_LdwsLkasSW": [0]},
+      "BCM_PO_11": {"LDA_BTN": [1, 0]},
+    })
+
+    events = car_state.create_lkas_button_events(parser_cycle, 0)
+
+    assert any(be.type == ButtonType.lkas and be.pressed for be in events)
+    assert car_state.lda_button == 1
 
   def test_sonata_hybrid_uses_main_bus_lkas_parser(self):
     toggles = get_test_toggles()

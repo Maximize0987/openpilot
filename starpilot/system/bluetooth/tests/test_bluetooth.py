@@ -39,9 +39,6 @@ class FakeAgent:
   def __init__(self):
     self.responses = []
 
-  def set_auto_accept_incoming(self, _enabled):
-    pass
-
   def respond(self, prompt_id, accepted, value):
     self.responses.append((prompt_id, accepted, value))
     return prompt_id == "prompt"
@@ -56,6 +53,7 @@ class FakeBlueZ:
     self.closed = False
     self.actions = []
     self.device = {
+      "path": "/fake/device",
       "address": "00:11:22:33:44:55",
       "name": "Speaker",
       "paired": True,
@@ -87,7 +85,7 @@ class FakeBlueZ:
   def device_for_address(self, _address):
     return dict(self.device)
 
-  def pair(self, address):
+  def pair(self, address, _device_path=None):
     self.actions.append(("pair", address))
 
   def connect(self, address):
@@ -177,6 +175,8 @@ def test_pairing_list_filters_anonymous_and_irrelevant_advertisements():
   assert not show_pairing_device("00:11:22:33:44:55", "00:11:22:33:44:55", False, False, False, False, False, False)
   assert not show_pairing_device("00:11:22:33:44:55", "Nearby sensor", False, False, False, False, False, False)
   assert show_pairing_device("00:11:22:33:44:55", "Media Remote", False, False, False, False, False, True)
+  assert show_pairing_device("00:11:22:33:44:55", "Media Remote", False, False, False, False, False, True, True)
+  assert not show_pairing_device("00:11:22:33:44:55", "Nearby sensor", False, False, False, False, False, False, True)
   assert show_pairing_device("00:11:22:33:44:55", "Known device", True, True, False, False, False, False)
 
 

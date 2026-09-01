@@ -173,8 +173,10 @@ class CarState(CarStateBase):
     # Main button also can trigger an engagement on these cars
     return any(btn in ENABLE_BUTTONS for btn in self.cruise_buttons) or any(self.main_buttons)
 
-  def update_main_cruise(self, ret: structs.CarState) -> bool:
-    if any(be.type == ButtonType.mainCruise and be.pressed for be in ret.buttonEvents):
+  def update_main_cruise(self, ret: structs.CarState,
+                         button_events: list[structs.CarState.ButtonEvent] | None = None) -> bool:
+    button_events = ret.buttonEvents if button_events is None else button_events
+    if any(be.type == ButtonType.mainCruise and be.pressed for be in button_events):
       self.main_cruise_on = not self.main_cruise_on
 
     return bool(ret.cruiseState.available and self.main_cruise_on)
@@ -244,6 +246,13 @@ class CarState(CarStateBase):
       self.lda_button = int(cp.vl["BCM_PO_11"]["LDA_BTN"]) if cp.ts_nanos["BCM_PO_11"]["LDA_BTN"] > 0 else 0
     elif self.CP.carFingerprint == CAR.HYUNDAI_SONATA_HYBRID:
       self.lda_button = self.get_sonata_hybrid_lkas_button_state(cp)
+    elif self.CP.carFingerprint == CAR.HYUNDAI_ELANTRA_HEV_2024:
+      lda_samples = [
+        *cp.vl_all["CLU13"]["CF_Clu_LdwsLkasSW"],
+        *cp.vl_all["BCM_PO_11"]["LDA_BTN"],
+      ]
+      if lda_samples:
+        self.lda_button = int(any(lda_samples))
     else:
       source_states = (
         int(cp.vl["CLU13"]["CF_Clu_LdwsLkasSW"]) if cp.ts_nanos["CLU13"]["CF_Clu_LdwsLkasSW"] > 0 else 0,
@@ -327,6 +336,15 @@ class CarState(CarStateBase):
     ret.steeringPressed = self.update_steering_pressed(abs(ret.steeringTorque) > self.params.STEER_THRESHOLD, 5)
     ret.steerFaultTemporary = cp.vl["MDPS12"]["CF_Mdps_ToiUnavail"] != 0 or cp.vl["MDPS12"]["CF_Mdps_ToiFlt"] != 0
 
+    prev_cruise_buttons = self.cruise_buttons[-1]
+    prev_main_buttons = self.main_buttons[-1]
+    prev_lda_button = self.lda_button
+    main_button_events = []
+    if self.main_cruise_tracking:
+      self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
+      self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
+      main_button_events = create_button_events(self.main_buttons[-1], prev_main_buttons, {1: ButtonType.mainCruise})
+
     # cruise state
     no_scc = bool(self.CP.flags & HyundaiFlags.NON_SCC)
     if self.CP.carFingerprint == CAR.KIA_RAY_EV:
@@ -351,6 +369,9 @@ class CarState(CarStateBase):
       ret.cruiseState.standstill = cp_cruise.vl[scc_msg]["SCCInfoDisplay"] == 4.
       ret.cruiseState.nonAdaptive = cp_cruise.vl[scc_msg]["SCCInfoDisplay"] == 2.  # Shows 'Cruise Control' on dash
       ret.cruiseState.speed = cp_cruise.vl[scc_msg]["VSetDis"] * speed_conv
+
+    if self.CP.openpilotLongitudinalControl and self.main_cruise_tracking:
+      ret.cruiseState.available = self.update_main_cruise(ret, main_button_events)
 
     if self.CP.flags & HyundaiFlags.CAN_CANFD_BLENDED:
       if self.CP.flags & HyundaiFlags.CANFD_LKA_STEERING:
@@ -421,19 +442,18 @@ class CarState(CarStateBase):
       self.lkas11 = copy.copy(cp_cam.vl["LKAS11"])
     self.clu11 = copy.copy(cp.vl["CLU11"])
     self.steer_state = cp.vl["MDPS12"]["CF_Mdps_ToiActive"]  # 0 NOT ACTIVE, 1 ACTIVE
-    prev_cruise_buttons = self.cruise_buttons[-1]
-    prev_main_buttons = self.main_buttons[-1]
-    prev_lda_button = self.lda_button
+    if not self.main_cruise_tracking:
+      self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
+      self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
+      main_button_events = create_button_events(self.main_buttons[-1], prev_main_buttons, {1: ButtonType.mainCruise})
     lkas_button_events = []
-    self.cruise_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwState"])
-    self.main_buttons.extend(cp.vl_all["CLU11"]["CF_Clu_CruiseSwMain"])
     if self.CP.carFingerprint in ALT_BUS_LDA_BUTTON_CARS and cp_alt is not None and self.get_alt_bus_lda_button_raw_state(cp_alt)[1] > 0:
       lkas_button_events = self.create_alt_bus_lda_button_events(cp_alt)
     else:
       lkas_button_events = self.create_lkas_button_events(cp, prev_lda_button)
 
     ret.buttonEvents = [*self.create_cruise_button_events(self.cruise_buttons[-1], prev_cruise_buttons),
-                        *create_button_events(self.main_buttons[-1], prev_main_buttons, {1: ButtonType.mainCruise}),
+                        *main_button_events,
                         *lkas_button_events]
 
     ret.blockPcmEnable = not self.recent_button_interaction()

@@ -100,7 +100,7 @@ def show_pairing_device(address: str, name: str, paired: bool, trusted: bool, co
   normalized_address = "".join(character for character in address.upper() if character.isalnum())
   normalized_name = "".join(character for character in name.upper() if character.isalnum())
   named = bool(name) and name != "Unknown device" and normalized_name != normalized_address
-  return known or (named and not blocked and (audio or controller or discovering))
+  return known or (named and not blocked and (audio or controller))
 
 
 class _DesktopFakeBluetooth:

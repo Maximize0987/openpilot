@@ -78,6 +78,14 @@ def get_lateral_active(enabled: bool, active: bool, always_on_lateral_enabled: b
          not steer_fault_latched and (not standstill or steer_at_standstill) and lateral_check
 
 
+def update_lateral_fault_latch(previous_latched: bool, lateral_requested: bool,
+                               steer_fault_temporary: bool, reset: bool = False) -> bool:
+  """Keep a temporary-fault latch until lateral is no longer requested or reset explicitly."""
+  if not lateral_requested or reset:
+    return False
+  return previous_latched or steer_fault_temporary
+
+
 def get_kona_non_scc_lateral_active(enabled: bool, active: bool, always_on_lateral_enabled: bool,
                                     steer_fault_temporary: bool, steer_fault_permanent: bool,
                                     standstill: bool, steer_at_standstill: bool, lateral_check: bool,

@@ -17,7 +17,6 @@ OFFROAD_COMMANDS = {"set_power", "start_scan", "stop_scan", "pair", "forget", "t
 SCAN_DURATION = 20.0
 AUDIO_TEST_START_DELAY = 3.0
 AUDIO_TEST_HOLD_TIME = 3.0
-SCAN_RESULT_TTL = 30.0
 
 
 class BluetoothController:
@@ -33,7 +32,6 @@ class BluetoothController:
     self._pairing_error = ""
     self._last_reconnect = 0.0
     self._scan_deadline = 0.0
-    self._recent_devices: dict[str, tuple[dict[str, Any], float]] = {}
     self._audio_test_deadline = 0.0
     self._sleep = sleep
     self.params.remove("BluetoothAudioTestActive")
@@ -60,7 +58,6 @@ class BluetoothController:
         self._radio.start()
         self._bluez = self._bluez_factory()
         self._bluez.set_powered(True)
-        self._bluez.agent.set_auto_accept_incoming(self._offroad())
         try:
           self._bluez.set_discoverable(True)
         except Exception as error:
@@ -78,24 +75,6 @@ class BluetoothController:
 
   def _offroad(self) -> bool:
     return self.params.get_bool("IsOffroad")
-
-  def _merge_recent_devices(self, result: dict[str, Any]) -> None:
-    now = time.monotonic()
-    current = {str(device.get("address", "")).upper() for device in result["devices"]}
-    if result["discovering"]:
-      for device in result["devices"]:
-        address = str(device.get("address", "")).upper()
-        if address:
-          self._recent_devices[address] = (dict(device), now + SCAN_RESULT_TTL)
-      return
-
-    for address, (device, expires) in list(self._recent_devices.items()):
-      if expires <= now:
-        self._recent_devices.pop(address, None)
-      elif address not in current:
-        result["devices"].append(dict(device))
-    result["devices"].sort(key=lambda device: (not device["connected"], not device["paired"],
-                                                    -(device["rssi"] or -127), device["name"].lower()))
 
   def status(self) -> dict[str, Any]:
     # Status lazily initializes the radio, so serialize it with power changes.
@@ -117,8 +96,6 @@ class BluetoothController:
       try:
         result.update(self._client().status())
         result["available"] = True
-        self._bluez.agent.set_auto_accept_incoming(result["offroad"])
-        self._merge_recent_devices(result)
         prompt = result.get("prompt")
         if prompt is not None and self._pairing_address:
           prompt["address"] = self._pairing_address
@@ -145,6 +122,10 @@ class BluetoothController:
       self._pairing_error = str(error)
       cloudlog.exception("Bluetooth pairing failed")
     finally:
+      try:
+        self._client().stop_discovery()
+      except Exception:
+        pass
       self._pairing_address = ""
 
   def _test_audio_worker(self, address: str, deadline: float) -> None:
@@ -196,7 +177,6 @@ class BluetoothController:
             self._radio.stop()
             self.params.put_bool("BluetoothEnabled", False)
             self._scan_deadline = 0.0
-            self._recent_devices.clear()
     elif command == "start_scan":
       if not self.params.get_bool("BluetoothEnabled"):
         raise RuntimeError("Enable Bluetooth before scanning")
@@ -210,11 +190,6 @@ class BluetoothController:
       if self._pairing_address:
         raise RuntimeError("Another Bluetooth device is already pairing")
       device = self._client().device_for_address(address)
-      try:
-        self._client().stop_discovery()
-      except Exception as error:
-        cloudlog.warning(f"Bluetooth discovery stop before pairing failed: {error}")
-      self._scan_deadline = 0.0
       self._pairing_address = address
       self._pairing_error = ""
       threading.Thread(target=self._pair_worker, args=(address, device["path"]), daemon=True).start()
@@ -224,7 +199,6 @@ class BluetoothController:
       self._client().disconnect(address)
     elif command == "forget":
       self._client().remove(address)
-      self._recent_devices.pop(address.upper(), None)
       if (self.params.get("BluetoothAudioAddress", encoding="utf-8") or "").upper() == address.upper():
         self.params.remove("BluetoothAudioAddress")
     elif command == "select_audio":

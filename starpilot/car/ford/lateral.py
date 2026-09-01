@@ -29,6 +29,9 @@ PATH_ANGLE_MAX = 0.5235
 STEER_DT = CarControllerParams.STEER_STEP * DT_CTRL
 CURVATURE_LOOKAHEAD_MIN = 0.20
 CURVATURE_LOOKAHEAD_MAX = 0.40
+FORD_CURVATURE_LOOKAHEAD = {
+  CAR.FORD_EXPLORER_MK6: 0.20,
+}
 ANGLE_HANDOFF_PRESS_SECONDS = 0.5
 HANDOFF_PAUSE_MIN_FRAMES = 3
 HANDOFF_PAUSE_FRAMES = 6
@@ -173,6 +176,8 @@ class FordLateralController:
     return float(np.interp(lookup_time, ModelConstants.T_IDXS, curvatures))
 
   def _curvature_lookahead(self) -> float:
+    if self.CP.carFingerprint in FORD_CURVATURE_LOOKAHEAD:
+      return FORD_CURVATURE_LOOKAHEAD[self.CP.carFingerprint]
     if self.sm is None:
       return CURVATURE_LOOKAHEAD_MIN
     live_delay = float(self.sm["liveDelay"].lateralDelay)

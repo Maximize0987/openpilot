@@ -21,6 +21,7 @@ from openpilot.selfdrive.controls.lib.drive_helpers import (
   clip_curvature,
   get_kona_non_scc_lateral_active,
   get_lateral_active,
+  update_lateral_fault_latch,
 )
 from openpilot.selfdrive.controls.lib.lane_centering import LaneCenteringController
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
@@ -522,10 +523,12 @@ class Controls:
       always_on_lateral_enabled = self.sm['starpilotCarState'].alwaysOnLateralEnabled
       lateral_requested = (CC.enabled and self.sm['selfdriveState'].active) or always_on_lateral_enabled
       cruise_reenabled = CS.cruiseState.enabled and not self.elantra_hev_2024_previous_cruise_enabled
-      if not lateral_requested or cruise_reenabled:
-        self.elantra_hev_2024_lateral_faulted = False
-      elif CS.steerFaultTemporary:
-        self.elantra_hev_2024_lateral_faulted = True
+      self.elantra_hev_2024_lateral_faulted = update_lateral_fault_latch(
+        self.elantra_hev_2024_lateral_faulted,
+        lateral_requested,
+        CS.steerFaultTemporary,
+        reset=cruise_reenabled,
+      )
       CC.latActive = get_lateral_active(
         CC.enabled, self.sm['selfdriveState'].active,
         always_on_lateral_enabled,
