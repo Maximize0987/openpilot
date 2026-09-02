@@ -427,6 +427,18 @@ def test_hyundai_starpilot_rx_sources():
   safety.safety_rx_hook(libsafety_py.make_CANPacket(0x421, 0, bytes(8)))
 
 
+def test_hyundai_lkas12_tx_requires_stock_camera_message():
+  safety = libsafety_py.libsafety
+  assert safety.set_safety_hooks(CarParams.SafetyModel.hyundai, 0) == 0
+  safety.init_tests()
+
+  lkas12 = libsafety_py.make_CANPacket(0x53E, 0, bytes(6))
+  assert not safety.safety_tx_hook(lkas12)
+
+  safety.safety_rx_hook(libsafety_py.make_CANPacket(0x53E, 2, bytes(6)))
+  assert safety.safety_tx_hook(lkas12)
+
+
 class TestHyundaiLongitudinalSafety(HyundaiLongitudinalBase, TestHyundaiSafety):
   TX_MSGS = [[0x340, 0], [0x4F1, 0], [0x485, 0], [0x420, 0], [0x421, 0], [0x50A, 0], [0x389, 0], [0x4A2, 0], [0x38D, 0], [0x483, 0], [0x7D0, 0]]
 

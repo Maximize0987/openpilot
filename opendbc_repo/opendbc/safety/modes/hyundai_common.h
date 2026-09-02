@@ -63,6 +63,9 @@ bool hyundai_cancel_button_enable = false;
 extern bool hyundai_can_refresh_msgs;
 bool hyundai_can_refresh_msgs = false;
 
+extern bool hyundai_has_lkas12;
+bool hyundai_has_lkas12 = false;
+
 extern bool hyundai_elantra_hev_2024;
 bool hyundai_elantra_hev_2024 = false;
 
@@ -106,6 +109,7 @@ void hyundai_common_init(uint16_t param) {
   hyundai_non_scc = GET_FLAG(param, HYUNDAI_PARAM_NON_SCC);
   hyundai_cancel_button_enable = GET_FLAG(param, HYUNDAI_PARAM_CANCEL_BTN_ENABLE);
   hyundai_can_refresh_msgs = GET_FLAG(param, HYUNDAI_PARAM_CAN_REFRESH_MSGS);
+  hyundai_has_lkas12 = false;
   hyundai_elantra_hev_2024 = hyundai_can_refresh_msgs && hyundai_hybrid_gas_signal && hyundai_camera_scc;
   hyundai_aol_main_lkas_sync = false;
 

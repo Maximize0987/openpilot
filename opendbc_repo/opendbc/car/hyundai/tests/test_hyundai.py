@@ -570,6 +570,41 @@ class TestHyundaiFingerprint:
     assert not (CP.flags & HyundaiFlags.CANFD_LKA_STEERING)
     assert bool(CP.flags & HyundaiFlags.CANFD_CAMERA_SCC)
 
+  def test_ioniq_6_filters_stock_driver_attention_warning(self):
+    CP = CarParams.new_message()
+    CP.carFingerprint = CAR.HYUNDAI_IONIQ_6
+    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CANFD_LKA_STEERING |
+                   HyundaiFlags.CANFD_LKA_STEERING_ALT)
+    CP.openpilotLongitudinalControl = False
+
+    controller = CarController(DBC[CP.carFingerprint], CP)
+    controller.frame = 1
+    can_bus = CanBus(CP)
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("FR_CMR_01_10ms", 0)], can_bus.ECAN)
+    stock_daw_msg = {
+      "FR_CMR_AlvCnt1Val": 7,
+      "DAW_SysSta": 6,
+      "DAW_WrnMsgSta": 1,
+      "HBA_IndLmpReq": 2,
+    }
+    cc = SimpleNamespace(enabled=True, latActive=True,
+                         actuators=SimpleNamespace(longControlState=LongCtrlState.off),
+                         leftBlinker=False, rightBlinker=False, hudControl=SimpleNamespace())
+    cs = SimpleNamespace(stock_lfa_msg=None, stock_lkas_msg={}, lfa_block_msg={}, stock_daw_msg=stock_daw_msg,
+                         out=SimpleNamespace(steeringAngleDeg=0.0, gearShifter=structs.CarState.GearShifter.drive))
+
+    msgs = controller.create_canfd_msgs(0, True, 0.0, 0.0, 0.0, 0.0, False, cc.hudControl, cs, cc,
+                                        get_test_toggles(), lka_icon=2, lfa_icon=2)
+    daw_msgs = [msg for msg in msgs if msg[0] == 0x11A]
+    assert len(daw_msgs) == 1
+
+    parser.update([(1, daw_msgs)])
+
+    assert parser.can_valid
+    assert parser.vl["FR_CMR_01_10ms"]["DAW_SysSta"] == 6
+    assert parser.vl["FR_CMR_01_10ms"]["DAW_WrnMsgSta"] == 0
+    assert parser.vl["FR_CMR_01_10ms"]["HBA_IndLmpReq"] == 2
+
   def test_ioniq_6_clears_torque_with_inactive_safety_request(self):
     ioniq_6_cp = SimpleNamespace(carFingerprint=CAR.HYUNDAI_IONIQ_6)
     other_cp = SimpleNamespace(carFingerprint=CAR.KIA_EV6)
@@ -826,6 +861,37 @@ class TestHyundaiFingerprint:
 
     palisade_2023 = CarInterface.get_params(CAR.HYUNDAI_PALISADE_2023, gen_empty_fingerprint(), [], True, False, False, None)
     assert palisade_2023.safetyConfigs[-1].safetyParam & HyundaiStarPilotSafetyFlags.HAS_LDA_BUTTON
+
+  def test_lkas12_da_warning_is_filtered_for_camera_fingerprint(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x53E] = 6
+    CP = CarInterface.get_params(CAR.HYUNDAI_SONATA_HYBRID, fingerprint, [], False, False, False, None)
+    FPCP = CarInterface.get_starpilot_params(CAR.HYUNDAI_SONATA_HYBRID, fingerprint, [], CP, get_test_toggles())
+    assert FPCP.flags & HyundaiStarPilotFlags.HAS_LKAS12
+
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    stock = {
+      "CF_Lkas_TsrSlifOpt": 3,
+      "CF_LkasTsrStatus": 2,
+      "CF_Lkas_TsrSpeed_Display_Clu": 80,
+      "CF_LkasTsrSpeed_Display_Navi": 70,
+      "CF_Lkas_TsrAddinfo_Display": 1,
+      "CF_Lkas_Daw_USM": 0,
+      "CF_LkasDawStatus": 1,
+    }
+    msg = hyundaican.create_lkas12(packer, stock)
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS12", 0)], 0)
+    parser.update([(1, [msg])])
+
+    assert parser.can_valid
+    assert parser.vl["LKAS12"]["CF_LkasDawStatus"] == 0
+    assert parser.vl["LKAS12"]["CF_Lkas_TsrSpeed_Display_Clu"] == 80
+
+    no_lkas12 = CarInterface.get_params(CAR.HYUNDAI_SONATA_HYBRID, gen_empty_fingerprint(), [], False, False, False, None)
+    no_lkas12_fpcp = CarInterface.get_starpilot_params(
+      CAR.HYUNDAI_SONATA_HYBRID, gen_empty_fingerprint(), [], no_lkas12, get_test_toggles(),
+    )
+    assert not (no_lkas12_fpcp.flags & HyundaiStarPilotFlags.HAS_LKAS12)
 
   def test_carnival_lka_button_does_not_enable_angle_steering_safety(self):
     fingerprint = gen_empty_fingerprint()

@@ -10,6 +10,7 @@ from opendbc.car.hyundai.hyundaicanfd import CanBus
 from opendbc.car.hyundai.values import HyundaiFlags, HyundaiStarPilotFlags, HyundaiStarPilotSafetyFlags, CAR, DBC, Buttons, CarControllerParams, \
                                        CANFD_ANGLE_LONGITUDINAL_CAR, CANFD_CORNER_RADAR_BSM_CAR, \
                                        CANFD_ALT_BUTTONS_RESUME_CAR, \
+                                       CANFD_DAW_SUPPRESSION_CAR, \
                                        hyundai_cancel_button_enables_cruise, ALT_BUS_LDA_BUTTON_CARS, ALT_BUS_LDA_BUTTON_SWL_STAT_CARS
 from opendbc.car.interfaces import CarStateBase
 
@@ -142,6 +143,8 @@ class CarState(CarStateBase):
     self.msg_364 = {}
     self.lfa_block_msg = {}
     self.stock_lkas_msg = {}
+    self.lkas12 = {}
+    self.stock_daw_msg = {}
     self.stock_lfa_msg = {}
     self.stock_lfahda_cluster_msg = {}
     self.stock_camera_lead_visible = False
@@ -440,6 +443,8 @@ class CarState(CarStateBase):
       self.lkas11 = {}
     else:
       self.lkas11 = copy.copy(cp_cam.vl["LKAS11"])
+    if getattr(self.FPCP, "flags", 0) & HyundaiStarPilotFlags.HAS_LKAS12:
+      self.lkas12 = copy.copy(cp_cam.vl["LKAS12"])
     self.clu11 = copy.copy(cp.vl["CLU11"])
     self.steer_state = cp.vl["MDPS12"]["CF_Mdps_ToiActive"]  # 0 NOT ACTIVE, 1 ACTIVE
     if not self.main_cruise_tracking:
@@ -610,6 +615,8 @@ class CarState(CarStateBase):
     if self.CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR and cp.ts_nanos["FR_CMR_01_10ms"]["FR_CMR_Crc1Val"] > 0:
       hba_icon = int(cp.vl["FR_CMR_01_10ms"]["HBA_IndLmpReq"])
       self.hba_icon = hba_icon if hba_icon in (1, 2) else 0
+    if self.CP.carFingerprint in CANFD_DAW_SUPPRESSION_CAR and cp.ts_nanos["FR_CMR_01_10ms"]["FR_CMR_Crc1Val"] > 0:
+      self.stock_daw_msg = copy.copy(cp.vl["FR_CMR_01_10ms"])
     if cp.ts_nanos["BLINKER_STALKS"]["CHECKSUM_MAYBE"] > 0:
       self.stock_blinker_stalks_ts = cp.ts_nanos["BLINKER_STALKS"]["CHECKSUM_MAYBE"]
 
@@ -673,7 +680,7 @@ class CarState(CarStateBase):
     ]
     if CP.enableBsm:
       msgs.append(("BLINDSPOTS_REAR_CORNERS", 0))
-    if CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR:
+    if CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR | CANFD_DAW_SUPPRESSION_CAR:
       msgs.append(("BLINDSPOTS_FRONT_CORNER_2", 0))
       msgs.append(("FR_CMR_01_10ms", 0))
     if CP.flags & HyundaiFlags.EV:
@@ -730,7 +737,7 @@ class CarState(CarStateBase):
 
     parsers = {
       Bus.pt: CANParser(DBC[CP.carFingerprint][Bus.pt], msgs, 0),
-      Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [], 2),
+      Bus.cam: CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS12", 0)], 2),
     }
     if CP.carFingerprint in ALT_BUS_LDA_BUTTON_CARS:
       parsers[Bus.alt] = CANParser(DBC[CP.carFingerprint][Bus.pt], [("CLU13", 0)], 1)

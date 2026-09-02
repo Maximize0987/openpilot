@@ -240,6 +240,9 @@ class CarInterfaceBase(ABC):
           if 0x1FA in fingerprint[CAN.ECAN]:
             fp_ret.flags |= HyundaiStarPilotFlags.SPEED_LIMIT_AVAILABLE.value
 
+        if not (CP.flags & HyundaiFlags.CANFD) and 0x53E in fingerprint[2]:
+          fp_ret.flags |= HyundaiStarPilotFlags.HAS_LKAS12.value
+
         fp_ret.redneckCruiseAvailable = bool(CP.flags & HyundaiFlags.NON_SCC) and not bool(CP.flags & HyundaiFlags.CANFD_ALT_BUTTONS)
         if fp_ret.redneckCruiseAvailable and params.get_bool("RedneckCruise"):
           fp_ret.pcmCruiseSpeed = False

@@ -568,7 +568,7 @@ class TestHyundaiCanfdLKASteeringEV(TestHyundaiCanfdBase):
 # TODO: Handle ICE and HEV configurations once we see cars that use the new messages
 class TestHyundaiCanfdLKASteeringAltEV(TestHyundaiCanfdBase):
 
-  TX_MSGS = [[0x110, 0], [0x1CF, 1], [0x362, 0]]
+  TX_MSGS = [[0x11A, 1], [0x110, 0], [0x1CF, 1], [0x362, 0]]
   RELAY_MALFUNCTION_ADDRS = {0: (0x110, 0x362)}  # LKAS_ALT, CAM_0x362
   FWD_BLACKLISTED_ADDRS = {2: [0x110, 0x362]}
 
@@ -587,7 +587,7 @@ class TestHyundaiCanfdLKASteeringAltEV(TestHyundaiCanfdBase):
 
 class TestHyundaiCanfdLKASteeringAltButtonsICE(TestHyundaiCanfdLKASteeringAltEV):
 
-  TX_MSGS = [[0x110, 0], [0x1CF, 1], [0x1A0, 1], [0x362, 0]]
+  TX_MSGS = [[0x11A, 1], [0x110, 0], [0x1CF, 1], [0x1A0, 1], [0x362, 0]]
   GAS_MSG = ("ACCELERATOR_BRAKE_ALT", "ACCELERATOR_PEDAL_PRESSED")
 
   def setUp(self):
@@ -691,7 +691,7 @@ class TestHyundaiCanfdLKASteeringLongEV(HyundaiLongitudinalBase, TestHyundaiCanf
 
 class TestHyundaiCanfdLKASteeringAltAngleLongEV(HyundaiLongitudinalBase, TestHyundaiCanfdAngleSteering):
 
-  TX_MSGS = [[0x110, 0], [0x1CF, 1], [0x362, 0], [0x51, 0], [0x100, 0], [0x730, 1], [0x12a, 1], [0x160, 1],
+  TX_MSGS = [[0x11A, 1], [0x110, 0], [0x1CF, 1], [0x362, 0], [0x51, 0], [0x100, 0], [0x730, 1], [0x12a, 1], [0x160, 1],
              [0x1ba, 1], [0x1e0, 1], [0x1e5, 1], [0x31a, 1], [0x3b5, 1], [0x3c1, 1],
              [0x1a0, 1], [0x1ea, 1], [0x200, 1], [0x345, 1], [0x1da, 1]]
 

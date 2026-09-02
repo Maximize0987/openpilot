@@ -106,6 +106,19 @@ def create_lkas11(packer, frame, CP, apply_torque, steer_req,
   return packer.make_can_msg("LKAS11", 0, values)
 
 
+def create_lkas12(packer, lkas12):
+  values = {s: lkas12[s] for s in (
+    "CF_Lkas_TsrSlifOpt",
+    "CF_LkasTsrStatus",
+    "CF_Lkas_TsrSpeed_Display_Clu",
+    "CF_LkasTsrSpeed_Display_Navi",
+    "CF_Lkas_TsrAddinfo_Display",
+    "CF_Lkas_Daw_USM",
+  ) if s in lkas12}
+  values["CF_LkasDawStatus"] = 0
+  return packer.make_can_msg("LKAS12", 0, values)
+
+
 def create_checksum_can_canfd_blended(packer, bus, addr, values):
   dat = packer.make_can_msg(addr, bus, values)[1]
   return hyundai_checksum(dat[1:8])

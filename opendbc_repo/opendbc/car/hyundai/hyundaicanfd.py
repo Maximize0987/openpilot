@@ -243,6 +243,12 @@ def create_suppress_lfa(packer, CAN, lfa_block_msg, lka_steering_alt):
   return packer.make_can_msg(suppress_msg, CAN.ACAN, values)
 
 
+def create_suppress_daw(packer, CAN, daw_msg):
+  values = copy.copy(daw_msg)
+  values["DAW_WrnMsgSta"] = 0
+  return packer.make_can_msg("FR_CMR_01_10ms", CAN.ECAN, values)
+
+
 def create_buttons(packer, CP, CAN, cnt, btn=0, base_values=None, left_paddle=False, right_paddle=False):
   values = {k: v for k, v in base_values.items() if k not in ("CHECKSUM", "_CHECKSUM", "COUNTER")} if base_values else {}
   values.update({

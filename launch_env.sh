@@ -21,7 +21,7 @@ fi
 export QCOM_PRIORITY=12
 
 if [ -z "$AGNOS_VERSION" ]; then
-  export AGNOS_VERSION="19.6.16"
+  export AGNOS_VERSION="19.6.17"
 fi
 
 if [ -z "$AGNOS_ACCEPTED_VERSIONS" ]; then
