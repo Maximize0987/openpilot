@@ -1,5 +1,5 @@
 import { html, reactive } from "/assets/vendor/arrow-core.js"
-import { galaxyPath } from "/assets/js/utils.js"
+import { escapeHtml, galaxyPath } from "/assets/js/utils.js"
 
 const state = reactive({
   loading: true,
@@ -14,6 +14,9 @@ const state = reactive({
   pairingAddress: "",
   devices: [],
   revision: 0,
+  deviceSignature: "",
+  refreshing: false,
+  lastUpdated: 0,
   prompt: null,
   audioTestAddress: "",
   audioTestLabel: "",
@@ -25,6 +28,8 @@ let audioTestTimer = null
 let pollTimer = null
 let refreshRequested = false
 let refreshPromise = null
+const POLL_INTERVAL_MS = 750
+const ACTIVE_POLL_INTERVAL_MS = 250
 
 function bluetoothPageActive() {
   const currentPath = window.location.pathname.replace(/\/+$/, "")
@@ -32,11 +37,22 @@ function bluetoothPageActive() {
   return document.querySelector(".bluetoothPage") !== null || currentPath === bluetoothPath
 }
 
-function schedulePoll() {
-  if (pollTimer !== null) return
-  pollTimer = setInterval(() => {
-    if (bluetoothPageActive() && state.busy !== "power") refresh()
-  }, 750)
+function pollDelay() {
+  return state.busy || state.discovering || state.pairingAddress ? ACTIVE_POLL_INTERVAL_MS : POLL_INTERVAL_MS
+}
+
+function schedulePoll(delay = pollDelay()) {
+  if (pollTimer !== null) clearTimeout(pollTimer)
+  pollTimer = setTimeout(async () => {
+    pollTimer = null
+    try {
+      if (bluetoothPageActive() && document.visibilityState !== "hidden" && state.busy !== "power") {
+        await refresh()
+      }
+    } finally {
+      schedulePoll()
+    }
+  }, delay)
 }
 
 function startAudioTestCountdown(address, delayMs, requestStartedAt) {
@@ -101,8 +117,20 @@ async function refreshOnce() {
   state.offroad = !!payload.offroad
   state.selectedAudio = String(payload.selected_audio || "")
   state.pairingAddress = String(payload.pairing_address || "")
-  state.devices = Array.isArray(payload.devices) ? payload.devices : []
-  state.revision++
+  const devices = Array.isArray(payload.devices) ? payload.devices : []
+  const deviceSignature = JSON.stringify({
+    enabled: state.enabled,
+    discovering: state.discovering,
+    selectedAudio: state.selectedAudio,
+    pairingAddress: state.pairingAddress,
+    devices,
+  })
+  state.devices = devices
+  if (state.deviceSignature !== deviceSignature) {
+    state.deviceSignature = deviceSignature
+    state.revision++
+  }
+  state.lastUpdated = Date.now()
   state.prompt = payload.prompt || null
   state.error = payload.error || (response.ok ? "" : "Bluetooth service unavailable")
 }
@@ -166,6 +194,7 @@ async function refresh() {
   refreshRequested = true
   if (refreshPromise !== null) return refreshPromise
 
+  state.refreshing = true
   refreshPromise = (async () => {
     while (refreshRequested) {
       refreshRequested = false
@@ -184,6 +213,7 @@ async function refresh() {
     await refreshPromise
   } finally {
     refreshPromise = null
+    state.refreshing = false
   }
 }
 
@@ -191,11 +221,12 @@ function initialize() {
   if (initialized) return
   initialized = true
   window.addEventListener("focus", refresh)
+  window.addEventListener("pageshow", refresh)
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && bluetoothPageActive()) refresh()
+    if (document.visibilityState !== "hidden" && bluetoothPageActive()) refresh()
   })
   refresh()
-  schedulePoll()
+  schedulePoll(0)
 }
 
 function normalizedAddress(device) {
@@ -291,9 +322,10 @@ function deviceRow(device) {
   `
 }
 
-function deviceSection(title, icon, devices, emptyText = "") {
+function deviceSection(title, icon, devices, emptyText = "", revision = null) {
+  const revisionAttribute = revision === null ? "" : ` data-revision="${revision}"`
   return html`
-    <section class="bluetoothSection">
+    <section class="bluetoothSection"${revisionAttribute}>
       <div class="bluetoothSectionHeader">
         <div><i class="bi ${icon}" aria-hidden="true"></i><h3>${title}</h3></div>
         <span>${devices.length}</span>
@@ -305,6 +337,77 @@ function deviceSection(title, icon, devices, emptyText = "") {
       </div>
     </section>
   `
+}
+
+function renderDisabledAttribute(disabled) {
+  return disabled ? " disabled" : ""
+}
+
+function renderDeviceActions(device) {
+  const selected = state.selectedAudio.toUpperCase() === device.address.toUpperCase()
+  const pairing = isPairing(device)
+  const address = escapeHtml(device.address)
+  const name = escapeHtml(device.name)
+  const actions = []
+  if (!device.paired) {
+    actions.push("<button data-bluetooth-operation=\"pair\" data-address=\"" + address + "\"" +
+      renderDisabledAttribute(!state.offroad || !!state.busy || pairing) + ">" + (pairing ? "Pairing…" : "Pair") + "</button>")
+  }
+  if (device.paired || device.connected) {
+    const operation = device.connected ? "disconnect" : "connect"
+    actions.push("<button data-bluetooth-operation=\"" + operation + "\" data-address=\"" + address + "\"" +
+      renderDisabledAttribute(!!state.busy) + ">" + (device.connected ? "Disconnect" : "Connect") + "</button>")
+    if (device.audio) {
+      actions.push("<button class=\"" + (selected ? "selected" : "") + "\" data-bluetooth-operation=\"select_audio\" data-address=\"" +
+        (selected ? "" : address) + "\"" + renderDisabledAttribute(!!state.busy) + ">" +
+        (selected ? "Stop Using for Audio" : "Use for Audio") + "</button>")
+      if (device.connected) {
+        const testing = state.audioTestAddress.toUpperCase() === device.address.toUpperCase() && !!state.audioTestLabel
+        actions.push("<button data-bluetooth-operation=\"test_audio\" data-address=\"" + address + "\"" +
+          renderDisabledAttribute(!state.offroad || !!state.busy || !!state.audioTestLabel) + ">" +
+          (testing ? "Test Audio: " + escapeHtml(state.audioTestLabel) : "Test Audio") + "</button>")
+      }
+    }
+    if (device.paired) {
+      actions.push("<button class=\"bluetoothIconButton bluetoothForgetButton\" data-bluetooth-operation=\"forget\" data-address=\"" +
+        address + "\" data-device-name=\"" + name + "\" title=\"Forget device\" aria-label=\"Forget " + name + "\"" +
+        renderDisabledAttribute(!state.offroad || !!state.busy) + "><i class=\"bi bi-trash3\" aria-hidden=\"true\"></i></button>")
+    }
+  }
+  return "<div class=\"bluetoothActions\">" + actions.join("") + "</div>"
+}
+
+function renderDeviceRow(device) {
+  const name = escapeHtml(device.name)
+  return "<div class=\"bluetoothDeviceRow " + (device.connected ? "connected" : "") + "\">" +
+    "<div class=\"bluetoothDeviceIcon\"><i class=\"bi " + deviceIcon(device) + "\" aria-hidden=\"true\"></i></div>" +
+    "<div class=\"bluetoothDeviceDetails\"><div class=\"bluetoothDeviceName\"><h3>" + name +
+    "</h3>" + (device.connected ? "<span class=\"bluetoothConnectedDot\" title=\"Connected\"></span>" : "") +
+    "</div><p>" + deviceCapabilities(device) + "</p><span class=\"bluetoothDeviceStatus\">" +
+    escapeHtml(deviceStatus(device)) + "</span></div>" + renderDeviceActions(device) + "</div>"
+}
+
+function renderDeviceSection(title, icon, devices, emptyText = "", revision = null) {
+  const revisionAttribute = revision === null ? "" : " data-revision=\"" + revision + "\""
+  const rows = devices.length
+    ? devices.map(renderDeviceRow).join("")
+    : "<div class=\"bluetoothEmptyState\">" + escapeHtml(emptyText) + "</div>"
+  return html(["<section class=\"bluetoothSection\"" + revisionAttribute + ">" +
+    "<div class=\"bluetoothSectionHeader\"><div><i class=\"bi " + icon + "\" aria-hidden=\"true\"></i><h3>" + title +
+    "</h3></div><span>" + devices.length + "</span></div><div class=\"bluetoothSectionBody\">" + rows +
+    "</div></section>"])
+}
+
+function handleDeviceListClick(event) {
+  const target = event.target
+  const button = target && typeof target.closest === "function"
+    ? target.closest("button[data-bluetooth-operation]")
+    : null
+  if (!button) return
+  const operation = button.dataset.bluetoothOperation
+  const address = button.dataset.address || ""
+  if (operation === "forget" && !window.confirm("Forget " + (button.dataset.deviceName || "this device") + "?")) return
+  request(operation, { address })
 }
 
 export function Bluetooth() {
@@ -348,10 +451,11 @@ export function Bluetooth() {
         <button class="bluetoothSecondaryButton" disabled="${() => !!state.busy}" @click="${refresh}">
           <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
         </button>
+        <span class="bluetoothLiveStatus" aria-live="polite">${() => state.busy ? "Updating…" : state.lastUpdated ? "Live" : ""}</span>
         <span class="bluetoothScanHint">Put a device in pairing mode before searching.</span>
       </div>
 
-      <div class="bluetoothDeviceList">
+      <div class="bluetoothDeviceList" @click="${handleDeviceListClick}">
         ${() => state.loading ? html`<div class="bluetoothLoading"><span></span><span></span><span></span></div>` : ""}
         ${() => !state.loading && !state.enabled ? html`
           <div class="bluetoothEmptyPage">
@@ -360,14 +464,12 @@ export function Bluetooth() {
             <p>Turn it on to reconnect saved devices or find something new.</p>
           </div>
         ` : ""}
-        ${() => {
-          if (state.loading || !state.enabled) return ""
-          void state.revision
-          return html`
-            ${deviceSection("My Devices", "bi-check2-circle", knownDevices(), "No saved devices yet.")}
-            ${deviceSection("Available Devices", "bi-radar", availableDevices(), state.discovering ? "Searching for nearby devices…" : "No nearby devices found. Start a search to try again.")}
-          `
-        }}
+        ${() => !state.loading && state.enabled
+          ? renderDeviceSection("My Devices", "bi-check2-circle", knownDevices(), "No saved devices yet.", state.revision)
+          : ""}
+        ${() => !state.loading && state.enabled
+          ? renderDeviceSection("Available Devices", "bi-radar", availableDevices(), state.discovering ? "Searching for nearby devices…" : "No nearby devices found. Start a search to try again.")
+          : ""}
       </div>
     </div>
   `
