@@ -149,7 +149,7 @@ class CarController(CarControllerBase):
     return msg
 
   def _avh_on_request(self, CC, CS, starpilot_toggles):
-    """Send one bounded Subaru AVH ON request after ignition.
+    """Maintain a bounded Subaru AVH ON request after ignition.
 
     The AVH button frame was identified on the 2025 Legacy only. Keep this
     independent from Stop/Start so the existing Outback request is unchanged.
@@ -185,7 +185,6 @@ class CarController(CarControllerBase):
     if counter == self.avh_last_counter:
       return None
 
-    self.avh_attempted = True
     msg = subarucan.create_avh_control(
       self.packer, avh_msg, raw_dat=avh_dat,
       counter=counter, bus=CanBus.alt_for_cp(self.CP),

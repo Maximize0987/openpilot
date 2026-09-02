@@ -292,7 +292,7 @@ def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expect
   assert controller.stop_start_acknowledged
 
 
-def test_avh_request_sets_observed_bit_and_is_bounded():
+def test_avh_request_sets_observed_bit_and_holds_until_deadline():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
   controller = CarController({}, CP)
   controller.frame = 101
@@ -341,7 +341,21 @@ def test_avh_request_sets_observed_bit_and_is_bounded():
   assert parser.vl["AVH"]["AVH"] == 1
   assert parser.vl["AVH"]["COUNTER"] == 0
 
-  controller.frame = 131
+  for counter in range(1, 4):
+    CS.avh_msg["COUNTER"] = counter
+    raw_dat = bytearray.fromhex("14001c4208800000")
+    raw_dat[1] = counter
+    raw_dat[0] = ((0x32B & 0xFF) + ((0x32B >> 8) & 0xFF) + sum(raw_dat[1:])) & 0xFF
+    CS.avh_dat = bytes(raw_dat)
+    controller.frame = 103 + (counter * 10)
+    _, can_sends = controller.update(CC, CS, 0, toggles)
+    avh_msgs = [msg for msg in can_sends if msg[0] == 0x32b]
+    assert len(avh_msgs) == 1
+    assert avh_msgs[0][1][1] & 0x0F == counter
+    assert avh_msgs[0][1][5] & 0x20
+    assert not controller.avh_attempted
+
+  controller.frame = 1001
   _, can_sends = controller.update(CC, CS, 0, toggles)
   assert not any(msg[0] == 0x32b for msg in can_sends)
   assert controller.avh_attempted
