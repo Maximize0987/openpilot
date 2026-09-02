@@ -81,6 +81,10 @@ def create_lkas11(packer, frame, CP, apply_torque, steer_req,
     values["CF_Lkas_LdwsActivemode"] = 2
 
   if CP.carFingerprint == CAR.KIA_RAY_EV:
+    if not enabled:
+      values["CF_Lkas_LdwsActivemode"] = lkas11["CF_Lkas_LdwsActivemode"]
+      values["CF_Lkas_LdwsSysState"] = lkas11["CF_Lkas_LdwsSysState"]
+      values["CF_Lkas_FcwOpt_USM"] = lkas11["CF_Lkas_FcwOpt_USM"]
     values["CF_Lkas_LdwsOpt_USM"] = 0
     values["CF_Lkas_Chksum"] = 0
 

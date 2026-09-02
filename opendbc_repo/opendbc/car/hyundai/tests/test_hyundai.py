@@ -710,7 +710,7 @@ class TestHyundaiFingerprint:
     assert parser.vl["LKAS11"]["CF_Lkas_LdwsActivemode"] == 0
     assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 0
 
-  def test_kia_ray_ev_preserves_stock_lkas_option(self):
+  def test_kia_ray_ev_preserves_stock_inactive_lkas_status(self):
     fingerprint = gen_empty_fingerprint()
     fingerprint[2][0x485] = 4
     CP = CarInterface.get_params(CAR.KIA_RAY_EV, fingerprint, [], False, False, False, None)
@@ -718,15 +718,46 @@ class TestHyundaiFingerprint:
     packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
     parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
 
+    lkas11 = parser.vl["LKAS11"]
+    lkas11.update({
+      "CF_Lkas_LdwsActivemode": 0,
+      "CF_Lkas_LdwsSysState": 1,
+      "CF_Lkas_FcwOpt_USM": 1,
+    })
     msg = hyundaican.create_lkas11(
-      packer, 0, CP, 0, True, False, parser.vl["LKAS11"], False, 4, False,
+      packer, 0, CP, 0, True, False, lkas11, False, 4, False,
+      True, True, 0, 0, 2,
+    )
+    parser.update([(1, [msg])])
+
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsActivemode"] == 0
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsSysState"] == 1
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsOpt_USM"] == 0
+    assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 1
+
+  def test_kia_ray_ev_uses_active_lkas_status_when_enabled(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x485] = 4
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, fingerprint, [], False, False, False, None)
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LKAS11", 0)], 0)
+
+    lkas11 = parser.vl["LKAS11"]
+    lkas11.update({
+      "CF_Lkas_LdwsActivemode": 0,
+      "CF_Lkas_LdwsSysState": 1,
+      "CF_Lkas_FcwOpt_USM": 1,
+    })
+    msg = hyundaican.create_lkas11(
+      packer, 0, CP, 0, True, False, lkas11, False, 4, True,
       True, True, 0, 0, 2,
     )
     parser.update([(1, [msg])])
 
     assert parser.vl["LKAS11"]["CF_Lkas_LdwsActivemode"] == 3
+    assert parser.vl["LKAS11"]["CF_Lkas_LdwsSysState"] == 4
     assert parser.vl["LKAS11"]["CF_Lkas_LdwsOpt_USM"] == 0
-    assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 1
+    assert parser.vl["LKAS11"]["CF_Lkas_FcwOpt_USM"] == 2
 
   def test_kia_ray_ev_delays_first_lkas11(self):
     fingerprint = gen_empty_fingerprint()
@@ -2288,7 +2319,7 @@ class TestHyundaiFingerprint:
     assert parser.vl["LKAS_ALT"]["ADAS_ACIAnglTqRedcGainVal"] == pytest.approx(0.0)
     assert parser.vl["LKAS_ALT"]["ADAS_StrAnglReqVal"] == pytest.approx(8.5)
 
-  def test_gv70_electrified_synthesizes_lkas_status_payload(self):
+  def test_gv70_electrified_uses_generic_lkas_status_payload(self):
     CP = CarParams.new_message()
     CP.carFingerprint = CAR.GENESIS_GV70_ELECTRIFIED_1ST_GEN
     CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CANFD_LKA_STEERING)
@@ -2331,9 +2362,11 @@ class TestHyundaiFingerprint:
     parser.update([(1, lkas_msgs)])
     assert parser.can_valid
     assert parser.vl["LKAS"]["HAS_LANE_SAFETY"] == 0
-    assert parser.vl["LKAS"]["DAMP_FACTOR"] == 100
+    assert parser.vl["LKAS"]["DAMP_FACTOR"] == 0
     assert parser.vl["LKAS"]["TORQUE_REQUEST"] == 0
     assert parser.vl["LKAS"]["STEER_REQ"] == 1
+    assert parser.vl["LKAS"]["STEER_MODE"] == 0
+    assert parser.vl["LKAS"]["NEW_SIGNAL_2"] == 0
 
     CP.openpilotLongitudinalControl = True
     lfa_parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("LFA", 0)], can_bus.ECAN)
