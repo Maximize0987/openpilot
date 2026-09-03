@@ -106,6 +106,8 @@ class PairingAgent:
 class BlueZClient:
   def __init__(self):
     self.router = DBusRouter(open_dbus_connection(bus="SYSTEM"))
+    self._request_lock = threading.RLock()
+    self._closed = threading.Event()
     self.agent = PairingAgent()
     self._agent_filter = self.router.filter(MatchRule(type="method_call", interface=AGENT_IFACE, path=AGENT_PATH), bufsize=20)
     self._agent_queue = self._agent_filter.__enter__()
@@ -114,17 +116,28 @@ class BlueZClient:
     self._register_agent()
 
   def close(self) -> None:
+    if self._closed.is_set():
+      return
+    self._closed.set()
+    self.agent.clear()
     try:
-      self._call("/org/bluez", AGENT_MANAGER_IFACE, "UnregisterAgent", "o", (AGENT_PATH,))
+      self._agent_queue.put_nowait(None)
     except Exception:
       pass
+    with self._request_lock:
+      try:
+        self._call("/org/bluez", AGENT_MANAGER_IFACE, "UnregisterAgent", "o", (AGENT_PATH,))
+      except Exception:
+        pass
     self._agent_filter.__exit__(None, None, None)
     self.router.close()
+    self._agent_thread.join(timeout=1.0)
 
   def _call(self, path: str, interface: str, member: str, signature: str | None = None, body: tuple = (), timeout: float = 15.0):
     address = DBusAddress(path, bus_name=BLUEZ, interface=interface)
     message = new_method_call(address, member, signature, body) if signature is not None else new_method_call(address, member)
-    reply = self.router.send_and_get_reply(message, timeout=timeout)
+    with self._request_lock:
+      reply = self.router.send_and_get_reply(message, timeout=timeout)
     if reply.header.message_type == MessageType.error:
       error_name = reply.header.fields.get(HeaderFields.error_name, "org.bluez.Error.Failed")
       detail = reply.body[0] if reply.body else error_name
@@ -140,8 +153,10 @@ class BlueZClient:
     self._call("/org/bluez", AGENT_MANAGER_IFACE, "RequestDefaultAgent", "o", (AGENT_PATH,))
 
   def _agent_loop(self) -> None:
-    while True:
+    while not self._closed.is_set():
       message = self._agent_queue.get()
+      if message is None:
+        break
       member = message.header.fields.get(HeaderFields.member, "")
       device_path = str(message.body[0]) if message.body else ""
       if member in {"RequestPinCode", "RequestPasskey", "RequestConfirmation", "RequestAuthorization", "AuthorizeService"}:
@@ -160,11 +175,17 @@ class BlueZClient:
           self.agent.clear()
         else:
           raise RuntimeError(f"Unsupported pairing request: {member}")
-        self.router.send(new_method_return(message, response_signature, response_body))
+        self._send_agent_reply(new_method_return(message, response_signature, response_body))
       except PermissionError:
-        self.router.send(new_error(message, "org.bluez.Error.Rejected", "s", ("Pairing rejected",)))
+        self._send_agent_reply(new_error(message, "org.bluez.Error.Rejected", "s", ("Pairing rejected",)))
       except Exception as error:
-        self.router.send(new_error(message, "org.bluez.Error.Canceled", "s", (str(error),)))
+        self._send_agent_reply(new_error(message, "org.bluez.Error.Canceled", "s", (str(error),)))
+
+  def _send_agent_reply(self, message: Any) -> None:
+    try:
+      self.router.send(message)
+    except Exception:
+      self._closed.set()
 
   def _handle_agent_request(self, message: Any, member: str, device_path: str) -> None:
     try:
@@ -188,11 +209,11 @@ class BlueZClient:
         accepted, _ = self.agent.request("authorization", device_path)
         if not accepted:
           raise PermissionError
-      self.router.send(new_method_return(message, response_signature, response_body))
+      self._send_agent_reply(new_method_return(message, response_signature, response_body))
     except PermissionError:
-      self.router.send(new_error(message, "org.bluez.Error.Rejected", "s", ("Pairing rejected",)))
+      self._send_agent_reply(new_error(message, "org.bluez.Error.Rejected", "s", ("Pairing rejected",)))
     except Exception as error:
-      self.router.send(new_error(message, "org.bluez.Error.Canceled", "s", (str(error),)))
+      self._send_agent_reply(new_error(message, "org.bluez.Error.Canceled", "s", (str(error),)))
 
   def managed_objects(self) -> dict[str, dict[str, dict[str, Any]]]:
     body = self._call("/", OBJECT_MANAGER, "GetManagedObjects")
@@ -252,20 +273,24 @@ class BlueZClient:
   def set_powered(self, powered: bool) -> None:
     path, _ = self.adapter()
     address = DBusAddress(path, bus_name=BLUEZ, interface=ADAPTER_IFACE)
-    reply = self.router.send_and_get_reply(Properties(address).set("Powered", "b", powered), timeout=10.0)
+    with self._request_lock:
+      reply = self.router.send_and_get_reply(Properties(address).set("Powered", "b", powered), timeout=10.0)
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else "Unable to change Bluetooth power"))
 
   def set_discoverable(self, discoverable: bool) -> None:
     path, _ = self.adapter()
     address = DBusAddress(path, bus_name=BLUEZ, interface=ADAPTER_IFACE)
-    reply = self.router.send_and_get_reply(Properties(address).set("Pairable", "b", True), timeout=10.0)
+    with self._request_lock:
+      reply = self.router.send_and_get_reply(Properties(address).set("Pairable", "b", True), timeout=10.0)
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else "Unable to enable Bluetooth pairing"))
-    reply = self.router.send_and_get_reply(Properties(address).set("DiscoverableTimeout", "u", 0), timeout=10.0)
+    with self._request_lock:
+      reply = self.router.send_and_get_reply(Properties(address).set("DiscoverableTimeout", "u", 0), timeout=10.0)
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else "Unable to configure Bluetooth discoverability"))
-    reply = self.router.send_and_get_reply(Properties(address).set("Discoverable", "b", discoverable), timeout=10.0)
+    with self._request_lock:
+      reply = self.router.send_and_get_reply(Properties(address).set("Discoverable", "b", discoverable), timeout=10.0)
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else "Unable to change Bluetooth discoverability"))
 
@@ -288,7 +313,8 @@ class BlueZClient:
   def set_device_property(self, address: str, name: str, signature: str, value: Any) -> None:
     device = self.device_for_address(address)
     dbus_address = DBusAddress(device["path"], bus_name=BLUEZ, interface=DEVICE_IFACE)
-    reply = self.router.send_and_get_reply(Properties(dbus_address).set(name, signature, value), timeout=10.0)
+    with self._request_lock:
+      reply = self.router.send_and_get_reply(Properties(dbus_address).set(name, signature, value), timeout=10.0)
     if reply.header.message_type == MessageType.error:
       raise RuntimeError(str(reply.body[0] if reply.body else f"Unable to set {name}"))
 

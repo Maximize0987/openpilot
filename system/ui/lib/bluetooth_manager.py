@@ -86,7 +86,8 @@ class BluetoothManager:
 
     def worker():
       try:
-        fn(*args)
+        with self._client_lock:
+          fn(*args)
       except Exception as error:
         with self._lock:
           self._operation_error = str(error)
@@ -137,7 +138,8 @@ class BluetoothManager:
   def test_audio(self, address: str) -> None:
     def worker():
       try:
-        delay = self._client.test_audio(address)
+        with self._client_lock:
+          delay = self._client.test_audio(address)
         with self._lock:
           self._audio_test_deadline = time.monotonic() + delay
       except Exception as error:

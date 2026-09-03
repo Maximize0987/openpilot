@@ -287,6 +287,22 @@ def test_only_key_down_is_dispatched(monkeypatch):
   daemon.close()
 
 
+def test_stale_selector_event_after_controller_disconnect_is_ignored():
+  params = FakeParams({"IsOffroad": False})
+  memory = FakeParams()
+  daemon = wheel_controlsd.WheelControlsDaemon(params, memory)
+  read_fd, write_fd = os.pipe()
+  os.set_blocking(read_fd, False)
+  os.write(write_fd, wheel_controlsd.INPUT_EVENT.pack(0, 0, wheel_controlsd.EV_KEY, 30, 1))
+
+  daemon._read_events(read_fd)
+
+  assert read_fd not in daemon.sources
+  assert read_fd not in daemon.buffers
+  os.close(write_fd)
+  daemon.close()
+
+
 def test_learning_is_cancelled_onroad():
   params = FakeParams({"IsOffroad": False})
   memory = FakeParams({wheel_controlsd.LEARN_SLOT_PARAM: 1})

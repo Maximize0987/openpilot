@@ -627,9 +627,11 @@ class WheelControlsDaemon:
       self._remove(fd)
       return
 
-    buffer = self.buffers[fd]
+    buffer = self.buffers.get(fd)
+    source = self.sources.get(fd)
+    if buffer is None or source is None:
+      return
     buffer.extend(chunk)
-    source = self.sources[fd]
     while len(buffer) >= INPUT_EVENT.size:
       raw = bytes(buffer[:INPUT_EVENT.size])
       del buffer[:INPUT_EVENT.size]
@@ -666,7 +668,10 @@ class WheelControlsDaemon:
           self._scan_devices()
           self.last_scan = now
         for key, _mask in self.selector.select(timeout=0.1):
-          self._read_events(key.fd)
+          try:
+            self._read_events(key.fd)
+          except (KeyError, OSError):
+            self._remove(key.fd)
         now = time.monotonic()
         if now - self.last_status >= STATUS_INTERVAL_SECONDS:
           self._publish_status(now)

@@ -293,6 +293,19 @@ def test_power_pair_audio_and_offroad_enforcement():
   assert not params.get_bool("BluetoothEnabled") and radio.stops == 1 and clients[0].closed
 
 
+def test_disconnect_is_idempotent_and_suppresses_auto_reconnect():
+  params = FakeParams(IsOffroad=False, BluetoothEnabled=True)
+  client = FakeBlueZ()
+  controller = BluetoothController(params, lambda: client, FakeRadio())
+
+  controller.handle({"command": "disconnect", "address": client.device["address"]})
+
+  address = client.device["address"].upper()
+  assert client.actions == [("disconnect", client.device["address"])]
+  assert address in controller._manual_disconnect_until
+  assert controller._manual_disconnect_until[address] > time.monotonic()
+
+
 def test_power_off_preserves_saved_audio_selection():
   params = FakeParams(IsOffroad=True, BluetoothEnabled=False, BluetoothAudioAddress="00:11:22:33:44:55")
   controller = BluetoothController(params, FakeBlueZ, FakeRadio())
