@@ -36,6 +36,8 @@ CLASSIC_MEDIA_BUTTON_CARS = frozenset({
 
 
 def get_non_scc_cruise_signals(CP) -> tuple[str, str, str, str, str, str]:
+  if CP.carFingerprint == CAR.KIA_RAY_EV:
+    return "LABEL11", "CC_React", "LABEL11", "CC_Engaged", "E_EMS11", "Cruise_Limit_Target"
   if CP.flags & HyundaiFlags.EV:
     return "LABEL11", "CC_React", "EMS12", "ACC_ACT", "E_EMS11", "Cruise_Limit_Target"
   if CP.flags & HyundaiFlags.HYBRID:
@@ -348,9 +350,7 @@ class CarState(CarStateBase):
 
     # cruise state
     no_scc = bool(self.CP.flags & HyundaiFlags.NON_SCC)
-    if self.CP.carFingerprint == CAR.KIA_RAY_EV:
-      pass
-    elif no_scc:
+    if no_scc:
       cruise_available_msg, cruise_available_sig, cruise_enabled_msg, cruise_enabled_sig, cruise_speed_msg, cruise_speed_sig = get_non_scc_cruise_signals(self.CP)
       ret.cruiseState.available = cp.vl[cruise_available_msg][cruise_available_sig] != 0
       ret.cruiseState.enabled = cp.vl[cruise_enabled_msg][cruise_enabled_sig] != 0
@@ -725,6 +725,12 @@ class CarState(CarStateBase):
       ("BCM_PO_11", 0),
       ("CLU13", 0),
     ]
+    if CP.carFingerprint == CAR.KIA_RAY_EV:
+      msgs += [
+        ("LABEL11", 10),
+        ("E_EMS11", 100),
+        ("ELECT_GEAR", 100),
+      ]
     if CP.carFingerprint in CLASSIC_MEDIA_BUTTON_CARS:
       # Steering-wheel media switches are event-driven on the refresh Elantra.
       msgs.append(("GW_SWRC_PE", 0))

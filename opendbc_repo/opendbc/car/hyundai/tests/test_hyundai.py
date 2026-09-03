@@ -926,7 +926,7 @@ class TestHyundaiFingerprint:
     (CAR.HYUNDAI_ELANTRA_2022_NON_SCC, ("EMS16", "LVR12"), ()),
     (CAR.HYUNDAI_ELANTRA_HEV_2022_NON_SCC, ("E_CRUISE_CONTROL", "ELECT_GEAR"), ("EMS16",)),
     (CAR.HYUNDAI_KONA_EV_NON_SCC, ("LABEL11", "EMS12", "E_EMS11"), ()),
-    (CAR.KIA_RAY_EV, ("E_EMS11",), ("LABEL11", "EMS12", "SCC11", "SCC12")),
+    (CAR.KIA_RAY_EV, ("LABEL11", "E_EMS11", "ELECT_GEAR"), ("EMS12", "SCC11", "SCC12")),
   ])
   def test_non_scc_cruise_message_selection(self, candidate, expected_msgs, unexpected_msgs):
     toggles = get_test_toggles()
@@ -944,6 +944,26 @@ class TestHyundaiFingerprint:
     assert not ret.cruiseState.available
     assert not ret.cruiseState.enabled
     assert ret.cruiseState.speed == 0
+
+  def test_kia_ray_ev_decodes_cruise_state(self):
+    toggles = get_test_toggles()
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, gen_empty_fingerprint(), [], True, False, False, toggles)
+    FPCP = CarInterface.get_starpilot_params(CAR.KIA_RAY_EV, gen_empty_fingerprint(), [], CP, toggles)
+    car_state = CarState(CP, FPCP)
+    can_parsers = car_state.get_can_parsers(CP)
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+
+    can_parsers[Bus.pt].update([(1_000_000_000, [
+      packer.make_can_msg("LABEL11", 0, {"CC_React": 1, "CC_Engaged": 1}),
+      packer.make_can_msg("E_EMS11", 0, {"Cruise_Limit_Target": 10, "Accel_Pedal_Pos": 0}),
+      packer.make_can_msg("ELECT_GEAR", 0, {"Elect_Gear_Shifter": 5}),
+    ])])
+
+    ret, _ = car_state.update(can_parsers, toggles)
+
+    assert ret.cruiseState.available
+    assert ret.cruiseState.enabled
+    assert ret.cruiseState.speed == pytest.approx(10 * 0.2777778)
 
   def test_hyundai_redneck_cruise_availability(self, monkeypatch):
     class FakeParams:
