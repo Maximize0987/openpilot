@@ -59,11 +59,20 @@ from openpilot.starpilot.assets.model_manager import (
 )
 from openpilot.starpilot.assets.theme_manager import HOLIDAY_THEME_PATH, THEME_COMPONENT_PARAMS
 from openpilot.starpilot.common.accel_profile import (
+  CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS,
+  CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY,
+  CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS,
+  CUSTOM_ACCEL_PROFILE_DEFAULT_BREAKPOINTS_MPH,
+  CUSTOM_ACCEL_PROFILE_DEFAULT_POINT_COUNT,
   CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY,
   CUSTOM_ACCEL_PROFILE_PARAM_KEYS,
+  CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY,
+  CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS,
   build_custom_accel_profile_defaults,
   custom_accel_profile_is_initialized,
+  get_custom_accel_profile_curve_defaults,
   normalize_acceleration_profile,
+  parse_custom_accel_profile_curve,
 )
 from openpilot.starpilot.common.maps_catalog import (
   MAPS_CATALOG,
@@ -1859,6 +1868,9 @@ _TROUBLESHOOT_ADVANCED_LONGITUDINAL_KEYS = [
   "TrailerLoad",
   "CustomAccelProfile",
   *CUSTOM_ACCEL_PROFILE_PARAM_KEYS,
+  CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY,
+  *CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS,
+  *CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS,
   "LongitudinalActuatorDelay",
   "StartAccel",
   "VEgoStarting",
@@ -3615,12 +3627,15 @@ def _get_runtime_default_param_overrides():
     acceleration_profile_raw if not _is_blank_param_raw(acceleration_profile_raw) else static_defaults.get("AccelerationProfile", "0")
   )
   overrides.update(build_custom_accel_profile_defaults(acceleration_profile, ev_tuning, truck_tuning))
+  overrides.update(get_custom_accel_profile_curve_defaults(acceleration_profile, ev_tuning, truck_tuning))
 
   return overrides
 
 def _get_current_param_value(key, value_type, defaults_lookup=None):
   if key == CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY:
     return _get_custom_accel_profile_initialized()
+  if key == CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY:
+    return _get_custom_accel_profile_breakpoints_initialized()
 
   if key == "LeadIndicator":
     return _get_lead_indicator_enabled(defaults_lookup)
@@ -3632,6 +3647,11 @@ def _get_current_param_value(key, value_type, defaults_lookup=None):
     if defaults_lookup is None:
       defaults_lookup = _get_default_param_values()
     return _coerce_param_value(defaults_lookup.get(key), value_type)
+
+  if key in CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS and not _get_custom_accel_profile_breakpoints_initialized():
+    if defaults_lookup is None:
+      defaults_lookup = _get_default_param_values()
+    return _coerce_param_value(_get_legacy_compatible_curve_value(key, defaults_lookup), value_type)
 
   raw_value = _safe_params_get_live_raw(key)
   if _is_blank_param_raw(raw_value):
@@ -3665,12 +3685,43 @@ def _get_custom_accel_profile_initialized():
     raw_values,
   )
 
+
+def _get_custom_accel_profile_breakpoints_initialized():
+  return _coerce_param_value(_safe_params_get_live_raw(CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY), bool)
+
+
+def _get_legacy_compatible_curve_value(key, defaults_lookup):
+  if key == CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY:
+    return CUSTOM_ACCEL_PROFILE_DEFAULT_POINT_COUNT
+
+  if key in CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS:
+    index = CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS.index(key)
+    return CUSTOM_ACCEL_PROFILE_DEFAULT_BREAKPOINTS_MPH[index]
+
+  if key in CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS:
+    index = CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS.index(key)
+    if index < len(CUSTOM_ACCEL_PROFILE_PARAM_KEYS):
+      legacy_key = CUSTOM_ACCEL_PROFILE_PARAM_KEYS[index]
+      return _get_current_param_value(legacy_key, float, defaults_lookup)
+
+  return defaults_lookup.get(key)
+
+
+def _seed_custom_accel_profile_curve(defaults_lookup):
+  seeded = {}
+  for key in CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS:
+    value = _get_legacy_compatible_curve_value(key, defaults_lookup)
+    params.put(key, _serialize_param_write_value(value))
+    seeded[key] = value
+  params.put_bool(CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY, True)
+  return seeded
+
 def _serialize_param_write_value(raw_value):
   if isinstance(raw_value, bool):
     return "1" if raw_value else "0"
   if isinstance(raw_value, bytes):
     return raw_value.decode("utf-8", errors="replace")
-  return str(raw_value or "")
+  return "" if raw_value is None else str(raw_value)
 
 def _offroad_excessive_actuation_type():
   alert = _safe_params_get_live_raw("Offroad_ExcessiveActuation")
@@ -5616,6 +5667,44 @@ def setup(app):
           return jsonify({"error": f"{key} must be between {minimum} and {maximum}."}), 400
         str_val = str(numeric)
 
+      if key in CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS:
+        try:
+          numeric = float(data["value"])
+          if key == CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY:
+            if not math.isfinite(numeric) or not numeric.is_integer():
+              raise ValueError("Breakpoint count must be a whole number")
+            numeric = int(numeric)
+          elif not math.isfinite(numeric):
+            raise ValueError(f"{key} must be numeric")
+
+          defaults_lookup = _get_default_param_values()
+          initialized = _get_custom_accel_profile_breakpoints_initialized()
+          candidate = {}
+          for curve_key in CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS:
+            if initialized:
+              candidate[curve_key] = _safe_params_get(curve_key, encoding="utf-8")
+            else:
+              candidate[curve_key] = _get_legacy_compatible_curve_value(curve_key, defaults_lookup)
+          candidate[key] = numeric
+
+          parse_custom_accel_profile_curve(
+            candidate[CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY],
+            [candidate[curve_key] for curve_key in CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS],
+            [candidate[curve_key] for curve_key in CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS],
+          )
+        except (TypeError, ValueError) as exc:
+          return jsonify({"error": str(exc)}), 400
+
+        updated = _seed_custom_accel_profile_curve(defaults_lookup) if not initialized else {}
+        params.put(key, _serialize_param_write_value(numeric))
+        params.put_bool(CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY, True)
+        updated.update({key: numeric, CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY: True})
+        update_starpilot_toggles()
+        return jsonify({
+          "message": "Custom acceleration curve updated.",
+          "updated": updated,
+        }), 200
+
       if key == "AlphaLongitudinalEnabled":
         if not _get_alpha_longitudinal_available():
           return jsonify({"error": "Alpha Longitudinal is not available for the detected vehicle."}), 403
@@ -5756,13 +5845,16 @@ def setup(app):
         params.put_bool(key, enabled)
 
         updated = {key: enabled}
+        defaults_lookup = _get_default_param_values()
         if enabled and not _get_custom_accel_profile_initialized():
-          defaults_lookup = _get_default_param_values()
           for custom_key in CUSTOM_ACCEL_PROFILE_PARAM_KEYS:
             custom_value = defaults_lookup[custom_key]
             params.put(custom_key, _serialize_param_write_value(custom_value))
             updated[custom_key] = float(custom_value)
           params.put_bool(CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY, True)
+        if enabled and not _get_custom_accel_profile_breakpoints_initialized():
+          updated.update(_seed_custom_accel_profile_curve(defaults_lookup))
+          updated[CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY] = True
 
         update_starpilot_toggles()
         return jsonify({
@@ -5970,6 +6062,11 @@ def setup(app):
       return _serialize_param_write_value(defaults_lookup.get(request_key)), 200
     if request_key == CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY:
       return _serialize_param_write_value(_get_custom_accel_profile_initialized()), 200
+    if request_key in CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS and not _get_custom_accel_profile_breakpoints_initialized():
+      defaults_lookup = _get_default_param_values()
+      return _serialize_param_write_value(_get_legacy_compatible_curve_value(request_key, defaults_lookup)), 200
+    if request_key == CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY:
+      return _serialize_param_write_value(_get_custom_accel_profile_breakpoints_initialized()), 200
     if request_key == "LeadIndicator":
       return _serialize_param_write_value(_get_lead_indicator_enabled()), 200
     if request_key == "IsRHD" and not params.get_bool("IsRHDOverride"):

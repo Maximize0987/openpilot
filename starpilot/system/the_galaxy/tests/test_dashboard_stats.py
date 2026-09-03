@@ -175,13 +175,33 @@ def _install_server_import_stubs():
   model_manager.model_key_aliases = lambda value: [value]
   theme_manager.THEME_COMPONENT_PARAMS = {}
 
+  def parse_custom_accel_profile_curve(count, breakpoints, values):
+    point_count = int(count)
+    active_breakpoints = [float(value) for value in breakpoints[:point_count]]
+    if any(current <= previous for previous, current in zip(active_breakpoints, active_breakpoints[1:], strict=False)):
+      raise ValueError("Breakpoint speeds must be strictly increasing")
+    return active_breakpoints, [float(value) for value in values[:point_count]]
+
   sys.modules["openpilot.starpilot.common.accel_profile"] = _simple_module(
     "openpilot.starpilot.common.accel_profile",
+    CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS=[f"CustomAccelProfileBreakpoint{index}MPH" for index in range(1, 13)],
+    CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY="CustomAccelProfileBreakpointsInitialized",
+    CUSTOM_ACCEL_PROFILE_CURVE_PARAM_KEYS=[
+      "CustomAccelProfilePointCount",
+      *[f"CustomAccelProfileBreakpoint{index}MPH" for index in range(1, 13)],
+      *[f"CustomAccelProfilePoint{index}Accel" for index in range(1, 13)],
+    ],
+    CUSTOM_ACCEL_PROFILE_DEFAULT_BREAKPOINTS_MPH=[0.0, 11.2, 22.4, 33.6, 44.7, 55.9, 89.5, 100.7, 111.8, 123.0, 134.2, 145.4],
+    CUSTOM_ACCEL_PROFILE_DEFAULT_POINT_COUNT=7,
     CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY="CustomAccelProfileInitialized",
     CUSTOM_ACCEL_PROFILE_PARAM_KEYS=[],
+    CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY="CustomAccelProfilePointCount",
+    CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS=[f"CustomAccelProfilePoint{index}Accel" for index in range(1, 13)],
     build_custom_accel_profile_defaults=lambda *args, **kwargs: {},
     custom_accel_profile_is_initialized=lambda *args, **kwargs: False,
+    get_custom_accel_profile_curve_defaults=lambda *args, **kwargs: {},
     normalize_acceleration_profile=lambda value: value,
+    parse_custom_accel_profile_curve=parse_custom_accel_profile_curve,
   )
   sys.modules["openpilot.starpilot.common.maps_catalog"] = _simple_module(
     "openpilot.starpilot.common.maps_catalog",
@@ -984,6 +1004,20 @@ def test_cpu_temp_reader_uses_hardware_cpu_values(monkeypatch):
   assert utilities._read_cpu_temp_c() == 57
 
 
+def test_gpu_temp_reader_uses_hardware_gpu_values(monkeypatch):
+  hardware_module = _simple_module(
+    "openpilot.system.hardware",
+    HARDWARE=SimpleNamespace(
+      get_thermal_config=lambda: SimpleNamespace(
+        get_msg=lambda: {"gpuTempC": [41.2, 42.6], "cpuTempC": [56.0]}
+      )
+    ),
+  )
+  monkeypatch.setitem(sys.modules, "openpilot.system.hardware", hardware_module)
+
+  assert utilities._read_gpu_temp_c() == 43
+
+
 def test_cpu_temp_reader_ignores_non_cpu_thermal_zones(tmp_path):
   cpu_zone = tmp_path / "thermal_zone0"
   cpu_zone.mkdir()
@@ -996,6 +1030,20 @@ def test_cpu_temp_reader_ignores_non_cpu_thermal_zones(tmp_path):
   (pmic_zone / "temp").write_text("75000", encoding="utf-8")
 
   assert utilities._read_cpu_temp_c(tmp_path) == 61
+
+
+def test_gpu_temp_reader_ignores_non_gpu_thermal_zones(tmp_path):
+  gpu_zone = tmp_path / "thermal_zone0"
+  gpu_zone.mkdir()
+  (gpu_zone / "type").write_text("gpu0-usr", encoding="utf-8")
+  (gpu_zone / "temp").write_text("42000", encoding="utf-8")
+
+  cpu_zone = tmp_path / "thermal_zone1"
+  cpu_zone.mkdir()
+  (cpu_zone / "type").write_text("cpu0-silver-usr", encoding="utf-8")
+  (cpu_zone / "temp").write_text("61000", encoding="utf-8")
+
+  assert utilities._read_gpu_temp_c(tmp_path) == 42
 
 
 def test_network_name_uses_wifi_ssid(monkeypatch):
@@ -1040,6 +1088,7 @@ def test_network_name_reports_no_wireless_connectivity(monkeypatch):
 def test_device_summary_includes_network_name(monkeypatch):
   monkeypatch.setattr(utilities, "_read_uptime_seconds", lambda: 120)
   monkeypatch.setattr(utilities, "_read_cpu_temp_c", lambda: 55)
+  monkeypatch.setattr(utilities, "_read_gpu_temp_c", lambda: 42)
   monkeypatch.setattr(utilities, "get_current_lan_ip", lambda: "192.168.1.10")
   monkeypatch.setattr(utilities, "get_current_network_name", lambda: "Home Network")
 
@@ -1047,6 +1096,7 @@ def test_device_summary_includes_network_name(monkeypatch):
 
   assert summary["networkName"] == "Home Network"
   assert summary["lanIp"] == "192.168.1.10"
+  assert summary["gpuTempC"] == 42
 
 
 def test_persistent_loader_accepts_decoded_param_dict():

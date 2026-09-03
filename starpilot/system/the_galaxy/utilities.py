@@ -2843,7 +2843,7 @@ def _normalize_temp_c(value):
   return raw if 0 < raw < 150 else None
 
 
-def _read_hardware_cpu_temps():
+def _read_hardware_component_temps(component):
   try:
     from openpilot.system.hardware import HARDWARE
     thermal_config = HARDWARE.get_thermal_config()
@@ -2851,18 +2851,26 @@ def _read_hardware_cpu_temps():
   except Exception:
     return []
 
-  cpu_temps = thermal_msg.get("cpuTempC", [])
-  if not isinstance(cpu_temps, (list, tuple)):
-    cpu_temps = [cpu_temps]
+  temps = thermal_msg.get(f"{component}TempC", [])
+  if not isinstance(temps, (list, tuple)):
+    temps = [temps]
   return [
-    temp for temp in (_normalize_temp_c(value) for value in cpu_temps)
+    temp for temp in (_normalize_temp_c(value) for value in temps)
     if temp is not None
   ]
 
 
-def _read_cpu_temp_c(thermal_root=None):
+def _read_hardware_cpu_temps():
+  return _read_hardware_component_temps("cpu")
+
+
+def _read_hardware_gpu_temps():
+  return _read_hardware_component_temps("gpu")
+
+
+def _read_component_temp_c(component, thermal_root=None):
   if thermal_root is None:
-    hardware_temps = _read_hardware_cpu_temps()
+    hardware_temps = _read_hardware_component_temps(component)
     if hardware_temps:
       return round(max(hardware_temps))
     thermal_root = Path("/sys/class/thermal")
@@ -2878,7 +2886,7 @@ def _read_cpu_temp_c(thermal_root=None):
       zone_type = temp_path.with_name("type").read_text(encoding="utf-8").strip().lower()
     except Exception:
       zone_type = ""
-    if "cpu" not in zone_type:
+    if component not in zone_type:
       continue
     try:
       raw = temp_path.read_text().strip()
@@ -2891,10 +2899,19 @@ def _read_cpu_temp_c(thermal_root=None):
   return round(max(values)) if values else None
 
 
+def _read_cpu_temp_c(thermal_root=None):
+  return _read_component_temp_c("cpu", thermal_root)
+
+
+def _read_gpu_temp_c(thermal_root=None):
+  return _read_component_temp_c("gpu", thermal_root)
+
+
 def _build_device_summary(params_obj):
   is_onroad = _params_get_bool(params_obj, "IsOnroad")
   uptime_seconds = _read_uptime_seconds()
   cpu_temp_c = _read_cpu_temp_c()
+  gpu_temp_c = _read_gpu_temp_c()
   lan_ip = get_current_lan_ip()
   network_name = get_current_network_name()
   return {
@@ -2902,6 +2919,7 @@ def _build_device_summary(params_obj):
     "online": True,
     "uptimeSeconds": uptime_seconds,
     "cpuTempC": cpu_temp_c,
+    "gpuTempC": gpu_temp_c,
     "lanIp": lan_ip,
     "networkName": network_name,
   }

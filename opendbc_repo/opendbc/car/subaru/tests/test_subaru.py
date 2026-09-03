@@ -292,7 +292,7 @@ def test_stop_start_request_is_bounded_and_uses_live_dashlights(platform, expect
   assert controller.stop_start_acknowledged
 
 
-def test_avh_request_sets_observed_bit_and_is_bounded():
+def test_avh_request_sets_observed_bit_and_pulses_at_native_rate():
   CP = CarInterface.get_non_essential_params(CAR.SUBARU_LEGACY_2025)
   controller = CarController({}, CP)
   controller.frame = 101
@@ -318,6 +318,8 @@ def test_avh_request_sets_observed_bit_and_is_bounded():
     out=SimpleNamespace(
       standstill=True,
       gearShifter=structs.CarState.GearShifter.park,
+      vEgoRaw=0.0,
+      steeringAngleDeg=0.0,
     ),
   )
   toggles = SimpleNamespace(subaru_stop_start_off=False, subaru_avh_on=True, subaru_sng=False)
@@ -341,6 +343,37 @@ def test_avh_request_sets_observed_bit_and_is_bounded():
   assert parser.vl["AVH"]["AVH"] == 1
   assert parser.vl["AVH"]["COUNTER"] == 0
 
+  controller.frame = 104
+  _, can_sends = controller.update(CC, CS, 0, toggles)
+  assert not any(msg[0] == 0x32b for msg in can_sends)
+
+  avh_msgs = []
+  for counter in range(1, 15):
+    CS.avh_msg["COUNTER"] = counter
+    raw_dat = bytearray.fromhex("14001c4208800000")
+    raw_dat[1] = counter
+    raw_dat[0] = ((0x32B & 0xFF) + ((0x32B >> 8) & 0xFF) + sum(raw_dat[1:])) & 0xFF
+    CS.avh_dat = bytes(raw_dat)
+    controller.frame = 103 + (counter * 10)
+    _, can_sends = controller.update(CC, CS, 0, toggles)
+    sent = [msg for msg in can_sends if msg[0] == 0x32b]
+    assert len(sent) == 1
+    avh_msgs.extend(sent)
+
+  assert len(avh_msgs) == 14
+  assert [msg[1][1] & 0x0F for msg in avh_msgs] == list(range(1, 15))
+  assert all(msg[1][5] & 0x20 for msg in avh_msgs)
+  assert not controller.avh_attempted
+
+  CS.avh_msg["COUNTER"] = 15
+  CS.avh_dat = bytes.fromhex("230f1c4208800000")
+  controller.frame = 253
+  _, can_sends = controller.update(CC, CS, 0, toggles)
+  assert not any(msg[0] == 0x32b for msg in can_sends)
+  assert controller.avh_attempted
+
+  CS.avh_msg["COUNTER"] = 0
+  CS.avh_dat = bytes.fromhex("14001c4208800000")
   controller.frame = 131
   _, can_sends = controller.update(CC, CS, 0, toggles)
   assert not any(msg[0] == 0x32b for msg in can_sends)

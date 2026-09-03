@@ -288,11 +288,11 @@ GENESIS_G70_CURVE_UNWIND_LAT = 0.25
 GENESIS_G70_CURVE_UNWIND_LAT_WIDTH = 0.12
 GENESIS_G70_CURVE_UNWIND_JERK = 0.08
 GENESIS_G70_CURVE_UNWIND_JERK_WIDTH = 0.08
-GENESIS_G70_UNWIND_FF_REDUCTION_MAX = 0.28
-GENESIS_G70_UNWIND_FF_OVERSHOOT = 0.18
-GENESIS_G70_UNWIND_FF_OVERSHOOT_WIDTH = 0.20
-GENESIS_G70_UNWIND_FF_JERK = 0.10
-GENESIS_G70_UNWIND_FF_JERK_WIDTH = 0.13
+GENESIS_G70_UNWIND_FF_REDUCTION_MAX = 0.34
+GENESIS_G70_UNWIND_FF_OVERSHOOT = 0.13
+GENESIS_G70_UNWIND_FF_OVERSHOOT_WIDTH = 0.17
+GENESIS_G70_UNWIND_FF_JERK = 0.08
+GENESIS_G70_UNWIND_FF_JERK_WIDTH = 0.11
 GENESIS_G70_UNWIND_FF_SPEED = 18.0
 GENESIS_G70_UNWIND_FF_SPEED_WIDTH = 3.0
 GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_MAX = 0.15
@@ -1161,8 +1161,8 @@ TOYOTA_HIGHLANDER_TSS2_UNWIND_SPEED_MAX_WIDTH = 2.0
 LEXUS_IS_PHASE_SCALE = 0.10
 LEXUS_IS_TURN_IN_FF_BOOST_LEFT = 0.06
 LEXUS_IS_TURN_IN_FF_BOOST_RIGHT = 0.06
-LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.10
-LEXUS_IS_UNWIND_FF_REDUCTION_RIGHT = 0.16
+LEXUS_IS_UNWIND_FF_REDUCTION_LEFT = 0.13
+LEXUS_IS_UNWIND_FF_REDUCTION_RIGHT = 0.20
 LEXUS_IS_UNWIND_LAT_ONSET = 0.18
 LEXUS_IS_UNWIND_LAT_WIDTH = 0.07
 LEXUS_IS_UNWIND_SPEED_ONSET = 9.0
@@ -3227,9 +3227,10 @@ def get_genesis_g70_unwind_ff_scale(setpoint: float, measured_lateral_accel: flo
 
 def get_genesis_g70_high_speed_error_scale(setpoint: float, measured_lateral_accel: float,
                                             desired_lateral_jerk: float, v_ego: float) -> float:
-  tracking_error = abs(measured_lateral_accel - setpoint)
-  if tracking_error <= 0.0:
+  if (setpoint == 0.0 or setpoint * measured_lateral_accel <= 0.0 or
+      abs(measured_lateral_accel) <= abs(setpoint)):
     return 1.0
+  tracking_error = abs(measured_lateral_accel - setpoint)
   speed_weight = _sigmoid((v_ego - GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED) /
                           GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_SPEED_WIDTH)
   error_weight = _sigmoid((tracking_error - GENESIS_G70_HIGH_SPEED_ERROR_DAMPING_ERROR) /

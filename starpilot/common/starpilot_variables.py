@@ -33,8 +33,13 @@ from openpilot.starpilot.common.lateral_delay import full_lateral_delay
 from openpilot.starpilot.common.lateral_only_experimental import lateral_only_experimental_available
 from openpilot.starpilot.common.accel_profile import (
   ACCELERATION_PROFILES,
+  A_CRUISE_MAX_BP_CUSTOM,
+  CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS,
+  CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY,
   CUSTOM_ACCEL_PROFILE_PARAM_KEYS,
   CUSTOM_ACCEL_PROFILE_INITIALIZED_KEY,
+  CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY,
+  CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS,
   CUSTOM_ACCEL_PROFILE_VALUE_MAX,
   CUSTOM_ACCEL_PROFILE_VALUE_MIN,
   DECELERATION_PROFILES,
@@ -42,6 +47,7 @@ from openpilot.starpilot.common.accel_profile import (
   custom_accel_profile_is_initialized,
   normalize_acceleration_profile,
   normalize_deceleration_profile,
+  parse_custom_accel_profile_curve,
 )
 from openpilot.system.hardware import HARDWARE
 from openpilot.system.hardware.hw import Paths
@@ -1277,6 +1283,18 @@ class StarPilotVariables:
       ]
     else:
       toggle.custom_accel_profile_values = [custom_accel_defaults[key] for key in CUSTOM_ACCEL_PROFILE_PARAM_KEYS]
+    toggle.custom_accel_profile_breakpoints = list(A_CRUISE_MAX_BP_CUSTOM)
+    if self.get_value(CUSTOM_ACCEL_PROFILE_BREAKPOINTS_INITIALIZED_KEY):
+      try:
+        custom_breakpoints, custom_values = parse_custom_accel_profile_curve(
+          self.params_raw.get(CUSTOM_ACCEL_PROFILE_POINT_COUNT_KEY),
+          [self.params_raw.get(key) for key in CUSTOM_ACCEL_PROFILE_BREAKPOINT_PARAM_KEYS],
+          [self.params_raw.get(key) for key in CUSTOM_ACCEL_PROFILE_POINT_VALUE_PARAM_KEYS],
+        )
+        toggle.custom_accel_profile_breakpoints = custom_breakpoints
+        toggle.custom_accel_profile_values = custom_values
+      except ValueError:
+        pass
     toggle.human_lane_changes = has_radar and self.get_value("HumanLaneChanges", condition=longitudinal_tuning)
     toggle.nav_longitudinal_allowed = toggle.openpilot_longitudinal and self.get_value("NavLongitudinalAllowed", condition=longitudinal_tuning)
     # Keep lead detection sensitivity normalized even when longitudinal tuning is disabled.

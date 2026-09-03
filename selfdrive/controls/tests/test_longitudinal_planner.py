@@ -1772,6 +1772,50 @@ def test_acc_mode_low_speed_vision_stop_buffer_brakes_harder_for_close_slow_visi
   assert planner.output_a_target <= -2.7
 
 
+def test_accord_low_speed_vision_stop_buffer_ignores_moving_stop_and_go_lead():
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_ACCORD)
+  planner = LongitudinalPlanner(CP, init_v=3.43)
+  moving_lead = make_lead(
+    status=True, d_rel=7.3, v_lead=3.07, a_lead=0.23, radar=False, model_prob=1.0,
+  )
+
+  cap, active = planner.get_vision_low_speed_stop_buffer_cap(moving_lead, 3.43, -2.0)
+
+  assert cap is None
+  assert not active
+
+
+def test_accord_low_speed_vision_stop_buffer_keeps_stopped_lead_guard():
+  CP = CarInterface.get_non_essential_params(CAR.HONDA_ACCORD)
+  planner = LongitudinalPlanner(CP, init_v=3.43)
+  stopped_lead = make_lead(
+    status=True, d_rel=6.0, v_lead=0.0, a_lead=0.0, radar=False, model_prob=1.0,
+  )
+
+  cap, active = planner.get_vision_low_speed_stop_buffer_cap(stopped_lead, 3.43, -2.0)
+
+  assert cap is not None
+  assert active
+
+
+def test_accord_standstill_guard_waits_for_final_crawl():
+  accord = CarInterface.get_non_essential_params(CAR.HONDA_ACCORD)
+  civic = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)
+  accord_planner = LongitudinalPlanner(accord, init_v=0.49)
+  civic_planner = LongitudinalPlanner(civic, init_v=0.49)
+  stopped_lead = make_lead(status=True, d_rel=7.3, v_lead=0.0, radar=False, model_prob=1.0)
+
+  assert accord_planner.get_standstill_stopped_lead_guard_cap(
+    stopped_lead, 0.49, -2.0, 5.5, False, False,
+  ) is None
+  assert civic_planner.get_standstill_stopped_lead_guard_cap(
+    stopped_lead, 0.49, -2.0, 5.5, False, False,
+  ) is not None
+  assert accord_planner.get_standstill_stopped_lead_guard_cap(
+    stopped_lead, 0.20, -2.0, 5.5, False, False,
+  ) is not None
+
+
 @pytest.mark.parametrize("model_version", ["v11", "v12", "v13", "v14", "v15"])
 def test_acc_mode_low_speed_vision_stop_buffer_stays_latched_when_closure_softens_near_stop(model_version, monkeypatch):
   CP = CarInterface.get_non_essential_params(CAR.HONDA_CIVIC)

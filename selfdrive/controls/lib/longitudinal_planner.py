@@ -25,6 +25,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_honda_accord_lead_departure_tune,
   get_honda_accord_stop_go_accel_cap,
   get_honda_accord_stop_go_accel_rise_rate,
+  get_vision_low_speed_stop_buffer_lead_speed_limits,
   get_toyota_rav4_tss2_lead_departure_tune,
   get_toyota_rav4_tss2_lead_creep_tune,
   get_force_stop_distance_bias,
@@ -44,6 +45,7 @@ from openpilot.selfdrive.controls.lib.longitudinal_vehicle_tunes import (
   get_honda_crv_5g_early_radar_follow_cap,
   get_standstill_gap_settle_max_extra_gap,
   get_standstill_stopped_lead_guard_distance_margin,
+  get_standstill_stopped_lead_guard_max_ego_speed,
   get_standstill_stopped_lead_guard_max_lead_speed,
   is_ford_f150_lightning_stopped_radar_follow_lead,
   get_tracked_lead_catchup_bias_gain,
@@ -1106,15 +1108,20 @@ class LongitudinalPlanner:
 
     lead_speed = max(float(lead.vLead), 0.0)
     relative_speed = float(v_ego) - lead_speed
+    max_lead_speed, hold_max_lead_speed = get_vision_low_speed_stop_buffer_lead_speed_limits(
+      self.CP,
+      VISION_LOW_SPEED_STOP_BUFFER_MAX_LEAD_SPEED,
+      VISION_LOW_SPEED_STOP_BUFFER_HOLD_MAX_LEAD_SPEED,
+    )
     closing_speed = max(0.0, v_ego - lead_speed)
     entry_context = (
       v_ego <= VISION_LOW_SPEED_STOP_BUFFER_MAX_EGO_SPEED and
-      lead_speed <= VISION_LOW_SPEED_STOP_BUFFER_MAX_LEAD_SPEED and
+      lead_speed <= max_lead_speed and
       closing_speed >= VISION_LOW_SPEED_STOP_BUFFER_MIN_CLOSING_SPEED
     )
     hold_context = (
       v_ego <= VISION_LOW_SPEED_STOP_BUFFER_MAX_EGO_SPEED and
-      lead_speed <= VISION_LOW_SPEED_STOP_BUFFER_HOLD_MAX_LEAD_SPEED and
+      lead_speed <= hold_max_lead_speed and
       relative_speed >= VISION_LOW_SPEED_STOP_BUFFER_MIN_HOLD_REL_SPEED
     )
 
@@ -1669,7 +1676,10 @@ class LongitudinalPlanner:
                                             release_ready, confident_depart_ready):
     if lead is None or not lead.status or release_ready or confident_depart_ready:
       return None
-    if float(v_ego) > STANDSTILL_STOPPED_LEAD_GUARD_MAX_EGO_SPEED:
+    max_ego_speed = get_standstill_stopped_lead_guard_max_ego_speed(
+      self.CP, STANDSTILL_STOPPED_LEAD_GUARD_MAX_EGO_SPEED,
+    )
+    if float(v_ego) > max_ego_speed:
       return None
 
     lead_radar = bool(getattr(lead, "radar", False))
