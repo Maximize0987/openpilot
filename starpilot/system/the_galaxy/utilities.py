@@ -1103,7 +1103,7 @@ def _dashboard_time_is_valid(value, now=None, require_recent=False):
   return True
 
 
-def _timestamp_to_dashboard_time(timestamp, require_recent=False):
+def _timestamp_to_dashboard_time(timestamp, require_recent=False, now=None):
   timestamp = _safe_float(timestamp, 0.0)
   if timestamp <= 0.0:
     return None
@@ -1111,7 +1111,7 @@ def _timestamp_to_dashboard_time(timestamp, require_recent=False):
     parsed = datetime.fromtimestamp(timestamp)
   except (OSError, OverflowError, ValueError):
     return None
-  return parsed if _dashboard_time_is_valid(parsed, require_recent=require_recent) else None
+  return parsed if _dashboard_time_is_valid(parsed, require_recent=require_recent, now=now) else None
 
 
 def _parse_segment_dir_name(name):
@@ -1605,15 +1605,15 @@ def _public_drive(drive, is_metric):
   return public
 
 
-def _route_time_range(route_info, duration_seconds):
+def _route_time_range(route_info, duration_seconds, now=None):
   modified_at = _safe_float(route_info.get("modifiedAt", 0.0), 0.0)
   duration_seconds = max(0.0, _safe_float(duration_seconds, 0.0))
   started_at = route_info.get("startedAt")
-  if _dashboard_time_is_valid(started_at, require_recent=True):
+  if _dashboard_time_is_valid(started_at, now=now, require_recent=True):
     end_time = started_at + timedelta(seconds=duration_seconds) if duration_seconds > 0.0 else None
     return _jsonable_time(started_at), _jsonable_time(end_time)
 
-  modified_time = _timestamp_to_dashboard_time(modified_at, require_recent=True)
+  modified_time = _timestamp_to_dashboard_time(modified_at, now=now, require_recent=True)
   if modified_time is not None and duration_seconds > 0.0:
     end_time = modified_time
     start_time = end_time - timedelta(seconds=duration_seconds)
@@ -1625,10 +1625,10 @@ def _distance_from_meters(distance_m, is_metric):
   return distance_m * (METER_TO_KILOMETER if is_metric else METER_TO_MILE)
 
 
-def _route_shell_drive(route_info, params_obj, model_names, is_metric):
+def _route_shell_drive(route_info, params_obj, model_names, is_metric, now=None):
   segment_count = max(0, _safe_int(route_info.get("segmentCount", 0), 0))
   duration_seconds = segment_count * 60
-  start_date, end_date = _route_time_range(route_info, duration_seconds)
+  start_date, end_date = _route_time_range(route_info, duration_seconds, now=now)
   return {
     "name": route_info.get("name", ""),
     "routeNames": [route_info.get("name", "")],
@@ -2986,7 +2986,7 @@ def get_dashboard_stats(footage_paths, params_obj=None, now=None):
 
   persistent_stats = _load_dashboard_persistent_stats(params_obj)
   shell_drives = [
-    _route_shell_drive(route_info, params_obj, model_names, is_metric)
+    _route_shell_drive(route_info, params_obj, model_names, is_metric, now=now)
     for route_info in route_infos
   ]
   if shell_drives:

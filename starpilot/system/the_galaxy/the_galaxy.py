@@ -4958,6 +4958,18 @@ def setup(app):
     response.headers["Expires"] = "0"
     return response
 
+  def _no_store_response(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+  def _serve_new_ui():
+    ui_index_path = Path(app.static_folder) / "mobile" / "index.html"
+    if not ui_index_path.is_file():
+      return "Galaxy UI not found", 404
+    return _no_store_response(make_response(send_file(str(ui_index_path))))
+
   @app.route("/", methods=["GET"])
   def index():
     response = make_response(render_template("index.html"))
@@ -4965,6 +4977,18 @@ def setup(app):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+  @app.route("/classic", methods=["GET"])
+  @app.route("/classic/", methods=["GET"])
+  def classic_index():
+    return _no_store_response(make_response(render_template("index.html")))
+
+  @app.route("/mobile", methods=["GET"])
+  @app.route("/mobile/", methods=["GET"])
+  @app.route("/ui", methods=["GET"])
+  @app.route("/ui/", methods=["GET"])
+  def mobile_index():
+    return _serve_new_ui()
 
   @app.route("/api/bluetooth/status", methods=["GET"])
   def bluetooth_status():
@@ -7212,6 +7236,15 @@ def setup(app):
     # storage scan cannot be multiplied by repeated homepage polling.
     with _STATS_RESPONSE_LOCK:
       return _get_stats_locked()
+
+  @app.route("/api/device/status", methods=["GET"])
+  def device_status():
+    return jsonify({
+      "status": "Driving" if params.get_bool("IsOnroad") else "Parked",
+      "online": True,
+      "lanIp": utilities.get_current_lan_ip(),
+      "networkName": utilities.get_current_network_name(),
+    }), 200
 
   @app.route("/api/stats/ignore_drive", methods=["POST"])
   def ignore_drive_stats():

@@ -66,6 +66,15 @@
   <script src="/assets/js/snackbar.js"></script>
 
   <title>Galaxy</title>
+
+  <script>
+    const _inEmbed =
+      new URLSearchParams(window.location.search).has("embedded") ||
+      (window.self !== window.top);
+    if (_inEmbed) {
+      document.documentElement.classList.add("embedded");
+    }
+  </script>
 </head>
 
 <body>

@@ -4,8 +4,10 @@ import { hideSidebar } from "/assets/js/utils.js"
 import { DeviceSettings } from "/assets/components/tools/device_settings.js?v=favorite-c4-hint-1"
 import { Bluetooth } from "/assets/components/tools/bluetooth.js?v=bluetooth-live-15"
 import { WheelControls } from "/assets/components/tools/wheel_controls.js?v=controllers-2"
+import { DoorControl } from "/assets/components/tools/doors.js"
 import { ErrorLogs } from "/assets/components/tools/error_logs.js"
 import { VehicleFeatures } from "/assets/components/tools/vehicle_features.js"
+import { TSKManager } from "/assets/components/tools/tsk_manager.js"
 import { GalaxyPairing } from "/assets/components/tools/galaxy.js"
 import { Home } from "/assets/components/home/home.js"
 import { LongitudinalManeuvers } from "/assets/components/tools/longitudinal_maneuvers.js"
@@ -70,12 +72,15 @@ function Root() {
   let routes = [
     createRoute("bluetooth", "/bluetooth", Bluetooth),
     createRoute("wheel_controls", "/wheel-controls", WheelControls),
+    createRoute("doors", "/manage_doors", DoorControl),
+    createRoute("tsk", "/manage_tsk", TSKManager),
     createRoute("device_settings", "/device_settings/:section?", DeviceSettings),
     createRoute("errorLogs", "/manage_error_logs", ErrorLogs),
     createRoute("galaxy", "/galaxy", GalaxyPairing),
     createRoute("navdestination", "/set_navigation_destination", NavDestination),
     createRoute("navkeys", "/manage_navigation_keys", NavKeys),
     createRoute("root", "/", Home),
+    createRoute("classicRoot", "/classic", Home),
     createRoute("routes", "/dashcam_routes", RouteRecordings),
     createRoute("screen_recordings", "/screen_recordings", ScreenRecordings),
     createRoute("sentry", "/sentry", SentryMode),
