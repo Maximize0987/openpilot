@@ -205,7 +205,6 @@ class Soundd:
   def load_sounds(self):
     self.loaded_sounds: dict[int, np.ndarray] = {}
 
-    # Load all sounds. Prefer theme/random-event clips, then packaged stock.
     for sound in sound_list:
       filename, play_count, volume = sound_list[sound]
       loaded = False

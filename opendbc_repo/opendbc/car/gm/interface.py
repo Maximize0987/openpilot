@@ -500,7 +500,6 @@ class CarInterface(CarInterfaceBase):
         ret.flags |= GMFlags.PEDAL_LONG.value
 
     elif candidate in (CAR.CHEVROLET_SILVERADO, CAR.CHEVROLET_SILVERADO_CC):
-      # Let stock Silverado ACC decide whether standstill engagement is valid.
       ret.minEnableSpeed = 0.
       CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
 

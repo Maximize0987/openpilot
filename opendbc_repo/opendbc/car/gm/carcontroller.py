@@ -260,8 +260,6 @@ MAX_UPHILL_GRADE_FF = 0.20
 
 
 def limit_grade_feedforward(planner_accel: float, pitch_accel: float) -> float:
-  # Planner already closed-loops hill sag. Stacking full g*sin(pitch) on a
-  # positive command is what kick-downs 10-speed trucks.
   if pitch_accel > 0.0 and planner_accel > 0.0:
     return 0.0
   if pitch_accel > MAX_UPHILL_GRADE_FF:

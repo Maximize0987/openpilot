@@ -108,7 +108,6 @@ class StarPilotFollowing:
 
     self.update_lane_change_gap(long_control_active, v_ego, sm, starpilot_toggles)
 
-    # After t_follow adjustments so CEM and the published tFollow use the same window.
     self.following_lead = self.starpilot_planner.tracking_lead and self.starpilot_planner.lead_one.dRel < (self.t_follow * 2) * v_ego
 
     self.disable_throttle = False

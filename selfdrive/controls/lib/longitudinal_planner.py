@@ -291,8 +291,6 @@ EXPERIMENTAL_RELEASE_ACCEL_MAX_LATERAL_OFFSET = 1.5
 EXPERIMENTAL_RELEASE_ACCEL_MIN_HEADWAY_MARGIN = 0.0
 EXPERIMENTAL_RELEASE_ACCEL_MIN_DELTA_A = 0.12
 EXPERIMENTAL_RELEASE_ACCEL_STEP = 0.06
-# Last few mph below CESpeed/CESpeedLead: mix MPC back in so experimental
-# cannot crawl into the breakpoint and then snap to ACC.
 EXPERIMENTAL_SPEED_HANDOFF_BAND = 5.0 * CV.MPH_TO_MS
 EXPERIMENTAL_HANDOFF_KEEP_E2E_BRAKE = -0.15
 MATCHED_FOLLOW_TRANSITION_MIN_SPEED = 20.0
@@ -1798,16 +1796,12 @@ class LongitudinalPlanner:
 
   @staticmethod
   def is_cem_following_lead(tracking_lead, d_rel, t_follow, v_ego):
-    # Same inputs as StarPilotFollowing.following_lead / CEM: published
-    # trackingLead and tFollow, plus leadOne.dRel inside 2*t_follow*v_ego.
     return bool(tracking_lead and float(d_rel) < (float(t_follow) * 2.0) * float(v_ego))
 
   @staticmethod
   def apply_experimental_speed_handoff(output_a_target, output_a_target_mpc, output_a_target_e2e, speed_handoff):
     if speed_handoff <= 0.0:
       return output_a_target
-    # Keep a real E2E brake. Only mix MPC back in when experimental is crawling
-    # or matching ACC, not when it is already asking for more deceleration.
     if output_a_target_e2e < min(output_a_target_mpc, EXPERIMENTAL_HANDOFF_KEEP_E2E_BRAKE):
       return output_a_target
     return (1.0 - speed_handoff) * output_a_target + speed_handoff * output_a_target_mpc
