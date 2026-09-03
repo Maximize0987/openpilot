@@ -26,6 +26,7 @@ Usage:
 Commands:
   c3           Launch the large raylib UI from the isolated host cache.
   c4           Launch the small raylib UI from the isolated host cache.
+  galaxy       Launch the local Galaxy web UI from the isolated host cache.
   onroad       Launch replay plus desktop UI(s) from the isolated host cache.
   replay       Build and run replay from the isolated host cache.
   cabana       Build and run cabana from the isolated host cache.
@@ -629,7 +630,7 @@ main() {
     help|-h|--help)
       usage
       ;;
-    c3|c4|onroad|replay|shell|python|pytest)
+    c3|c4|galaxy|onroad|replay|shell|python|pytest)
       set_host_bucket "shared"
       acquire_host_lock "${command} $*"
       ;;
@@ -669,6 +670,9 @@ main() {
       ;;
     c4)
       launch_c4 "$@"
+      ;;
+    galaxy)
+      launch_galaxy "$@"
       ;;
     onroad)
       launch_onroad "$@"
