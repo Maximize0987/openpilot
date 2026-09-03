@@ -10,7 +10,6 @@ from opendbc.car.hyundai.hyundaicanfd import CanBus
 from opendbc.car.hyundai.values import HyundaiFlags, HyundaiStarPilotFlags, HyundaiStarPilotSafetyFlags, CAR, DBC, Buttons, CarControllerParams, \
                                        CANFD_ANGLE_LONGITUDINAL_CAR, CANFD_CORNER_RADAR_BSM_CAR, \
                                        CANFD_ALT_BUTTONS_RESUME_CAR, \
-                                       CANFD_DAW_SUPPRESSION_CAR, \
                                        hyundai_cancel_button_enables_cruise, ALT_BUS_LDA_BUTTON_CARS, ALT_BUS_LDA_BUTTON_SWL_STAT_CARS
 from opendbc.car.interfaces import CarStateBase
 
@@ -144,7 +143,6 @@ class CarState(CarStateBase):
     self.lfa_block_msg = {}
     self.stock_lkas_msg = {}
     self.lkas12 = {}
-    self.stock_daw_msg = {}
     self.stock_lfa_msg = {}
     self.stock_lfahda_cluster_msg = {}
     self.stock_camera_lead_visible = False
@@ -615,8 +613,6 @@ class CarState(CarStateBase):
     if self.CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR and cp.ts_nanos["FR_CMR_01_10ms"]["FR_CMR_Crc1Val"] > 0:
       hba_icon = int(cp.vl["FR_CMR_01_10ms"]["HBA_IndLmpReq"])
       self.hba_icon = hba_icon if hba_icon in (1, 2) else 0
-    if self.CP.carFingerprint in CANFD_DAW_SUPPRESSION_CAR and cp.ts_nanos["FR_CMR_01_10ms"]["FR_CMR_Crc1Val"] > 0:
-      self.stock_daw_msg = copy.copy(cp.vl["FR_CMR_01_10ms"])
     if cp.ts_nanos["BLINKER_STALKS"]["CHECKSUM_MAYBE"] > 0:
       self.stock_blinker_stalks_ts = cp.ts_nanos["BLINKER_STALKS"]["CHECKSUM_MAYBE"]
 
@@ -680,7 +676,7 @@ class CarState(CarStateBase):
     ]
     if CP.enableBsm:
       msgs.append(("BLINDSPOTS_REAR_CORNERS", 0))
-    if CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR | CANFD_DAW_SUPPRESSION_CAR:
+    if CP.carFingerprint in CANFD_ANGLE_LONGITUDINAL_CAR:
       msgs.append(("BLINDSPOTS_FRONT_CORNER_2", 0))
       msgs.append(("FR_CMR_01_10ms", 0))
     if CP.flags & HyundaiFlags.EV:

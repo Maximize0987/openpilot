@@ -10,7 +10,7 @@ from opendbc.car.hyundai import hyundaicanfd, hyundaican
 from opendbc.car.hyundai.hyundaicanfd import CanBus
 from opendbc.car.hyundai.values import HyundaiFlags, HyundaiStarPilotFlags, Buttons, CarControllerParams, CAR, CANFD_ANGLE_LONGITUDINAL_CAR, \
                                         CANFD_RADAR_LIVE_LONGITUDINAL_CAR, CANFD_ALT_BUTTONS_RESUME_CAR, kia_ev6_gt_line_longitudinal_tuning, \
-                                        KIA_EV6_GT_LINE_LONG_TUNING_TESTING_GROUND_ID, CANFD_DAW_SUPPRESSION_CAR
+                                        KIA_EV6_GT_LINE_LONG_TUNING_TESTING_GROUND_ID
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.vehicle_model import VehicleModel
 from openpilot.common.params import Params
@@ -893,9 +893,6 @@ class CarController(CarControllerBase):
     if ccnc_angle_long and not drive_gear:
       can_sends.extend(hyundaicanfd.create_inactive_angle_steering_messages(self.packer, self.CAN,
                                                                              inactive_steering_angle))
-
-    if self.CP.carFingerprint in CANFD_DAW_SUPPRESSION_CAR and getattr(CS, "stock_daw_msg", None):
-      can_sends.append(hyundaicanfd.create_suppress_daw(self.packer, self.CAN, CS.stock_daw_msg))
 
     # prevent LFA from activating on LKA steering cars by sending "no lane lines detected" to ADAS ECU
     suppress_lfa = bool(lka_steering)

@@ -570,41 +570,6 @@ class TestHyundaiFingerprint:
     assert not (CP.flags & HyundaiFlags.CANFD_LKA_STEERING)
     assert bool(CP.flags & HyundaiFlags.CANFD_CAMERA_SCC)
 
-  def test_ioniq_6_filters_stock_driver_attention_warning(self):
-    CP = CarParams.new_message()
-    CP.carFingerprint = CAR.HYUNDAI_IONIQ_6
-    CP.flags = int(HyundaiFlags.CANFD | HyundaiFlags.EV | HyundaiFlags.CANFD_LKA_STEERING |
-                   HyundaiFlags.CANFD_LKA_STEERING_ALT)
-    CP.openpilotLongitudinalControl = False
-
-    controller = CarController(DBC[CP.carFingerprint], CP)
-    controller.frame = 1
-    can_bus = CanBus(CP)
-    parser = CANParser(DBC[CP.carFingerprint][Bus.pt], [("FR_CMR_01_10ms", 0)], can_bus.ECAN)
-    stock_daw_msg = {
-      "FR_CMR_AlvCnt1Val": 7,
-      "DAW_SysSta": 6,
-      "DAW_WrnMsgSta": 1,
-      "HBA_IndLmpReq": 2,
-    }
-    cc = SimpleNamespace(enabled=True, latActive=True,
-                         actuators=SimpleNamespace(longControlState=LongCtrlState.off),
-                         leftBlinker=False, rightBlinker=False, hudControl=SimpleNamespace())
-    cs = SimpleNamespace(stock_lfa_msg=None, stock_lkas_msg={}, lfa_block_msg={}, stock_daw_msg=stock_daw_msg,
-                         out=SimpleNamespace(steeringAngleDeg=0.0, gearShifter=structs.CarState.GearShifter.drive))
-
-    msgs = controller.create_canfd_msgs(0, True, 0.0, 0.0, 0.0, 0.0, False, cc.hudControl, cs, cc,
-                                        get_test_toggles(), lka_icon=2, lfa_icon=2)
-    daw_msgs = [msg for msg in msgs if msg[0] == 0x11A]
-    assert len(daw_msgs) == 1
-
-    parser.update([(1, daw_msgs)])
-
-    assert parser.can_valid
-    assert parser.vl["FR_CMR_01_10ms"]["DAW_SysSta"] == 6
-    assert parser.vl["FR_CMR_01_10ms"]["DAW_WrnMsgSta"] == 0
-    assert parser.vl["FR_CMR_01_10ms"]["HBA_IndLmpReq"] == 2
-
   def test_ioniq_6_clears_torque_with_inactive_safety_request(self):
     ioniq_6_cp = SimpleNamespace(carFingerprint=CAR.HYUNDAI_IONIQ_6)
     other_cp = SimpleNamespace(carFingerprint=CAR.KIA_EV6)

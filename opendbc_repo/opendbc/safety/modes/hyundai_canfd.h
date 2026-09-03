@@ -16,7 +16,6 @@
 
 #define HYUNDAI_CANFD_LKA_STEERING_ALT_COMMON_TX_MSGS(a_can, e_can) \
   HYUNDAI_CANFD_CRUISE_BUTTON_TX_MSGS(e_can)                        \
-  {0x11A, e_can, 16, .check_relay = (e_can) == 0},  /* FR_CMR_01_10ms */ \
   {0x110, a_can, 32, .check_relay = (a_can) == 0, .disable_static_blocking = true},  /* LKAS_ALT */  \
   {0x362, a_can, 32, .check_relay = (a_can) == 0, .disable_static_blocking = true},  /* CAM_0x362 */ \
 
