@@ -39,6 +39,7 @@ from opendbc.car.gm.values import GMFlags
 from opendbc.car.toyota.carcontroller import LOCK_CMD, UNLOCK_CMD
 from opendbc.car.toyota.values import ToyotaStarPilotFlags
 from openpilot.common.constants import CV
+from openpilot.common.file_chunker import get_chunk_name, get_manifest_path
 from openpilot.common.params import ParamKeyFlag, ParamKeyType, Params
 from openpilot.common.realtime import DT_HW
 from openpilot.common.swaglog import cloudlog
@@ -6657,7 +6658,23 @@ def setup(app):
     if is_builtin_model_key(model_key):
       return True
 
-    return f"{model_key}_driving_tinygrad.pkl" in on_disk_files
+    filename = f"{model_key}_driving_tinygrad.pkl"
+    if filename in on_disk_files:
+      return True
+
+    manifest = get_manifest_path(filename)
+    if manifest not in on_disk_files:
+      return False
+
+    try:
+      num_chunks = int((MODELS_PATH / manifest).read_text().strip())
+    except (OSError, ValueError):
+      return False
+
+    return num_chunks > 0 and all(
+      get_chunk_name(filename, index, num_chunks) in on_disk_files
+      for index in range(num_chunks)
+    )
 
   def get_model_catalog():
     available = [model.strip() for model in (params.get("AvailableModels", encoding="utf-8") or "").split(",")]
