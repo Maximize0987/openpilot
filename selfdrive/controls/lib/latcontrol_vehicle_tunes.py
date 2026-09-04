@@ -243,6 +243,16 @@ GENESIS_GV70_HIGH_SPEED_ERROR_DAMPING_ERROR = 0.18
 GENESIS_GV70_HIGH_SPEED_ERROR_DAMPING_ERROR_WIDTH = 0.15
 GENESIS_GV70_HIGH_SPEED_ERROR_DAMPING_JERK = 0.15
 GENESIS_GV70_HIGH_SPEED_ERROR_DAMPING_JERK_WIDTH = 0.10
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_MAX = 0.28
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED = 18.0 * CV.MPH_TO_MS
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED_WIDTH = 3.5 * CV.MPH_TO_MS
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED_CUTOFF = 34.0 * CV.MPH_TO_MS
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED_CUTOFF_WIDTH = 4.5 * CV.MPH_TO_MS
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_CENTER_LAT = 0.22
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_CENTER_LAT_WIDTH = 0.08
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_MIN = 0.06
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_LAT = 0.12
+GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_LAT_WIDTH = 0.10
 
 GENESIS_G70_FRICTION_THRESHOLD_GAIN = 0.10
 GENESIS_G70_FRICTION_SPEED_ONSET = 10.0
@@ -3119,6 +3129,25 @@ def get_genesis_gv70_high_speed_error_scale(setpoint: float, measured_lateral_ac
   reduction = (GENESIS_GV70_HIGH_SPEED_ERROR_DAMPING_MAX * speed_weight * error_weight *
                (0.35 + (0.65 * jerk_weight)) * phase_weight)
   return 1.0 - reduction
+
+
+def get_genesis_gv70_low_speed_center_overshoot_scale(setpoint: float, measured_lateral_accel: float,
+                                                      v_ego: float) -> float:
+  if abs(setpoint) > 0.08 and setpoint * measured_lateral_accel < 0.0:
+    return 1.0
+  overshoot = max(abs(measured_lateral_accel) - abs(setpoint), 0.0)
+  if overshoot < GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_MIN:
+    return 1.0
+  overshoot_weight = _sigmoid((overshoot - GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_LAT) /
+                              GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_LAT_WIDTH)
+  center_weight = _sigmoid((GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_CENTER_LAT - abs(setpoint)) /
+                           GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_CENTER_LAT_WIDTH)
+  speed_weight = _sigmoid((v_ego - GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED) /
+                          GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED_WIDTH)
+  speed_cutoff = _sigmoid((GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED_CUTOFF - v_ego) /
+                          GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_SPEED_CUTOFF_WIDTH)
+  return 1.0 - (GENESIS_GV70_LOW_SPEED_CENTER_OVERSHOOT_MAX * overshoot_weight * center_weight *
+                speed_weight * speed_cutoff)
 
 
 def get_genesis_g70_friction_threshold(v_ego: float, desired_lateral_accel: float = 0.0,

@@ -22,7 +22,7 @@ from msgq.visionipc import VisionIpcClient, VisionStreamType, VisionBuf
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.params import Params
 from openpilot.common.filter_simple import FirstOrderFilter
-from openpilot.common.file_chunker import file_chunked_exists, open_file_chunked, read_file_chunked
+from openpilot.common.file_chunker import file_chunked_exists, open_file_chunked
 from openpilot.common.realtime import config_realtime_process, DT_MDL
 from openpilot.common.transformations.camera import DEVICE_CAMERAS
 from openpilot.common.transformations.model import get_warp_matrix
@@ -37,10 +37,13 @@ from openpilot.selfdrive.modeld.fill_model_msg import fill_model_msg, fill_pose_
 from openpilot.selfdrive.modeld.constants import ModelConstants, Plan
 from openpilot.selfdrive.modeld.compile_modeld import (
   ARTIFACT_FORMAT_VERSION,
+  FAST_POLICY_INPUTS,
+  FAST_WARP_INPUTS,
   IMAGE_HISTORY_IN_POLICY,
   IMAGE_HISTORY_IN_WARP,
   LEGACY_WARP_INPUTS,
   _detect_vision_keys,
+  derive_frame_skip,
   make_split_input_queues,
   make_supercombo_input_queues,
 )
@@ -388,18 +391,60 @@ class FrameMeta:
       self.frame_id, self.timestamp_sof, self.timestamp_eof = vipc.frame_id, vipc.timestamp_sof, vipc.timestamp_eof
 
 
+MAX_OOB_OPCODE_SIZE = 1024 * 1024 * 1024
+
+
+def _is_oob_artifact_header(header: bytes) -> bool:
+  if len(header) < 10:
+    return False
+  opcode_size = struct.unpack("<q", header[:8])[0]
+  return 2 <= opcode_size <= MAX_OOB_OPCODE_SIZE and header[8] == 0x80 and header[9] <= pickle.HIGHEST_PROTOCOL
+
+
 def _load_model_artifact(path: Path):
   """Load legacy pickle artifacts and the streaming OOB format used by large GPU models."""
   with open_file_chunked(path) as artifact_file:
-    pickle_header = artifact_file.peek(2)[:2]
-    legacy_pickle = (
-      len(pickle_header) == 2 and pickle_header[0] == 0x80 and pickle_header[1] <= pickle.HIGHEST_PROTOCOL
-    )
-    if legacy_pickle:
-      return pickle.load(artifact_file)
+    oob_artifact = _is_oob_artifact_header(artifact_file.peek(10)[:10])
 
   with open_file_chunked(path) as artifact_file:
-    return load_oob(artifact_file)
+    return load_oob(artifact_file) if oob_artifact else pickle.load(artifact_file)
+
+
+def _normalize_model_artifact(artifact: dict) -> dict:
+  """Adapt the current metadata-only artifact envelope to StarPilot's explicit schema."""
+  if artifact.get("format_version") is not None:
+    if artifact["format_version"] != ARTIFACT_FORMAT_VERSION:
+      raise ValueError(
+        f"Unsupported model artifact format {artifact.get('format_version')!r}; "
+        f"expected {ARTIFACT_FORMAT_VERSION}"
+      )
+    return artifact
+
+  metadata = artifact.get("metadata")
+  if not isinstance(metadata, dict) or "run_policy" not in artifact:
+    raise ValueError("Unsupported metadata-only model artifact")
+
+  if "model" in metadata:
+    model_type = "supercombo"
+    policy_order = []
+    policy_shapes = metadata["model"]["input_shapes"]
+  else:
+    policy_order = [key for key in metadata if key != "vision"]
+    if not policy_order or "vision" not in metadata:
+      raise ValueError("Split model artifact is missing vision or policy metadata")
+    model_type = "vision_policy" if policy_order == ["policy"] else "vision_multi_policy"
+    policy_shapes = metadata[policy_order[0]]["input_shapes"]
+
+  return {
+    **artifact,
+    "format_version": ARTIFACT_FORMAT_VERSION,
+    "model_type": model_type,
+    "policy_order": policy_order,
+    "frame_skip": derive_frame_skip(policy_shapes),
+    "image_history_pipeline": IMAGE_HISTORY_IN_POLICY,
+    "warp_input_keys": FAST_WARP_INPUTS,
+    "policy_input_keys": FAST_POLICY_INPUTS,
+  }
 
 
 class ModelState:
@@ -454,13 +499,7 @@ class ModelState:
       raise FileNotFoundError(model_path)
 
     self.uses_external_gpu = external_gpu_active and requires_external_gpu and not loaded_builtin
-    artifact = (_load_model_artifact(model_path) if self.uses_external_gpu
-                else pickle.loads(read_file_chunked(str(model_path))))
-    if artifact.get("format_version") != ARTIFACT_FORMAT_VERSION:
-      raise ValueError(
-        f"Unsupported model artifact format {artifact.get('format_version')!r}; "
-        f"expected {ARTIFACT_FORMAT_VERSION}"
-      )
+    artifact = _normalize_model_artifact(_load_model_artifact(model_path))
 
     self.model_type = artifact["model_type"]
     self.metadata = artifact["metadata"]

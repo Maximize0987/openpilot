@@ -858,6 +858,29 @@ class TestHyundaiFingerprint:
     )
     assert not (no_lkas12_fpcp.flags & HyundaiStarPilotFlags.HAS_LKAS12)
 
+  def test_ray_ev_does_not_treat_eight_byte_53e_as_lkas12(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x53E] = 8
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, fingerprint, [], False, False, False, None)
+    FPCP = CarInterface.get_starpilot_params(CAR.KIA_RAY_EV, fingerprint, [], CP, get_test_toggles())
+
+    assert not (FPCP.flags & HyundaiStarPilotFlags.HAS_LKAS12)
+
+  def test_ray_ev_does_not_treat_eight_byte_485_as_lfa(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x485] = 8
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, fingerprint, [], False, False, False, None)
+
+    assert not (CP.flags & HyundaiFlags.SEND_LFA)
+
+  def test_non_ray_legacy_platform_keeps_53e_lkas12_detection(self):
+    fingerprint = gen_empty_fingerprint()
+    fingerprint[2][0x53E] = 8
+    CP = CarInterface.get_params(CAR.HYUNDAI_SONATA_HYBRID, fingerprint, [], False, False, False, None)
+    FPCP = CarInterface.get_starpilot_params(CAR.HYUNDAI_SONATA_HYBRID, fingerprint, [], CP, get_test_toggles())
+
+    assert FPCP.flags & HyundaiStarPilotFlags.HAS_LKAS12
+
   def test_carnival_lka_button_does_not_enable_angle_steering_safety(self):
     fingerprint = gen_empty_fingerprint()
     fingerprint[0][0x391] = 8

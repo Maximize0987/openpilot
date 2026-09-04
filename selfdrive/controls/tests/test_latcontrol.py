@@ -55,6 +55,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_vehicle_tunes import (
   get_ram_1500_ff_scale,
   get_rav4_tss2_pid_output,
   get_subaru_impreza_pid_output_scale,
+  get_genesis_gv70_low_speed_center_overshoot_scale,
   normalize_flm_overrides,
   set_flm_runtime_overrides,
 )
@@ -954,6 +955,19 @@ class TestLatControl:
     assert get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 33.5) < 1.0
     assert get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 20.0) > \
       get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 33.5)
+
+  def test_genesis_gv70_low_speed_center_overshoot_damping(self):
+    center_overshoot = get_genesis_gv70_low_speed_center_overshoot_scale(0.02, 0.45, 22.0 * 0.44704)
+    clean_center = get_genesis_gv70_low_speed_center_overshoot_scale(0.02, 0.02, 22.0 * 0.44704)
+    strong_turn = get_genesis_gv70_low_speed_center_overshoot_scale(0.8, 0.9, 22.0 * 0.44704)
+    opposite_turn = get_genesis_gv70_low_speed_center_overshoot_scale(0.4, -0.8, 22.0 * 0.44704)
+    high_speed = get_genesis_gv70_low_speed_center_overshoot_scale(0.02, 0.45, 45.0 * 0.44704)
+
+    assert center_overshoot < 0.85
+    assert clean_center == pytest.approx(1.0)
+    assert strong_turn > center_overshoot
+    assert opposite_turn == pytest.approx(1.0)
+    assert high_speed > center_overshoot
 
   def test_genesis_g70_center_chatter_tune(self):
     base = get_standard_friction_threshold(25.0)
