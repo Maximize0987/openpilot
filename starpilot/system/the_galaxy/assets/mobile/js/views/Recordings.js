@@ -1,6 +1,7 @@
 import { api, showSnackbar } from "../api.js"
 import { GalaxyConfirm } from "../components/GalaxyModal.js"
 import { GalaxySection } from "../components/GalaxySection.js"
+import { GalaxyTabs } from "../components/GalaxyTabs.js"
 
 function fmtDuration(seconds) {
   seconds = Number(seconds) || 0
@@ -32,7 +33,7 @@ function normalizeRoute(r) {
 
 export const Recordings = {
   name: "Recordings",
-  components: { GalaxySection },
+  components: { GalaxySection, GalaxyTabs },
   data() {
     return {
       loading: true,
@@ -115,6 +116,9 @@ export const Recordings = {
       } catch (e) {
         showSnackbar("Delete failed.", "error")
       }
+    },
+    setPreservedFilter(key) {
+      this.showPreservedOnly = key === "preserved"
     },
     async togglePreserved(route) {
       try {
@@ -224,8 +228,9 @@ export const Recordings = {
             <option value="longest">Longest duration</option>
             <option value="shortest">Shortest duration</option>
           </select>
-          <button type="button" class="gx-chip" :style="!showPreservedOnly?'background:var(--primary);color:var(--on-primary);':''" @click="showPreservedOnly=false">All</button>
-          <button type="button" class="gx-chip" :style="showPreservedOnly?'background:var(--primary);color:var(--on-primary);':''" @click="showPreservedOnly=true">Preserved</button>
+        </div>
+        <div style="padding: 0 var(--sp-3) var(--sp-3);">
+          <GalaxyTabs :items="{ all: 'All', preserved: 'Preserved' }" :active="showPreservedOnly ? 'preserved' : 'all'" @select="setPreservedFilter" />
         </div>
       </section>
 
@@ -242,7 +247,7 @@ export const Recordings = {
             <button type="button" class="gx-btn gx-btn--tonal" title="Preserve" @click.stop="togglePreserved(r)"><i class="bi" :class="r.is_preserved ? 'bi-heart-fill' : 'bi-heart'"></i></button>
             <button type="button" class="gx-btn gx-btn--tonal" title="Logs" @click.stop="openLogs(r)"><i class="bi bi-file-earmark-arrow-down"></i></button>
             <button type="button" class="gx-btn gx-btn--tonal" title="Rename" @click.stop="renameRoute(r)"><i class="bi bi-pencil"></i></button>
-            <button type="button" class="gx-btn" style="background:var(--error);color:var(--on-error);" title="Delete" @click.stop="deleteRoute(r)"><i class="bi bi-trash"></i></button>
+            <button type="button" class="gx-btn gx-btn--danger" title="Delete" @click.stop="deleteRoute(r)"><i class="bi bi-trash"></i></button>
           </div>
         </article>
       </section>
@@ -254,7 +259,7 @@ export const Recordings = {
         </div>
         <div style="display:flex; gap:8px; padding: var(--sp-3); flex-wrap:wrap;">
           <button type="button" class="gx-btn gx-btn--tonal" @click="deleteAllRoutes(false)">Delete Non-Preserved</button>
-          <button type="button" class="gx-btn" style="background:var(--error);color:var(--on-error);" @click="deleteAllRoutes(true)">Delete All Including Preserved</button>
+          <button type="button" class="gx-btn gx-btn--danger" @click="deleteAllRoutes(true)">Delete All Including Preserved</button>
         </div>
       </section>
 
@@ -273,33 +278,35 @@ export const Recordings = {
         </div>
       </div>
 
-      <transition name="gx-fade">
-        <div v-if="playerRoute" class="gx-scrim" @click.self="closePlayer">
-          <div class="gx-sheet" style="max-width:640px; width:100%;" role="dialog" aria-label="Route video player">
-            <div class="gx-section__header" style="cursor:default;">
-              <i class="bi bi-camera-video"></i>
-              <span class="gx-section__title">{{ playerRoute.displayName }}</span>
-              <button type="button" class="gx-icon-btn" aria-label="Close player" @click="closePlayer"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div style="padding: var(--sp-3);">
-              <div v-if="playerError" class="gx-empty" style="color: var(--error);">{{ playerError }}</div>
-              <div v-else-if="playerLoading" class="gx-loading"><i class="bi bi-hourglass-split"></i> Loading video...</div>
-              <template v-else-if="segments.length">
-                <video ref="player" class="gx-video" controls muted playsinline preload="metadata"></video>
-                <div style="display:flex; gap:8px; padding: var(--sp-3) 0 0; flex-wrap:wrap; align-items:center;">
-                  <button type="button" class="gx-btn gx-btn--tonal" :disabled="current<=0" @click="current--; playSegment()"><i class="bi bi-skip-start-fill"></i></button>
-                  <select class="gx-field" :value="current" @change="current = Number($event.target.value); playSegment()">
-                    <option v-for="(s,i) in segments" :key="i" :value="i">Segment {{ i + 1 }}</option>
-                  </select>
-                  <button type="button" class="gx-btn gx-btn--tonal" :disabled="current>=segments.length-1" @click="current++; playSegment()"><i class="bi bi-skip-end-fill"></i></button>
-                  <button v-for="c in cameras" :key="c" type="button" class="gx-chip" :style="selectedCamera===c?'background:var(--primary);color:var(--on-primary);':''" @click="selectedCamera=c; playSegment()">{{ c }}</button>
-                  <button type="button" class="gx-btn" @click="downloadRoute"><i class="bi bi-download"></i> Download</button>
-                </div>
-              </template>
+      <Teleport to="body">
+        <transition name="gx-fade">
+          <div v-if="playerRoute" class="gx-scrim gx-scrim--bottomsheet" @click.self="closePlayer">
+            <div class="gx-sheet" role="dialog" aria-label="Route video player">
+              <div class="gx-section__header" style="cursor:default;">
+                <i class="bi bi-camera-video"></i>
+                <span class="gx-section__title">{{ playerRoute.displayName }}</span>
+                <button type="button" class="gx-icon-btn" aria-label="Close player" @click="closePlayer"><i class="bi bi-x-lg"></i></button>
+              </div>
+              <div style="padding: var(--sp-3);">
+                <div v-if="playerError" class="gx-empty" style="color: var(--error);">{{ playerError }}</div>
+                <div v-else-if="playerLoading" class="gx-loading"><i class="bi bi-hourglass-split"></i> Loading video...</div>
+                <template v-else-if="segments.length">
+                  <video ref="player" class="gx-video" controls muted playsinline preload="metadata"></video>
+                  <div style="display:flex; gap:8px; padding: var(--sp-3) 0 0; flex-wrap:wrap; align-items:center;">
+                    <button type="button" class="gx-btn gx-btn--tonal" :disabled="current<=0" @click="current--; playSegment()"><i class="bi bi-skip-start-fill"></i></button>
+                    <select class="gx-field" :value="current" @change="current = Number($event.target.value); playSegment()">
+                      <option v-for="(s,i) in segments" :key="i" :value="i">Segment {{ i + 1 }}</option>
+                    </select>
+                    <button type="button" class="gx-btn gx-btn--tonal" :disabled="current>=segments.length-1" @click="current++; playSegment()"><i class="bi bi-skip-end-fill"></i></button>
+                    <button v-for="c in cameras" :key="c" type="button" class="gx-chip" :style="selectedCamera===c?'background:var(--primary);color:var(--on-primary);':''" @click="selectedCamera=c; playSegment()">{{ c }}</button>
+                    <button type="button" class="gx-btn" @click="downloadRoute"><i class="bi bi-download"></i> Download</button>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
-        </div>
-      </transition>
+        </transition>
+      </Teleport>
     </div>
   `,
 }
