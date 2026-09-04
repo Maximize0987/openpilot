@@ -57,6 +57,13 @@ def test_old_manifest_ids_resolve_to_v23_namespace():
   assert manager._resolve_manifest_model_key("missing") == "missing"
 
 
+def test_old_remove_avgpool_ids_resolve_to_artifact_ids():
+  manager = object.__new__(ModelManager)
+  manager.available_models = ["remove-avgpoolv4"]
+  assert manager._resolve_manifest_model_key("napv4") == "remove-avgpoolv4"
+  assert model_manager.canonical_model_key("napv4") == "remove-avgpoolv4"
+
+
 def test_model_cleanup_matches_legacy_split_artifacts():
   assert model_manager.is_driving_artifact_file("pop223_driving_tinygrad.pkl")
   assert model_manager.is_driving_artifact_file("driving_vision_tinygrad.pkl")

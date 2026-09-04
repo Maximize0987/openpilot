@@ -36,6 +36,10 @@ ARTIFACT_URLS_CACHE = ".model_artifact_urls.json"
 ARTIFACT_METADATA_CACHE = ".model_artifacts.json"
 MODEL_KEY_CANONICAL_MAP = {
   "sc": "sc2",
+  "napv1": "remove-avgpoolv1",
+  "napv2": "remove-avgpoolv2",
+  "napv3": "remove-avgpoolv3",
+  "napv4": "remove-avgpoolv4",
   # The original bundled RDF key remains valid after the bundled default moves
   # to the v23 RDF V4 artifact.
   "rdf": DEFAULT_MODEL_KEY,
@@ -738,6 +742,7 @@ class ModelManager:
 
   def _download_model(self, model_to_download: str, allow_gpu_without_gpu: bool):
     self.downloading_model = True
+    model_to_download = self._canonical_model_key(model_to_download)
 
     if is_builtin_model_key(model_to_download):
       self.params_memory.put(DOWNLOAD_PROGRESS_PARAM, "Built-in model already downloaded.")

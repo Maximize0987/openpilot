@@ -313,10 +313,15 @@ def _select_builtin_model(params: Params) -> None:
 
 
 def _close_tinygrad_disk_cache_connection() -> None:
-  """Drop tinygrad's process-global cache connection before loading the next model."""
+  """Close tinygrad's cache connection without replacing its thread-local holder."""
   import tinygrad.helpers as tinygrad_helpers
 
-  connection = getattr(tinygrad_helpers, "_db_connection", None)
+  holder = getattr(tinygrad_helpers, "_db_connection", None)
+  if holder is None:
+    return
+
+  has_thread_local_connection = hasattr(holder, "conn")
+  connection = getattr(holder, "conn", holder if hasattr(holder, "close") else None)
   if connection is None:
     return
 
@@ -325,7 +330,13 @@ def _close_tinygrad_disk_cache_connection() -> None:
   except Exception:
     cloudlog.exception("failed to close tinygrad disk cache connection")
   finally:
-    tinygrad_helpers._db_connection = None
+    if has_thread_local_connection:
+      try:
+        del holder.conn
+      except AttributeError:
+        pass
+    else:
+      tinygrad_helpers._db_connection = None
 
 
 def get_action_from_model(model_output: dict[str, np.ndarray], prev_action: log.ModelDataV2.Action,

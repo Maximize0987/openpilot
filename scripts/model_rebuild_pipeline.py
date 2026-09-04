@@ -22,7 +22,13 @@ DEFAULT_SOURCE_MAP = REPO_ROOT / "scripts/model_source_map_v25.json"
 DEFAULT_MANIFEST = DEFAULT_WORKSPACE / "manifests/model_names_v25.json"
 REMOTE = os.environ.get("STAR_PILOT_MODEL_REMOTE", "comma@192.168.3.110")
 REMOTE_ROOT = Path("/data/openpilot")
-SSH_OPTIONS = ("-o", "ConnectTimeout=10", "-o", "ConnectionAttempts=1")
+SSH_OPTIONS = (
+  "-o", "ConnectTimeout=10",
+  "-o", "ConnectionAttempts=1",
+  "-o", "ServerAliveInterval=30",
+  "-o", "ServerAliveCountMax=600",
+)
+RSYNC_SSH = "ssh -o ConnectTimeout=10 -o ConnectionAttempts=1 -o ServerAliveInterval=30 -o ServerAliveCountMax=600"
 
 MODEL_FILENAMES = (
   "driving_supercombo.onnx",
@@ -238,7 +244,7 @@ def pull_remote_artifact(remote_output: str, local_output: Path) -> None:
   local_output.parent.joinpath(f"{local_output.name}.chunkmanifest").unlink(missing_ok=True)
   local_output.parent.joinpath(f"{local_output.name}.sha256").unlink(missing_ok=True)
   local_output.parent.mkdir(parents=True, exist_ok=True)
-  run(["rsync", "-az", "-e", "ssh -o ConnectTimeout=10 -o ConnectionAttempts=1", f"{REMOTE}:{remote_output}*", f"{local_output.parent}/"])
+  run(["rsync", "-az", "-e", RSYNC_SSH, f"{REMOTE}:{remote_output}*", f"{local_output.parent}/"])
 
   parts = sorted(local_output.parent.glob(f"{local_output.name}.chunk[0-9][0-9]of[0-9][0-9]"))
   if local_output.is_file():
@@ -280,13 +286,13 @@ def compile_model(model_id: str, source: dict, version: str, workspace: Path, fo
   remote_input = f"{REMOTE_ROOT}/uncompiledmodels/{model_id}"
   remote_output = f"{REMOTE_ROOT}/compiledmodels/{model_id}_driving_tinygrad.pkl"
   remote(f"rm -rf {remote_input} && mkdir -p {remote_input} {REMOTE_ROOT}/compiledmodels")
-  run(["rsync", "-az", "-e", "ssh -o ConnectTimeout=10 -o ConnectionAttempts=1", "--exclude=._*", f"{source_dir}/", f"{REMOTE}:{remote_input}/"])
+  run(["rsync", "-az", "-e", RSYNC_SSH, "--exclude=._*", f"{source_dir}/", f"{REMOTE}:{remote_input}/"])
 
   log_path = workspace / "logs" / f"{model_id}.log"
   command_parts = [
     f"cd {REMOTE_ROOT} && ./models --model {model_id}",
     f"--input-dir {remote_input} --output-dir {REMOTE_ROOT}/compiledmodels",
-    f"--input-format {source['input_format']} --version {version}",
+    f"--input-format auto --version {version}",
   ]
   if source.get("uses_external_gpu"):
     command_parts.append("--external-gpu")
@@ -319,7 +325,7 @@ def validate_model(model_id: str, version: str, workspace: Path) -> dict:
   artifact = workspace / "compiled" / f"{model_id}_driving_tinygrad.pkl"
   if not artifact.is_file():
     raise FileNotFoundError(artifact)
-  run(["rsync", "-az", "-e", "ssh -o ConnectTimeout=10 -o ConnectionAttempts=1", str(artifact), f"{REMOTE}:/data/models/{artifact.name}"])
+  run(["rsync", "-az", "-e", RSYNC_SSH, str(artifact), f"{REMOTE}:/data/models/{artifact.name}"])
   run([
     "rsync",
     "-az",
@@ -403,6 +409,19 @@ def main() -> int:
     update_manifest(args.base_manifest, args.workspace, source_map)
     return 0
 
+  if args.command == "compile" and args.model and args.model not in source_map:
+    uses_external_gpu = False
+    if args.base_manifest:
+      base = load_json(args.base_manifest)
+      models = base.get("models", base)
+      uses_external_gpu = any(
+        model.get("id") == args.model and model.get("uses_external_gpu", False)
+        for model in models
+      )
+    source_map[args.model] = {
+      "input_format": "auto",
+      "uses_external_gpu": uses_external_gpu,
+    }
   model_ids = [args.model] if args.model else list(source_map)
   versions = {}
   if args.base_manifest:
