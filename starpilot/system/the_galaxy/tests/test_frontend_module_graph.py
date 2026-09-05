@@ -23,7 +23,7 @@ def test_router_and_settings_cache_bust_is_consistent():
   index = INDEX_PATH.read_text(encoding="utf-8")
 
   assert "/assets/components/settings.js?v=router-cycle-fix-5" in router
-  assert "/assets/components/router.js?v=router-cycle-fix-6" in index
+  assert "/assets/components/router.js?v=router-cycle-fix-7" in index
 
 
 def test_bluetooth_actions_use_reactive_disabled_bindings():
@@ -130,5 +130,10 @@ def test_model_laboratory_frontend_exposes_guards_and_role_copy():
   assert "Chestnut experiment" not in source
   assert "Manifest shortcomings" not in source
   assert "Opportunities" not in source
-  assert 'model_laboratory.js?v=model-lab-4' in ROUTER_PATH.read_text(encoding="utf-8")
+  assert "let selectionDirty = false" in source
+  assert "lateralModel: selectionDirty" in source
+  assert "longitudinalModel: selectionDirty" in source
+  assert source.count("selectionDirty = true") == 2
+  assert "selectionDirty = false\n    applyPayload(payload)" in source
+  assert 'model_laboratory.js?v=model-lab-5' in ROUTER_PATH.read_text(encoding="utf-8")
   assert 'model_laboratory.css?v=model-lab-4' in INDEX_PATH.read_text(encoding="utf-8")

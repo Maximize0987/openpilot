@@ -17,6 +17,7 @@ const state = reactive({
 
 let initialized = false
 let pollHandle = null
+let selectionDirty = false
 
 function modelById(modelId) {
   return state.models.find(model => model.value === modelId)
@@ -55,12 +56,20 @@ function selectionError() {
 }
 
 function applyPayload(payload) {
+  const draftSelection = {
+    lateralModel: state.configuration.lateralModel,
+    longitudinalModel: state.configuration.longitudinalModel,
+  }
   state.chestnutReady = Boolean(payload?.chestnutReady)
   state.isOnroad = Boolean(payload?.isOnroad)
   state.configuration = {
     enabled: Boolean(payload?.configuration?.enabled),
-    lateralModel: String(payload?.configuration?.lateralModel || ""),
-    longitudinalModel: String(payload?.configuration?.longitudinalModel || ""),
+    lateralModel: selectionDirty
+      ? draftSelection.lateralModel
+      : String(payload?.configuration?.lateralModel || ""),
+    longitudinalModel: selectionDirty
+      ? draftSelection.longitudinalModel
+      : String(payload?.configuration?.longitudinalModel || ""),
   }
   state.runtime = payload?.runtime && typeof payload.runtime === "object" ? payload.runtime : {}
   state.download = payload?.download && typeof payload.download === "object" ? payload.download : {}
@@ -127,6 +136,7 @@ async function save(enabled) {
         longitudinalModel: state.configuration.longitudinalModel,
       }),
     })
+    selectionDirty = false
     applyPayload(payload)
     state.message = String(payload.message || "Model Laboratory configuration saved.")
   } catch (error) {
@@ -173,6 +183,7 @@ function bindControls() {
     if (lateral.dataset.bound !== "1") {
       lateral.dataset.bound = "1"
       lateral.addEventListener("change", event => {
+        selectionDirty = true
         state.configuration.lateralModel = event.target.value
         const long = modelById(state.configuration.longitudinalModel)
         const lat = modelById(event.target.value)
@@ -187,7 +198,10 @@ function bindControls() {
     longitudinal.value = state.configuration.longitudinalModel
     if (longitudinal.dataset.bound !== "1") {
       longitudinal.dataset.bound = "1"
-      longitudinal.addEventListener("change", event => { state.configuration.longitudinalModel = event.target.value })
+      longitudinal.addEventListener("change", event => {
+        selectionDirty = true
+        state.configuration.longitudinalModel = event.target.value
+      })
     }
   }
   if (enable && enable.dataset.bound !== "1") {
