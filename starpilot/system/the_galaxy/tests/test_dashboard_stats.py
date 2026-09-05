@@ -1852,6 +1852,7 @@ def test_model_laboratory_api_uses_installed_models_and_enforces_hardware_size_v
   assert enabled.status_code == 200
   assert params.values["ModelLabConfig"]["enabled"] is True
   assert params.values["Model"] == params.values["DrivingModel"] == "lat"
+  assert params.values["DrivingModelName"] == "LA + LA"
   assert params.values["ModelVersion"] == params.values["DrivingModelVersion"] == "v15"
 
   mixed_version = client.put("/api/model-laboratory", json={

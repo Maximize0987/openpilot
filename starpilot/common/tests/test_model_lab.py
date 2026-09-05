@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -9,6 +10,8 @@ from openpilot.starpilot.common.model_lab import (
   hybrid_action_values,
   is_small_model_metadata,
   model_lab_manifest_eligible,
+  model_lab_pair_display_name,
+  model_lab_pair_display_name_from_params,
   normalize_model_lab_config,
   validate_model_lab_selection,
 )
@@ -46,6 +49,32 @@ def test_config_normalization_is_closed_by_default():
     "lateralModel": "lat",
     "longitudinalModel": "long",
   }
+
+
+def test_model_lab_pair_display_name_is_compact_and_reads_enabled_config():
+  assert model_lab_pair_display_name("South Carolina", "Pop Model V2") == "SC + PopV2"
+  assert model_lab_pair_display_name("Falling Phoenix", "Down To Ride v6") == "FP + DTRv6"
+
+  class FakeParams:
+    def __init__(self, values):
+      self.values = values
+
+    def get(self, key):
+      return self.values.get(key)
+
+  params = FakeParams({
+    "ModelLabConfig": json.dumps({
+      "enabled": True,
+      "lateralModel": "sc23",
+      "longitudinalModel": "pop223",
+    }),
+    "AvailableModels": "sc23,pop223",
+    "AvailableModelNames": "South Carolina,Pop Model V2",
+  })
+  assert model_lab_pair_display_name_from_params(params) == "SC + PopV2"
+
+  params.values["ModelLabConfig"] = json.dumps({"enabled": False})
+  assert model_lab_pair_display_name_from_params(params) == ""
 
 
 @pytest.mark.parametrize(

@@ -65,6 +65,7 @@ from openpilot.starpilot.common.model_lab import (
   MODEL_LAB_RUNTIME_PARAM,
   is_small_model_metadata,
   model_lab_manifest_eligible,
+  model_lab_pair_display_name,
   normalize_model_lab_config,
   validate_model_lab_selection,
 )
@@ -6309,7 +6310,8 @@ def setup(app):
       lateral = model_by_key[config["lateralModel"]]
       params.put("Model", lateral["value"])
       params.put("DrivingModel", lateral["value"])
-      params.put("DrivingModelName", lateral["label"])
+      longitudinal = model_by_key[config["longitudinalModel"]]
+      params.put("DrivingModelName", model_lab_pair_display_name(lateral["label"], longitudinal["label"]))
       if lateral.get("version"):
         params.put("ModelVersion", lateral["version"])
         params.put("DrivingModelVersion", lateral["version"])

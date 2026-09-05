@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import numpy as np
@@ -8,6 +9,7 @@ import numpy as np
 MODEL_LAB_CONFIG_PARAM = "ModelLabConfig"
 MODEL_LAB_RUNTIME_PARAM = "ModelLabRuntime"
 MODEL_LAB_MIN_MODEL_VERSION = 8
+MODEL_LAB_COMPACT_LABEL_MAX_LENGTH = 9
 
 LATERAL_OUTPUT_KEYS = (
   "desired_curvature",
@@ -31,6 +33,65 @@ CURRENT_FRAME_OUTPUT_KEYS = (
   "road_transform",
   "road_transform_stds",
 )
+
+
+def compact_model_lab_label(label: Any) -> str:
+  text = str(label or "").replace("_default", "").replace("(Default)", "").strip()
+  text = re.sub(r"[🗺️👀📡]", "", text)
+  text = re.sub(r"['’]s\b", "", text, flags=re.IGNORECASE)
+  text = re.sub(r"\bmodel\b", "", text, flags=re.IGNORECASE)
+  tokens = re.findall(r"[A-Za-z]+\d*|\d+", text)
+  if not tokens:
+    return ""
+
+  joined = "".join(tokens)
+  if len(joined) <= MODEL_LAB_COMPACT_LABEL_MAX_LENGTH:
+    return joined
+
+  compact = []
+  for token in tokens:
+    if token.isdigit() or re.fullmatch(r"[vV]\d+", token):
+      compact.append(token)
+    elif token.isupper() and len(token) <= 3:
+      compact.append(token)
+    else:
+      compact.append(token[0].upper())
+  return "".join(compact)
+
+
+def model_lab_pair_display_name(lateral_label: Any, longitudinal_label: Any) -> str:
+  lateral = compact_model_lab_label(lateral_label)
+  longitudinal = compact_model_lab_label(longitudinal_label)
+  return f"{lateral} + {longitudinal}" if lateral and longitudinal else ""
+
+
+def model_lab_pair_display_name_from_params(params) -> str:
+  config = load_model_lab_config(params)
+  if not config["enabled"]:
+    return ""
+
+  def param_text(key: str) -> str:
+    try:
+      value = params.get(key)
+    except Exception:
+      return ""
+    if isinstance(value, bytes):
+      value = value.decode("utf-8", errors="ignore")
+    return str(value or "")
+
+  model_ids = [entry.strip() for entry in param_text("AvailableModels").split(",")]
+  model_names = [entry.strip() for entry in param_text("AvailableModelNames").split(",")]
+  name_by_id = {
+    model_id: model_names[index]
+    for index, model_id in enumerate(model_ids)
+    if model_id and index < len(model_names) and model_names[index]
+  }
+  lateral_id = config["lateralModel"]
+  longitudinal_id = config["longitudinalModel"]
+  return model_lab_pair_display_name(
+    name_by_id.get(lateral_id, lateral_id),
+    name_by_id.get(longitudinal_id, longitudinal_id),
+  )
 
 LATERAL_PLAN_COLUMNS = (1, 4, 7, 11, 14)
 
