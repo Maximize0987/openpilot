@@ -229,30 +229,13 @@
   overflow-wrap: anywhere;
 }
 
-.ml-findings {
-  display: grid;
-  gap: var(--gap-md);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.ml-findings ul {
-  color: var(--text-muted);
-  margin-bottom: 0;
-  padding-left: 1.2rem;
-}
-
-.ml-findings li + li {
-  margin-top: 0.45rem;
-}
-
 @media (max-width: 760px) {
   .ml-wrapper {
     padding-right: 0;
   }
 
   .ml-pair,
-  .ml-runtime-grid,
-  .ml-findings {
+  .ml-runtime-grid {
     grid-template-columns: 1fr;
   }
 

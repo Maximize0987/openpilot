@@ -121,5 +121,14 @@ def test_model_laboratory_frontend_exposes_guards_and_role_copy():
   assert "run every camera frame on Chestnut's AMD GPU" in source
   assert 'lateral.value === longitudinal.value' in source
   assert 'lateral.version !== longitudinal.version' not in source
+  assert 'class="ml-chip ${' not in source
+  assert 'class="ml-state ${() =>' not in source
+  assert 'class="${() => `ml-chip ${' in source
+  assert 'class="${() => `ml-state ${' in source
   assert "Path shape, curvature, lane geometry" in source
   assert "Speed, acceleration, stopping, leads" in source
+  assert "Chestnut experiment" not in source
+  assert "Manifest shortcomings" not in source
+  assert "Opportunities" not in source
+  assert 'model_laboratory.js?v=model-lab-4' in ROUTER_PATH.read_text(encoding="utf-8")
+  assert 'model_laboratory.css?v=model-lab-4' in INDEX_PATH.read_text(encoding="utf-8")

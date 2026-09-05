@@ -230,7 +230,7 @@ function renderModel(model) {
       <div class="ml-chips">
         <span class="ml-chip">${model.version || "unknown version"}</span>
         <span class="ml-chip">${model.modelSize || "small"}</span>
-        <span class="ml-chip ${model.modelLabArtifactInstalled ? "ml-chip-good" : "ml-chip-warning"}">
+        <span class="${`ml-chip ${model.modelLabArtifactInstalled ? "ml-chip-good" : "ml-chip-warning"}`}">
           ${artifactStatus}
         </span>
         ${model.modelLabArtifactAvailable && !model.modelLabArtifactInstalled ? html`
@@ -255,15 +255,14 @@ export function ModelLaboratory() {
     <div class="ml-wrapper">
       <header class="ml-hero">
         <div>
-          <div class="ml-kicker">Chestnut experiment</div>
           <h2>Model Laboratory</h2>
           <p>Use the lateral judgment of one small model and the longitudinal judgment of another.</p>
         </div>
         <div class="ml-chips">
-          <span class="ml-chip ${() => state.chestnutReady ? "ml-chip-good" : "ml-chip-warning"}">
+          <span class="${() => `ml-chip ${state.chestnutReady ? "ml-chip-good" : "ml-chip-warning"}`}">
             ${() => state.chestnutReady ? "Chestnut ready" : "Chestnut required"}
           </span>
-          <span class="ml-chip ${() => state.isOnroad ? "ml-chip-warning" : "ml-chip-good"}">
+          <span class="${() => `ml-chip ${state.isOnroad ? "ml-chip-warning" : "ml-chip-good"}`}">
             ${() => state.isOnroad ? "Onroad · locked" : "Parked · configurable"}
           </span>
         </div>
@@ -280,7 +279,7 @@ export function ModelLaboratory() {
               <h3>Compose a pair</h3>
               <p>Both precompiled small models stay resident and run every camera frame on Chestnut's AMD GPU.</p>
             </div>
-            <span class="ml-state ${() => state.configuration.enabled ? "is-enabled" : ""}">
+            <span class="${() => `ml-state ${state.configuration.enabled ? "is-enabled" : ""}`}">
               ${() => state.configuration.enabled ? "Enabled" : "Disabled"}
             </span>
           </div>
@@ -339,7 +338,7 @@ export function ModelLaboratory() {
               <h3>Runtime</h3>
               <p>The configuration activates when modeld starts for a drive.</p>
             </div>
-            <span class="ml-state ${() => state.runtime?.active ? "is-enabled" : ""}">
+            <span class="${() => `ml-state ${state.runtime?.active ? "is-enabled" : ""}`}">
               ${() => state.runtime?.active ? "Pair active" : state.runtime?.requested ? "Pair requested" : "Inactive"}
             </span>
           </div>
@@ -354,28 +353,17 @@ export function ModelLaboratory() {
         <section class="ml-card">
           <div class="ml-card-heading">
             <div>
-              <h3>Small-model readiness</h3>
-              <p>${state.summary.ready || 0} AMD-ready · ${state.summary.published || 0} published · ${state.summary.eligible || 0} eligible small models.</p>
+              <h3>Available models</h3>
+              <p>${() => `${state.summary.ready || 0} ready to pair · ${Math.max((state.summary.published || 0) - (state.summary.ready || 0), 0)} available to download.`}</p>
             </div>
-            <span class="ml-chip">Manifest ${state.manifest.version || "unknown"}</span>
           </div>
-          <div class="ml-model-list">${() => state.models.map(renderModel)}</div>
+          <div class="ml-model-list">${() => readyModels().map(renderModel)}</div>
           <div class="ml-note">
             Model Manager downloads the manifest's precompiled AMD variants. Nothing is compiled on the comma.
             A normal installed model may still need its separate Chestnut artifact.
           </div>
         </section>
 
-        <section class="ml-findings">
-          <article class="ml-card">
-            <h3>Manifest shortcomings</h3>
-            <ul>${(state.manifest.shortcomings || []).map(item => html`<li>${item}</li>`)}</ul>
-          </article>
-          <article class="ml-card">
-            <h3>Opportunities</h3>
-            <ul>${(state.manifest.opportunities || []).map(item => html`<li>${item}</li>`)}</ul>
-          </article>
-        </section>
       ` : ""}
     </div>
   `
