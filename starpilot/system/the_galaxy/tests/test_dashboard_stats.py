@@ -1854,13 +1854,17 @@ def test_model_laboratory_api_uses_installed_models_and_enforces_hardware_size_v
   assert params.values["Model"] == params.values["DrivingModel"] == "lat"
   assert params.values["ModelVersion"] == params.values["DrivingModelVersion"] == "v15"
 
-  mismatched = client.put("/api/model-laboratory", json={
+  mixed_version = client.put("/api/model-laboratory", json={
     "enabled": True,
     "lateralModel": "lat",
     "longitudinalModel": "old",
   })
-  assert mismatched.status_code == 409
-  assert "same behavior version" in mismatched.get_json()["error"]
+  assert mixed_version.status_code == 200
+  assert params.values["ModelLabConfig"] == {
+    "enabled": True,
+    "lateralModel": "lat",
+    "longitudinalModel": "old",
+  }
 
   oversized = client.put("/api/model-laboratory", json={
     "enabled": True,

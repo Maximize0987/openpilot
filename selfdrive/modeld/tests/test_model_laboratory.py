@@ -21,10 +21,10 @@ class FakeParams:
     self.values[key] = value
 
 
-def test_runtime_request_accepts_only_two_ready_small_same_version_models(tmp_path, monkeypatch):
+def test_runtime_request_accepts_two_ready_small_mixed_version_models(tmp_path, monkeypatch):
   config = {"enabled": True, "lateralModel": "lat", "longitudinalModel": "long"}
   params = FakeParams(config)
-  (tmp_path / ".model_versions.json").write_text(json.dumps({"lat": "v15", "long": "v15"}))
+  (tmp_path / ".model_versions.json").write_text(json.dumps({"lat": "v15", "long": "v9"}))
   (tmp_path / "lat_driving_tinygrad.pkl").write_bytes(b"lat")
   (tmp_path / "long_driving_tinygrad.pkl").write_bytes(b"long")
   monkeypatch.setattr(modeld, "MODELS_PATH", tmp_path)
@@ -53,9 +53,12 @@ def test_runtime_request_revalidates_hardware_version_and_size(tmp_path, monkeyp
   monkeypatch.setattr(modeld, "model_accelerator_artifact_installed", lambda _model_id: True)
 
   assert "Chestnut" in modeld._model_lab_runtime_request(params, chestnut_ready=False)[1]
-  assert "same behavior version" in modeld._model_lab_runtime_request(params, chestnut_ready=True)[1]
+  assert modeld._model_lab_runtime_request(params, chestnut_ready=True)[1] is None
 
-  (tmp_path / ".model_versions.json").write_text(json.dumps({"lat": "v15", "long": "v15"}))
+  (tmp_path / ".model_versions.json").write_text(json.dumps({"lat": "v15", "long": "v7"}))
+  assert "compatible small model" in modeld._model_lab_runtime_request(params, chestnut_ready=True)[1]
+
+  (tmp_path / ".model_versions.json").write_text(json.dumps({"lat": "v15", "long": "v9"}))
   monkeypatch.setattr(
     modeld,
     "load_model_artifact_metadata",
@@ -127,7 +130,7 @@ def test_model_lab_loads_and_warms_both_amd_models_before_returning(monkeypatch)
     lambda _w, _h, model_id, version: calls.append(("load", model_id, version)) or FakeModel(model_id),
   )
 
-  pair = modeld._load_model_lab_models(1928, 1208, "lat", "long", "v15", "car-params")
+  pair = modeld._load_model_lab_models(1928, 1208, "lat", "long", "v15", "v9", "car-params")
 
   assert [model.model_id for model in pair] == ["lat", "long"]
   assert calls == [
@@ -138,7 +141,7 @@ def test_model_lab_loads_and_warms_both_amd_models_before_returning(monkeypatch)
     ("load", "lat", "v15"),
     ("warmup", "lat"),
     "isolate_buffers",
-    ("load", "long", "v15"),
+    ("load", "long", "v9"),
     ("warmup", "long"),
     "close_cache",
     ("timeout", modeld.BIG_MODEL_RUN_WAIT_TIMEOUT_MS),

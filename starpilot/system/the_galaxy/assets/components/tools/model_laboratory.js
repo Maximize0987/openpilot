@@ -35,7 +35,7 @@ function candidateModels(role) {
   if (role !== "longitudinal") return ready
   const lateral = modelById(state.configuration.lateralModel)
   if (!lateral) return ready
-  return ready.filter(model => model.value !== lateral.value && model.version === lateral.version)
+  return ready.filter(model => model.value !== lateral.value)
 }
 
 function selectionError() {
@@ -51,7 +51,6 @@ function selectionError() {
   if (!lateral.modelLabArtifactInstalled || !longitudinal.modelLabArtifactInstalled) {
     return "Prepare both precompiled AMD artifacts first."
   }
-  if (lateral.version !== longitudinal.version) return "Both models must use the same behavior version."
   return ""
 }
 
@@ -78,8 +77,7 @@ function applyPayload(payload) {
   }
   if (!modelById(state.configuration.longitudinalModel) && ready.length > 1) {
     state.configuration.longitudinalModel = ready.find(model => (
-      model.value !== state.configuration.lateralModel &&
-      model.version === modelById(state.configuration.lateralModel)?.version
+      model.value !== state.configuration.lateralModel
     ))?.value || ""
   }
 }
@@ -178,7 +176,7 @@ function bindControls() {
         state.configuration.lateralModel = event.target.value
         const long = modelById(state.configuration.longitudinalModel)
         const lat = modelById(event.target.value)
-        if (long && lat && (long.value === lat.value || long.version !== lat.version)) {
+        if (long && lat && long.value === lat.value) {
           state.configuration.longitudinalModel = candidateModels("longitudinal")[0]?.value || ""
           if (longitudinal) longitudinal.value = state.configuration.longitudinalModel
         }

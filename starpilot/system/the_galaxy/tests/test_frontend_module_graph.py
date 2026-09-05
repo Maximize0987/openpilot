@@ -119,6 +119,7 @@ def test_model_laboratory_frontend_exposes_guards_and_role_copy():
   assert "model.modelLabArtifactInstalled" in source
   assert "Nothing is compiled on the comma" in source
   assert "run every camera frame on Chestnut's AMD GPU" in source
-  assert 'lateral.version !== longitudinal.version' in source
+  assert 'lateral.value === longitudinal.value' in source
+  assert 'lateral.version !== longitudinal.version' not in source
   assert "Path shape, curvature, lane geometry" in source
   assert "Speed, acceleration, stopping, leads" in source

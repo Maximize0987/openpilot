@@ -124,10 +124,6 @@ def validate_model_lab_selection(
     if require_installed and not bool(model.get("modelLabArtifactInstalled", False)):
       return f"{role} model '{model_id}' has not downloaded its precompiled AMD artifact."
 
-  lateral_version = str(catalog[lateral_id].get("version") or "").strip()
-  longitudinal_version = str(catalog[longitudinal_id].get("version") or "").strip()
-  if lateral_version != longitudinal_version:
-    return "Choose models from the same behavior version; the longitudinal planner currently has one shared version contract."
   return None
 
 

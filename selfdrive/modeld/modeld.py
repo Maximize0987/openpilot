@@ -851,18 +851,19 @@ def _isolate_next_model_artifact_load() -> int:
 
 
 def _load_model_lab_models(cam_w: int, cam_h: int, lateral_id: str, longitudinal_id: str,
-                           version: str, CP=None, demo: bool = False) -> tuple[ModelState, ModelState] | None:
+                           lateral_version: str, longitudinal_version: str,
+                           CP=None, demo: bool = False) -> tuple[ModelState, ModelState] | None:
   try:
     if not demo:
       wait_for_external_gpu_power_ready(CP)
     _set_hcq_wait_timeout(BIG_MODEL_LOAD_WAIT_TIMEOUT_MS)
     wait_usbgpu_link()
     _isolate_next_model_artifact_load()
-    lateral = _load_model_lab_model(cam_w, cam_h, lateral_id, version)
+    lateral = _load_model_lab_model(cam_w, cam_h, lateral_id, lateral_version)
     lateral.warmup()
     evicted = _isolate_next_model_artifact_load()
     cloudlog.info(f"Model Laboratory isolated {evicted} realized buffer UOps before loading the second model")
-    longitudinal = _load_model_lab_model(cam_w, cam_h, longitudinal_id, version)
+    longitudinal = _load_model_lab_model(cam_w, cam_h, longitudinal_id, longitudinal_version)
     longitudinal.warmup()
     return lateral, longitudinal
   except Exception:
@@ -906,8 +907,6 @@ def _model_lab_runtime_request(params: Params, chestnut_ready: bool) -> tuple[di
       return config, f"{role} model {model_id} has no precompiled AMD artifact in the manifest"
     if not model_accelerator_artifact_installed(model_id):
       return config, f"{role} model {model_id} AMD artifact is not installed by Model Manager"
-  if versions[lateral_id] != versions[longitudinal_id]:
-    return config, "the two models must use the same behavior version"
   return config, None
 
 
@@ -1038,6 +1037,7 @@ def main(demo=False):
       lateral_id,
       longitudinal_id,
       versions[lateral_id],
+      versions[longitudinal_id],
       CP,
       demo,
     )

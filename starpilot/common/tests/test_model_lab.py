@@ -56,7 +56,6 @@ def test_config_normalization_is_closed_by_default():
     (True, {"lat": _catalog_model(small=False), "long": _catalog_model()}, "lat", "long", "Chestnut-class"),
     (True, {"lat": _catalog_model(artifact_available=False), "long": _catalog_model()}, "lat", "long", "no precompiled AMD"),
     (True, {"lat": _catalog_model(artifact_installed=False), "long": _catalog_model()}, "lat", "long", "not downloaded"),
-    (True, {"lat": _catalog_model("v15"), "long": _catalog_model("v9")}, "lat", "long", "same behavior version"),
   ],
 )
 def test_selection_validation_rejects_unsafe_pairs(chestnut_ready, catalog, lateral, longitudinal, expected):
@@ -68,8 +67,8 @@ def test_selection_validation_rejects_unsafe_pairs(chestnut_ready, catalog, late
   assert expected in error
 
 
-def test_selection_validation_accepts_distinct_ready_small_same_version_models():
-  catalog = {"lat": _catalog_model(), "long": _catalog_model()}
+def test_selection_validation_accepts_distinct_ready_small_mixed_version_models():
+  catalog = {"lat": _catalog_model("v15"), "long": _catalog_model("v9")}
   assert validate_model_lab_selection(
     {"enabled": True, "lateralModel": "lat", "longitudinalModel": "long"},
     catalog,
