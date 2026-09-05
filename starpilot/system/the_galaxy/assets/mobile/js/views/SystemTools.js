@@ -22,13 +22,16 @@ export const SystemTools = {
       branches: [],
       currentBranch: "",
       branchLoading: true,
+      isOnroad: false,
       fastStatus: null,
       checkedForUpdates: false,
       busy: "",
+      profiles: [],
+      profileBusy: "",
     }
   },
   created() { this.poll = usePolling(() => this.loadFastStatus(), { interval: 3000 }); this.poll.start() },
-  mounted() { this.loadBranches() },
+  mounted() { this.loadBranches(); this.loadProfiles() },
   beforeUnmount() { this.poll?.destroy() },
   computed: {
     updateAvailable() { return !!this.fastStatus?.updateAvailable && !this.fastStatus?.running },
@@ -77,6 +80,50 @@ export const SystemTools = {
         showSnackbar("Toggle backup downloaded.")
       } catch (e) {
         showSnackbar(e?.message || "Backup failed.", "error")
+      }
+    },
+    async loadProfiles() {
+      try {
+        const data = await api.getToggleProfiles()
+        this.profiles = Array.isArray(data?.slots) ? data.slots : []
+        this.isOnroad = !!data?.isOnroad
+      } catch (e) {
+        this.profiles = []
+      }
+    },
+    async saveProfile(profile) {
+      if (this.profileBusy || this.isOnroad) return
+      if (profile.saved && !(await GalaxyConfirm({
+        title: `Overwrite ${profile.label}?`,
+        message: "This replaces the settings currently stored in this slot.",
+        confirmLabel: "Overwrite",
+      }))) return
+      this.profileBusy = `save-${profile.slot}`
+      try {
+        const result = await api.saveToggleProfile(profile.slot)
+        showSnackbar(result?.message || `Saved ${profile.label}.`)
+        await this.loadProfiles()
+      } catch (e) {
+        showSnackbar(e?.message || "Failed to save settings profile.", "error")
+      } finally {
+        this.profileBusy = ""
+      }
+    },
+    async loadProfile(profile) {
+      if (this.profileBusy || this.isOnroad || !profile.saved || profile.invalid) return
+      if (!(await GalaxyConfirm({
+        title: `Load ${profile.label}?`,
+        message: "This applies every saved setting in the slot to the device.",
+        confirmLabel: "Load Settings",
+      }))) return
+      this.profileBusy = `load-${profile.slot}`
+      try {
+        const result = await api.loadToggleProfile(profile.slot)
+        showSnackbar(result?.message || `Loaded ${profile.label}.`)
+      } catch (e) {
+        showSnackbar(e?.message || "Failed to load settings profile.", "error")
+      } finally {
+        this.profileBusy = ""
       }
     },
     onRestoreFile(e) {
@@ -256,6 +303,27 @@ export const SystemTools = {
       </GalaxySection>
 
       <GalaxySection title="Backup & Restore" icon="bi-arrow-repeat" :collapsible="false">
+        <div style="padding: var(--sp-3);">
+          <h4 style="margin:0 0 4px;">Settings Profiles</h4>
+          <p class="gx-note" style="margin:0 0 10px;">Keep two local configurations for different vehicles, drivers, or troubleshooting. Profiles never include pairing or sensitive device data.</p>
+          <GxNotice v-if="isOnroad" text="Park the vehicle to save or load a profile." style="margin-bottom:12px;" />
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-bottom:16px;">
+            <div v-for="profile in profiles" :key="profile.slot" class="gx-card" style="padding:12px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                <strong>{{ profile.label }}</strong>
+                <span class="gx-chip">{{ profile.invalid ? 'Damaged' : profile.saved ? profile.settingsCount + ' settings' : 'Empty' }}</span>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="gx-btn gx-btn--tonal" :disabled="!!profileBusy || isOnroad" @click="saveProfile(profile)">
+                  <i class="bi bi-save"></i> {{ profileBusy === 'save-' + profile.slot ? 'Saving...' : profile.saved ? 'Overwrite' : 'Save Current' }}
+                </button>
+                <button type="button" class="gx-btn" :disabled="!!profileBusy || isOnroad || !profile.saved || profile.invalid" @click="loadProfile(profile)">
+                  <i class="bi bi-arrow-down-circle"></i> {{ profileBusy === 'load-' + profile.slot ? 'Loading...' : 'Load' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div style="padding: var(--sp-3); display:flex; gap:8px; flex-wrap:wrap;">
           <button type="button" class="gx-btn" @click="backupToggles"><i class="bi bi-download"></i> Backup Toggles</button>
           <button type="button" class="gx-btn gx-btn--tonal" @click="$refs.restoreInput.click()"><i class="bi bi-upload"></i> Restore Toggles</button>

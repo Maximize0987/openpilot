@@ -8,6 +8,7 @@ INDEX_PATH = REPO_ROOT / "starpilot/system/the_galaxy/templates/index.html"
 BLUETOOTH_PATH = REPO_ROOT / "starpilot/system/the_galaxy/assets/components/tools/bluetooth.js"
 CONTROLLERS_PATH = REPO_ROOT / "starpilot/system/the_galaxy/assets/components/tools/wheel_controls.js"
 SIDEBAR_PATH = REPO_ROOT / "starpilot/system/the_galaxy/assets/components/sidebar.js"
+MODEL_LAB_PATH = REPO_ROOT / "starpilot/system/the_galaxy/assets/components/tools/model_laboratory.js"
 
 
 def test_settings_does_not_create_a_second_router_module():
@@ -95,3 +96,29 @@ def test_bluetooth_and_controllers_sidebar_order():
   sentry = source.index('{ name: "Sentry Mode"')
   controllers = source.index('{ name: "Controllers"')
   assert toggles < bluetooth < sentry < controllers
+
+def test_model_laboratory_is_wired_into_classic_and_mobile_navigation():
+  router = ROUTER_PATH.read_text(encoding="utf-8")
+  sidebar = SIDEBAR_PATH.read_text(encoding="utf-8")
+  template = INDEX_PATH.read_text(encoding="utf-8")
+  mobile_tools = (REPO_ROOT / "starpilot/system/the_galaxy/assets/mobile/js/views/Tools.js").read_text(encoding="utf-8")
+  mobile_embed = (REPO_ROOT / "starpilot/system/the_galaxy/assets/mobile/js/views/ToolEmbed.js").read_text(encoding="utf-8")
+
+  assert MODEL_LAB_PATH.is_file()
+  assert 'createRoute("model_laboratory", "/model_laboratory", ModelLaboratory)' in router
+  assert '{ name: "Model Laboratory", link: "/model_laboratory"' in sidebar
+  assert "/assets/components/tools/model_laboratory.css" in template
+  assert '{ name: "Model Laboratory", link: "/model_laboratory"' in mobile_tools
+  assert '"/model_laboratory": "Model Laboratory"' in mobile_embed
+
+
+def test_model_laboratory_frontend_exposes_guards_and_role_copy():
+  source = MODEL_LAB_PATH.read_text(encoding="utf-8")
+  assert 'if (!state.chestnutReady)' in source
+  assert 'if (state.isOnroad)' in source
+  assert "model.modelLabArtifactInstalled" in source
+  assert "Nothing is compiled on the comma" in source
+  assert "run every camera frame on Chestnut's AMD GPU" in source
+  assert 'lateral.version !== longitudinal.version' in source
+  assert "Path shape, curvature, lane geometry" in source
+  assert "Speed, acceleration, stopping, leads" in source

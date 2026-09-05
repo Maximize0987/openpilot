@@ -106,15 +106,16 @@ def test_angle_strategy_uses_path_angle_and_shadow(controller):
   assert result.shadow_curvature == pytest.approx(0.0005)
 
 
-def test_manual_turn_releases_lateral(controller):
+def test_manual_turn_keeps_angle_session_active(controller):
   controller.human_turn_enabled = True
-  CC = SimpleNamespace(latActive=True)
-  CS = car_state(steering_pressed=True, steering_angle=50.0)
-  actuators = SimpleNamespace(curvature=0.001)
+  measured_curvature = 0.004
+  CC = SimpleNamespace(latActive=True, currentCurvature=measured_curvature)
+  CS = car_state(speed=8.0, curvature=measured_curvature, steering_pressed=True, steering_angle=50.0)
+  actuators = SimpleNamespace(curvature=-0.005)
   for _ in range(61):
     result = controller.update_angle(CC, CS, actuators)
-  assert not result.active
-  assert result.path_angle == 0.0
+    assert result.active
+  assert result.path_angle == pytest.approx(measured_curvature * 8.0 * 1.3)
 
 
 def test_curvature_control_stays_active_during_driver_correction(controller):
@@ -144,19 +145,33 @@ def test_curvature_manual_turn_keeps_session_active_with_neutral_command(control
   assert result.path_angle == 0.0
 
 
-def test_angle_control_pulses_inactive_after_sustained_driver_correction(controller):
+def test_angle_control_stays_active_after_sustained_driver_correction(controller):
   controller.human_turn_enabled = True
-  CC = SimpleNamespace(latActive=True)
-  actuators = SimpleNamespace(curvature=0.001)
+  measured_curvature = 0.001
+  CC = SimpleNamespace(latActive=True, currentCurvature=measured_curvature)
+  actuators = SimpleNamespace(curvature=-0.001)
 
-  for _ in range(10):
-    assert controller.update_angle(
-      CC, car_state(steering_pressed=True, steering_angle=10.0), actuators).active
+  for _ in range(20):
+    result = controller.update_angle(
+      CC, car_state(curvature=measured_curvature, steering_pressed=True, steering_angle=10.0), actuators)
+    assert result.active
+    assert result.path_angle > 0.0
 
   for _ in range(HANDOFF_PAUSE_FRAMES):
-    assert not controller.update_angle(CC, car_state(), actuators).active
+    assert controller.update_angle(CC, car_state(curvature=measured_curvature), actuators).active
 
-  assert controller.update_angle(CC, car_state(), actuators).active
+
+def test_angle_driver_override_is_handoff_safe_with_human_turn_detection_disabled(controller):
+  controller.human_turn_enabled = False
+  measured_curvature = 0.002
+  result = controller.update_angle(
+    SimpleNamespace(latActive=True, currentCurvature=measured_curvature),
+    car_state(curvature=measured_curvature, steering_pressed=True),
+    SimpleNamespace(curvature=-0.002),
+  )
+
+  assert result.active
+  assert result.path_angle > 0.0
 
 
 def test_short_driver_correction_does_not_pause_angle_control(controller):
@@ -171,36 +186,34 @@ def test_short_driver_correction_does_not_pause_angle_control(controller):
   assert controller.update_angle(CC, car_state(), actuators).active
 
 
-def test_angle_control_resumes_after_pscm_acknowledges_pause(controller):
+def test_angle_driver_handoff_does_not_depend_on_pscm_mode_reset(controller):
   controller.human_turn_enabled = True
-  CC = SimpleNamespace(latActive=True)
-  actuators = SimpleNamespace(curvature=0.001)
+  measured_curvature = 0.001
+  CC = SimpleNamespace(latActive=True, currentCurvature=measured_curvature)
+  actuators = SimpleNamespace(curvature=-0.001)
 
   for _ in range(10):
     assert controller.update_angle(
-      CC, car_state(steering_pressed=True, steering_angle=10.0), actuators).active
+      CC, car_state(curvature=measured_curvature, steering_pressed=True, steering_angle=10.0), actuators).active
 
   for _ in range(HANDOFF_PAUSE_MIN_FRAMES):
-    assert not controller.update_angle(
+    assert controller.update_angle(
       CC, car_state(lateral_control_status=1), actuators).active
 
-  assert controller.update_angle(
-    CC, car_state(lateral_control_status=1), actuators).active
 
-
-def test_long_manual_turn_still_resets_angle_control_on_release(controller):
+def test_long_manual_turn_hands_angle_control_back_without_disabling(controller):
   controller.human_turn_enabled = True
-  CC = SimpleNamespace(latActive=True, currentCurvature=0.0)
-  actuators = SimpleNamespace(curvature=0.001)
+  measured_curvature = 0.004
+  CC = SimpleNamespace(latActive=True, currentCurvature=measured_curvature)
+  actuators = SimpleNamespace(curvature=-0.005)
 
   for _ in range(40):
-    controller.update_angle(
-      CC, car_state(steering_pressed=True, steering_angle=50.0), actuators)
+    assert controller.update_angle(
+      CC, car_state(speed=8.0, curvature=measured_curvature, steering_pressed=True, steering_angle=50.0), actuators).active
 
   for _ in range(HANDOFF_PAUSE_FRAMES):
-    assert not controller.update_angle(CC, car_state(), actuators).active
-
-  assert controller.update_angle(CC, car_state(), actuators).active
+    assert controller.update_angle(
+      CC, car_state(speed=8.0, curvature=measured_curvature), actuators).active
 
 
 def test_angle_handoff_reenters_from_measured_curvature(controller):
@@ -213,9 +226,6 @@ def test_angle_handoff_reenters_from_measured_curvature(controller):
   for _ in range(10):
     controller.update_angle(
       CC, car_state(speed=8.0, curvature=measured_curvature, steering_pressed=True, steering_angle=10.0), actuators)
-  for _ in range(HANDOFF_PAUSE_FRAMES):
-    assert not controller.update_angle(
-      CC, car_state(speed=8.0, curvature=measured_curvature), actuators).active
 
   resumed = controller.update_angle(CC, car_state(speed=8.0, curvature=measured_curvature), actuators)
   assert resumed.active

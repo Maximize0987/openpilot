@@ -22,6 +22,7 @@ from openpilot.starpilot.common.model_versions import (
   driving_artifact_filename,
   is_supported_artifact_format,
 )
+from openpilot.starpilot.common.model_lab import load_model_lab_config
 from openpilot.starpilot.common.starpilot_utilities import delete_file
 from openpilot.starpilot.common.starpilot_variables import MODELS_PATH
 from openpilot.common.file_chunker import file_chunked_exists, get_existing_chunks, get_manifest_path
@@ -52,8 +53,11 @@ CANCEL_DOWNLOAD_PARAM = "CancelModelDownload"
 DOWNLOAD_PROGRESS_PARAM = "ModelDownloadProgress"
 MODEL_DOWNLOAD_PARAM = "ModelToDownload"
 MODEL_DOWNLOAD_ALL_PARAM = "DownloadAllModels"
+MODEL_LAB_DOWNLOAD_PARAM = "ModelLabModelToDownload"
 ALLOW_GPU_DOWNLOAD_WITHOUT_GPU_PARAM = "AllowGpuModelDownloadWithoutGpu"
 UPDATE_TINYGRAD_PARAM = "UpdateTinygrad"
+MODEL_LAB_ACCELERATOR = "chestnut"
+MODEL_LAB_EXECUTION_DEVICE = "AMD"
 
 
 def _clean_model_name(name: str) -> str:
@@ -107,6 +111,38 @@ def load_model_artifact_metadata(model_key: str) -> dict:
 
 def model_uses_external_gpu(model_key: str) -> bool:
   return bool(load_model_artifact_metadata(model_key).get("uses_external_gpu", False))
+
+
+def model_accelerator_artifact_metadata(model_key: str, accelerator: str = MODEL_LAB_ACCELERATOR) -> dict:
+  metadata = load_model_artifact_metadata(model_key)
+  artifacts = metadata.get("accelerator_artifacts", {})
+  if not isinstance(artifacts, dict):
+    return {}
+  artifact = artifacts.get(str(accelerator or "").strip().lower(), {})
+  return artifact if isinstance(artifact, dict) else {}
+
+
+def model_accelerator_artifact_filename(model_key: str, accelerator: str = MODEL_LAB_ACCELERATOR) -> str:
+  model_key = canonical_model_key(model_key)
+  accelerator = str(accelerator or "").strip().lower()
+  return f"{model_key}_driving_{accelerator}_tinygrad.pkl"
+
+
+def model_accelerator_artifact_path(model_key: str, accelerator: str = MODEL_LAB_ACCELERATOR) -> Path:
+  return MODELS_PATH / model_accelerator_artifact_filename(model_key, accelerator)
+
+
+def model_accelerator_artifact_available(model_key: str, accelerator: str = MODEL_LAB_ACCELERATOR) -> bool:
+  artifact = model_accelerator_artifact_metadata(model_key, accelerator)
+  execution_device = str(artifact.get("execution_device") or artifact.get("device") or "").strip().upper()
+  artifact_format = str(artifact.get("artifact_format") or UNIFIED_ARTIFACT_FORMAT).strip()
+  return bool(artifact) and execution_device == MODEL_LAB_EXECUTION_DEVICE and is_supported_artifact_format(artifact_format)
+
+
+def model_accelerator_artifact_installed(model_key: str, accelerator: str = MODEL_LAB_ACCELERATOR) -> bool:
+  return model_accelerator_artifact_available(model_key, accelerator) and file_chunked_exists(
+    model_accelerator_artifact_path(model_key, accelerator)
+  )
 
 
 def external_gpu_available() -> bool:
@@ -337,6 +373,31 @@ class ModelManager:
 
     return artifact_url_map
 
+  @staticmethod
+  def _normalize_accelerator_artifacts(model: dict) -> dict[str, dict]:
+    raw_artifacts = model.get("accelerator_artifacts")
+    if not isinstance(raw_artifacts, dict):
+      return {}
+
+    artifacts: dict[str, dict] = {}
+    for accelerator, raw_artifact in raw_artifacts.items():
+      accelerator = str(accelerator or "").strip().lower()
+      if not accelerator or not isinstance(raw_artifact, dict):
+        continue
+      artifact_format = str(raw_artifact.get("artifact_format") or UNIFIED_ARTIFACT_FORMAT).strip()
+      if not is_supported_artifact_format(artifact_format):
+        continue
+      artifacts[accelerator] = {
+        "artifact_format": artifact_format,
+        "artifact_filename": str(raw_artifact.get("artifact_filename") or "").strip(),
+        "artifact_size": int(raw_artifact.get("artifact_size") or 0),
+        "artifact_sha256": str(raw_artifact.get("artifact_sha256") or "").strip().lower(),
+        "artifact_chunk_count": int(raw_artifact.get("artifact_chunk_count") or 0),
+        "artifact_url": str(raw_artifact.get("artifact_url") or raw_artifact.get("download_url") or "").strip(),
+        "execution_device": str(raw_artifact.get("execution_device") or raw_artifact.get("device") or "").strip().upper(),
+      }
+    return artifacts
+
   def _build_artifact_metadata_map(self, model_info: list[dict]) -> dict[str, dict]:
     metadata: dict[str, dict] = {}
     for model in model_info:
@@ -344,6 +405,9 @@ class ModelManager:
       artifact_format = str(model.get("artifact_format") or UNIFIED_ARTIFACT_FORMAT).strip()
       if not model_key or not is_supported_artifact_format(artifact_format):
         continue
+      uses_external_gpu = bool(model.get("uses_external_gpu", False))
+      model_size_declared = bool(model.get("model_size") or model.get("size_class"))
+      model_size = str(model.get("model_size") or model.get("size_class") or ("chestnut" if uses_external_gpu else "small")).strip()
       metadata[model_key] = {
         "artifact_format": artifact_format,
         "artifact_filename": str(model.get("artifact_filename") or "").strip(),
@@ -351,7 +415,11 @@ class ModelManager:
         "artifact_sha256": str(model.get("artifact_sha256") or "").strip().lower(),
         "artifact_chunk_count": int(model.get("artifact_chunk_count") or 0),
         "artifact_url": str(model.get("artifact_url") or model.get("download_url") or "").strip(),
-        "uses_external_gpu": bool(model.get("uses_external_gpu", False)),
+        "uses_external_gpu": uses_external_gpu,
+        "model_size": model_size,
+        "model_size_declared": model_size_declared,
+        "model_lab_eligible": bool(model.get("model_lab_eligible", not uses_external_gpu)),
+        "accelerator_artifacts": self._normalize_accelerator_artifacts(model),
       }
     return metadata
 
@@ -423,6 +491,9 @@ class ModelManager:
 
   def randomize_selected_model(self) -> str | None:
     if not self._param_bool("ModelRandomizer"):
+      return None
+    if load_model_lab_config(self.params)["enabled"]:
+      print("Model Randomizer skipped while Model Laboratory is enabled.")
       return None
 
     choices = self._installed_model_choices()
@@ -615,6 +686,9 @@ class ModelManager:
         "community_favorite": False,
         "artifact_format": UNIFIED_ARTIFACT_FORMAT,
         "uses_external_gpu": bool(info.get("uses_external_gpu", False)),
+        "model_size": str(info.get("model_size") or "small").strip(),
+        "model_lab_eligible": bool(info.get("model_lab_eligible", not info.get("uses_external_gpu", False))),
+        "accelerator_artifacts": info.get("accelerator_artifacts", {}),
       }
 
     return list(discovered.values())
@@ -740,6 +814,132 @@ class ModelManager:
     finally:
       self.params_memory.remove(ALLOW_GPU_DOWNLOAD_WITHOUT_GPU_PARAM)
 
+  def _download_artifact_to_path(self, model_key: str, file_path: Path, remote_filename: str,
+                                 artifact_metadata: dict, artifact_urls: dict[str, str],
+                                 resource_urls: list[str]) -> bool:
+    manifest_version = self._param_text("ModelManifestVersion") or MANIFEST_CANDIDATES[0]
+    candidate_urls: list[tuple[str, bool, bool]] = []
+    custom_url = (
+      artifact_urls.get(file_path.name)
+      or artifact_urls.get(remote_filename)
+      or artifact_metadata.get("artifact_url")
+      or ""
+    ).strip()
+    if custom_url:
+      candidate_urls.append((custom_url, True, False))
+
+    for resource_url in resource_urls:
+      for artifact_url in self._artifact_source_urls(resource_url, manifest_version, model_key, remote_filename):
+        if not any(existing[0] == artifact_url for existing in candidate_urls):
+          candidate_urls.append((artifact_url, False, True))
+
+    for candidate_url, allow_unknown_size, allow_multipart in candidate_urls:
+      chunk_count = int(artifact_metadata.get("artifact_chunk_count") or 0)
+      if chunk_count and download_chunked_file(
+        CANCEL_DOWNLOAD_PARAM,
+        file_path,
+        DOWNLOAD_PROGRESS_PARAM,
+        candidate_url,
+        self.params_memory,
+        expected_size=artifact_metadata.get("artifact_size"),
+        expected_sha256=artifact_metadata.get("artifact_sha256"),
+        expected_chunk_count=chunk_count,
+      ):
+        return True
+
+      download_file(
+        CANCEL_DOWNLOAD_PARAM,
+        file_path,
+        DOWNLOAD_PROGRESS_PARAM,
+        candidate_url,
+        MODEL_DOWNLOAD_PARAM,
+        self.params_memory,
+        allow_unknown_size=allow_unknown_size,
+        suppress_errors=True,
+      )
+      if self.params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
+        return False
+
+      if verify_download(
+        file_path,
+        candidate_url,
+        allow_unknown_size=allow_unknown_size,
+        expected_size=artifact_metadata.get("artifact_size"),
+        expected_sha256=artifact_metadata.get("artifact_sha256"),
+      ):
+        return True
+      delete_file(file_path, print_error=False)
+
+      if not chunk_count and download_chunked_file(
+        CANCEL_DOWNLOAD_PARAM,
+        file_path,
+        DOWNLOAD_PROGRESS_PARAM,
+        candidate_url,
+        self.params_memory,
+      ):
+        return True
+
+      if allow_multipart and download_multipart_file(
+        CANCEL_DOWNLOAD_PARAM,
+        file_path,
+        DOWNLOAD_PROGRESS_PARAM,
+        candidate_url,
+        MODEL_DOWNLOAD_PARAM,
+        self.params_memory,
+      ):
+        return True
+
+    delete_chunked_artifact(file_path)
+    return False
+
+  def download_model_accelerator(self, model_key: str, accelerator: str = MODEL_LAB_ACCELERATOR) -> bool:
+    self.downloading_model = True
+    model_key = self._canonical_model_key(model_key)
+    accelerator = str(accelerator or "").strip().lower()
+    try:
+      if accelerator == MODEL_LAB_ACCELERATOR and not external_gpu_available():
+        handle_error(None, "External GPU required...", "Chestnut is not connected and firmware-ready.",
+                     MODEL_LAB_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
+        return False
+
+      artifact_metadata = model_accelerator_artifact_metadata(model_key, accelerator)
+      if not model_accelerator_artifact_available(model_key, accelerator):
+        handle_error(None, "Accelerator artifact unavailable...",
+                     f"The manifest has no precompiled {MODEL_LAB_EXECUTION_DEVICE} artifact for {model_key}.",
+                     MODEL_LAB_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
+        return False
+
+      resource_urls = get_resource_urls()
+      if not resource_urls:
+        handle_error(None, "Hugging Face and GitHub are offline...", "Repository unavailable",
+                     MODEL_LAB_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
+        return False
+
+      artifact_urls = self._load_artifact_url_map().get(model_key, {})
+      local_path = model_accelerator_artifact_path(model_key, accelerator)
+      remote_filename = str(artifact_metadata.get("artifact_filename") or local_path.name).strip()
+      if Path(remote_filename).name != remote_filename:
+        handle_error(None, "Invalid accelerator artifact filename...", "Model download failed",
+                     MODEL_LAB_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
+        return False
+
+      if not self._download_artifact_to_path(
+        model_key, local_path, remote_filename, artifact_metadata, artifact_urls, resource_urls,
+      ):
+        if self.params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
+          handle_error(None, "Download cancelled...", "Download cancelled...",
+                       MODEL_LAB_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
+        else:
+          handle_error(local_path, "Verification failed...", f"Verification failed for {remote_filename}",
+                       MODEL_LAB_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
+        return False
+
+      self.params_memory.put(DOWNLOAD_PROGRESS_PARAM, "Chestnut artifact downloaded!")
+      return True
+    finally:
+      self.params_memory.remove(MODEL_LAB_DOWNLOAD_PARAM)
+      self.downloading_model = False
+
   def _download_model(self, model_to_download: str, allow_gpu_without_gpu: bool):
     self.downloading_model = True
     model_to_download = self._canonical_model_key(model_to_download)
@@ -787,83 +987,15 @@ class ModelManager:
     for filename in required_files:
       file_path = MODELS_PATH / filename
       remote_filename = str(artifact_metadata.get("artifact_filename") or filename).strip()
-      manifest_version = self._param_text("ModelManifestVersion") or MANIFEST_CANDIDATES[0]
-      candidate_urls: list[tuple[str, bool, bool]] = []
+      download_succeeded = self._download_artifact_to_path(
+        model_to_download, file_path, remote_filename, artifact_metadata, artifact_urls, resource_urls,
+      )
 
-      custom_url = (artifact_urls.get(filename) or artifact_urls.get(remote_filename) or artifact_metadata.get("artifact_url") or "").strip()
-      if custom_url:
-        candidate_urls.append((custom_url, True, False))
-
-      for resource_url in resource_urls:
-        for artifact_url in self._artifact_source_urls(resource_url, manifest_version, model_to_download, remote_filename):
-          if not any(existing[0] == artifact_url for existing in candidate_urls):
-            candidate_urls.append((artifact_url, False, True))
-
-      download_succeeded = False
-      for candidate_url, allow_unknown_size, allow_multipart in candidate_urls:
-        chunk_count = int(artifact_metadata.get("artifact_chunk_count") or 0)
-        if chunk_count and download_chunked_file(
-          CANCEL_DOWNLOAD_PARAM,
-          file_path,
-          DOWNLOAD_PROGRESS_PARAM,
-          candidate_url,
-          self.params_memory,
-          expected_size=artifact_metadata.get("artifact_size"),
-          expected_sha256=artifact_metadata.get("artifact_sha256"),
-          expected_chunk_count=chunk_count,
-        ):
-          download_succeeded = True
-          break
-
-        download_file(
-          CANCEL_DOWNLOAD_PARAM,
-          file_path,
-          DOWNLOAD_PROGRESS_PARAM,
-          candidate_url,
-          MODEL_DOWNLOAD_PARAM,
-          self.params_memory,
-          allow_unknown_size=allow_unknown_size,
-          suppress_errors=True,
-        )
+      if not download_succeeded:
         if self.params_memory.get_bool(CANCEL_DOWNLOAD_PARAM):
           handle_error(None, "Download cancelled...", "Download cancelled...", MODEL_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
           self.downloading_model = False
           return
-
-        if verify_download(
-          file_path,
-          candidate_url,
-          allow_unknown_size=allow_unknown_size,
-          expected_size=artifact_metadata.get("artifact_size"),
-          expected_sha256=artifact_metadata.get("artifact_sha256"),
-        ):
-          download_succeeded = True
-          break
-        delete_file(file_path, print_error=False)
-
-        if not chunk_count and download_chunked_file(
-          CANCEL_DOWNLOAD_PARAM,
-          file_path,
-          DOWNLOAD_PROGRESS_PARAM,
-          candidate_url,
-          self.params_memory,
-        ):
-          download_succeeded = True
-          break
-
-        if allow_multipart and download_multipart_file(
-          CANCEL_DOWNLOAD_PARAM,
-          file_path,
-          DOWNLOAD_PROGRESS_PARAM,
-          candidate_url,
-          MODEL_DOWNLOAD_PARAM,
-          self.params_memory,
-        ):
-          download_succeeded = True
-          break
-
-      if not download_succeeded:
-        delete_chunked_artifact(file_path)
         handle_error(file_path, "Verification failed...", f"Verification failed for {filename}", MODEL_DOWNLOAD_PARAM, DOWNLOAD_PROGRESS_PARAM, self.params_memory)
         self.downloading_model = False
         return

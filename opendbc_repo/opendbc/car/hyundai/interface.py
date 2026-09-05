@@ -48,7 +48,7 @@ def apply_platform_longitudinal_params(ret: structs.CarParams) -> None:
 
 def apply_kia_ev6_gt_line_longitudinal_params(ret: structs.CarParams) -> None:
   ret.startAccel = 1.4
-  ret.longitudinalActuatorDelay = 0.35
+  ret.longitudinalActuatorDelay = 0.5
   ret.vEgoStarting = 0.5
 
 

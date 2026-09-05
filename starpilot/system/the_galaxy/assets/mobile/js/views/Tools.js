@@ -5,6 +5,7 @@ const TOOLS = [
   { name: "Galaxy & App Install", link: "/galaxy", icon: "bi-globe2", desc: "Remote access, pairing, & app install" },  
   { name: "Logs & Diagnostics", link: "/logs", icon: "bi-exclamation-triangle", desc: "Error logs, tmux, troubleshoot" },
   { name: "Model Manager", link: "/manage_models", icon: "bi-cpu", desc: "Install/swap models" },
+  { name: "Model Laboratory", link: "/model_laboratory", icon: "bi-bezier2", desc: "Pair lateral and longitudinal models" },
   { name: "Navigation & Maps", link: "/navigation", icon: "bi-map", desc: "Offline maps & destinations" },
   { name: "Sentry Mode", link: "/sentry", icon: "bi-shield-exclamation", desc: "Sentry alerts & security" },
   { name: "System Tools", link: "/system", icon: "bi-arrow-repeat", desc: "Backup, restore, updates" },

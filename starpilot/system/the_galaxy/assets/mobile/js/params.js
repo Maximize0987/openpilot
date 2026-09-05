@@ -28,7 +28,6 @@ const VEHICLE_SETTING_MAKES = {
   SubaruSNG: ["Subaru"],
   SubaruSNGManualParkingBrake: ["Subaru"],
   SubaruStopStartOff: ["Subaru"],
-  SubaruAvhOnAtStartup: ["Subaru"],
   ClusterOffset: ["Lexus", "Toyota"],
   SNGHack: ["Lexus", "Toyota"],
   ToyotaAutoHold: ["Lexus", "Toyota"],
@@ -100,6 +99,9 @@ export function numericBounds(param, values) {
   }
   if (param.key === "ScreenBrightness" || param.key === "ScreenBrightnessOnroad") {
     return { min: 1, max: 101, step: 1 }
+  }
+  if (param.key === "LaneCenterOffset") {
+    return { min: -0.3, max: 0.3, step: 0.01 }
   }
   if (/^(Traffic|Aggressive|Standard|Relaxed)Jerk(Acceleration|Deceleration|Danger|SpeedDecrease|Speed)$/.test(String(param.key || ""))) {
     return { min: 25, max: 200, step: 1 }

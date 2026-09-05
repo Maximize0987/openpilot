@@ -482,6 +482,50 @@ class TestVCruiseHelper:
 
     assert self.v_cruise_helper.v_cruise_kph == pytest.approx(initial_v_cruise_kph + IMPERIAL_INCREMENT)
 
+  def test_openpilot_longitudinal_pcm_cruise_uses_custom_intervals(self):
+    CP = car.CarParams(pcmCruise=True, openpilotLongitudinalControl=True)
+    helper = VCruiseHelper(CP)
+    toggles = SimpleNamespace(
+      cruise_increase=5,
+      cruise_increase_long=1,
+      is_metric=True,
+      set_speed_limit=False,
+    )
+
+    helper.initialize_v_cruise(car.CarState(vEgo=40 * CV.KPH_TO_MS), False, False, toggles)
+    initial_v_cruise_kph = helper.v_cruise_kph
+
+    pressed_cs = car.CarState(cruiseState={"available": True})
+    pressed_cs.buttonEvents = [ButtonEvent(type=ButtonType.accelCruise, pressed=True)]
+    helper.update_v_cruise(pressed_cs, True, True, False, toggles)
+
+    released_cs = car.CarState(cruiseState={"available": True})
+    released_cs.buttonEvents = [ButtonEvent(type=ButtonType.accelCruise, pressed=False)]
+    helper.update_v_cruise(released_cs, True, True, False, toggles)
+    assert helper.v_cruise_kph == pytest.approx(initial_v_cruise_kph + 5)
+
+    pressed_cs.buttonEvents = [ButtonEvent(type=ButtonType.accelCruise, pressed=True)]
+    helper.update_v_cruise(pressed_cs, True, True, False, toggles)
+    for _ in range(50):
+      helper.update_v_cruise(car.CarState(cruiseState={"available": True}), True, True, False, toggles)
+    assert helper.v_cruise_kph == pytest.approx(initial_v_cruise_kph + 6)
+
+  def test_stock_pcm_cruise_still_uses_pcm_speed(self):
+    CP = car.CarParams(pcmCruise=True, openpilotLongitudinalControl=False)
+    helper = VCruiseHelper(CP)
+    toggles = SimpleNamespace(cruise_increase=5, cruise_increase_long=1)
+    pcm_speed_kph = 72.0
+    cs = car.CarState(
+      cruiseState={
+        "available": True,
+        "speed": pcm_speed_kph * CV.KPH_TO_MS,
+        "speedCluster": pcm_speed_kph * CV.KPH_TO_MS,
+      },
+    )
+
+    helper.update_v_cruise(cs, True, True, False, toggles)
+    assert helper.v_cruise_kph == pytest.approx(pcm_speed_kph)
+
 
 class TestVCruiseHelperRedneck:
   def setup_method(self):

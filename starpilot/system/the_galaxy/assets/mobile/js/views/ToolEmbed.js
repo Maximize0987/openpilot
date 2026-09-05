@@ -9,6 +9,7 @@ export const ToolEmbed = {
     title() {
       const map = {
         "/manage_models": "Model Manager",
+        "/model_laboratory": "Model Laboratory",
         "/galaxy": "Galaxy",
         "/sentry": "Sentry Mode",
         "/plots": "Live Plots",

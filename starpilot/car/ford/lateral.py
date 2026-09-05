@@ -32,7 +32,6 @@ CURVATURE_LOOKAHEAD_MAX = 0.40
 FORD_CURVATURE_LOOKAHEAD = {
   CAR.FORD_EXPLORER_MK6: 0.20,
 }
-ANGLE_HANDOFF_PRESS_SECONDS = 0.5
 ANGLE_HANDOFF_RECOVERY_SECONDS = 0.75
 HANDOFF_PAUSE_MIN_FRAMES = 3
 HANDOFF_PAUSE_FRAMES = 6
@@ -129,12 +128,9 @@ class FordLateralController:
     self.curvature_samples = deque(maxlen=max(2, round(0.3 / STEER_DT)))
     self.path_angle_last = 0.0
     self.curvature_last = 0.0
-    self.handoff_press_timer = 0.0
-    self.handoff_driver_override = False
     self.angle_pause_frames = 0
     self.angle_pause_cooldown = 0.0
     self.angle_handoff_recovery = 0.0
-    self.angle_handoff_rebase = False
     self.angle_stall_timer = 0.0
     self.angle_stall_recoveries = 0
     self._frame = 0
@@ -225,36 +221,19 @@ class FordLateralController:
       self.human_turn_enabled, CS.out.steeringPressed, CS.out.steeringAngleDeg)
 
   def _reset_handoff(self):
-    self.handoff_press_timer = 0.0
-    self.handoff_driver_override = False
     self.angle_pause_frames = 0
     self.angle_pause_cooldown = 0.0
     self.angle_handoff_recovery = 0.0
-    self.angle_handoff_rebase = False
     self.angle_stall_timer = 0.0
     self.angle_stall_recoveries = 0
 
-  def _angle_handoff_pause_active(self, CS) -> bool:
-    if not self.human_turn_enabled:
-      self._reset_handoff()
-      return False
+  def _update_angle_driver_override(self, steering_pressed: bool) -> bool:
+    if steering_pressed:
+      self.angle_handoff_recovery = ANGLE_HANDOFF_RECOVERY_SECONDS
+    return steering_pressed
 
+  def _angle_stall_pause_active(self, CS) -> bool:
     self.angle_pause_cooldown = max(0.0, self.angle_pause_cooldown - STEER_DT)
-    if CS.out.steeringPressed:
-      self.angle_handoff_recovery = 0.0
-      self.angle_handoff_rebase = False
-      self.handoff_press_timer += STEER_DT
-      self.handoff_driver_override |= self.handoff_press_timer + 1e-9 >= ANGLE_HANDOFF_PRESS_SECONDS
-    else:
-      if self.handoff_driver_override:
-        self.angle_handoff_recovery = ANGLE_HANDOFF_RECOVERY_SECONDS
-        self.angle_handoff_rebase = True
-        if (self.angle_pause_cooldown <= 0.0 and self.angle_pause_frames <= 0
-            and abs(self.path_angle_last) < HANDOFF_MAX_PATH_ANGLE):
-          self.angle_pause_frames = HANDOFF_PAUSE_FRAMES
-      self.handoff_driver_override = False
-      self.handoff_press_timer = 0.0
-
     if self.angle_pause_frames > 0:
       pause_frames_sent = HANDOFF_PAUSE_FRAMES - self.angle_pause_frames
       pscm_available = getattr(CS, "lateral_control_status", None) == LAT_CTL_STATUS_AVAILABLE
@@ -347,9 +326,8 @@ class FordLateralController:
       self._reset_handoff()
       return self._inactive_angle_result(current)
 
-    manual_turn = self._manual_turn(CC, CS)
-    handoff_pause = self._angle_handoff_pause_active(CS)
-    if manual_turn or handoff_pause:
+    driver_override = self._update_angle_driver_override(bool(CS.out.steeringPressed))
+    if self._angle_stall_pause_active(CS):
       return self._inactive_angle_result(current)
 
     v_ego = float(CS.out.vEgoRaw)
@@ -369,7 +347,7 @@ class FordLateralController:
     measured_curvature = float(getattr(CC, "currentCurvature", current))
     if not np.isfinite(measured_curvature):
       measured_curvature = current
-    requested = self._recover_angle_handoff(requested, measured_curvature)
+    requested = measured_curvature if driver_override else self._recover_angle_handoff(requested, measured_curvature)
 
     low_gain_high_speed, high_gain_high_speed = self._platform_angle_gains()
     low_gain = float(np.interp(v_ego, [13.5, 26.82],
@@ -381,10 +359,7 @@ class FordLateralController:
     path_angle = float(np.clip(requested * v_ego * gain, PATH_ANGLE_MIN, PATH_ANGLE_MAX))
 
     max_delta = float(np.interp(v_ego, [9.0, 10.0, 15.0, 25.0], [0.055, 0.055, 0.0425, 0.009]))
-    if self.angle_handoff_rebase:
-      self.angle_handoff_rebase = False
-    else:
-      path_angle = float(np.clip(path_angle, self.path_angle_last - max_delta, self.path_angle_last + max_delta))
+    path_angle = float(np.clip(path_angle, self.path_angle_last - max_delta, self.path_angle_last + max_delta))
     self.path_angle_last = path_angle
 
     lane_change = self._lane_change()[0]

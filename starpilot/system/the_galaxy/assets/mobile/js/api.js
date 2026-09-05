@@ -37,6 +37,10 @@ async function delOk(url) {
   return (await fetch(url, { method: "DELETE" })).ok
 }
 
+function postOk(url, opts = {}) {
+  return fetch(url, initFor({ ...opts, method: "POST" })).then((res) => res.ok)
+}
+
 export const api = {
   postAction(endpoint) { return request(endpoint, { method: "POST" }) },
   getOptions(endpoint) { return request(endpoint) },
@@ -208,6 +212,10 @@ export const api = {
     if (!res.ok) throw new Error(data?.error || data?.message || "Unpairing failed.")
     return data
   },
+
+  getToggleProfiles() { return request("/api/toggles/profiles", { cache: "no-store" }) },
+  saveToggleProfile(slot) { return request(`/api/toggles/profiles/${encodeURIComponent(slot)}/save`, { method: "POST" }) },
+  loadToggleProfile(slot) { return request(`/api/toggles/profiles/${encodeURIComponent(slot)}/load`, { method: "POST" }) },
 
   selectTestingGround(body) { return request("/api/testing_grounds/select", { method: "POST", data: body }) },
 

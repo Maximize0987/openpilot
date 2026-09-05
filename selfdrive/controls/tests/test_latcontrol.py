@@ -99,6 +99,7 @@ from openpilot.selfdrive.controls.lib.latcontrol_torque import (
   get_genesis_gv70_friction_jerk_deadzone,
   get_genesis_gv70_friction_threshold,
   get_genesis_gv70_high_speed_error_scale,
+  get_genesis_gv70_reversal_output_scale,
   get_genesis_gv70_unwind_ff_scale,
   get_honda_accord_ff_scale,
   get_elantra_non_scc_ff_scale,
@@ -956,6 +957,15 @@ class TestLatControl:
     assert get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 20.0) > \
       get_genesis_gv70_high_speed_error_scale(-0.7, 0.58, -0.8, 33.5)
 
+  def test_genesis_gv70_reversal_damping_is_medium_speed_and_phase_gated(self):
+    same_direction = get_genesis_gv70_reversal_output_scale(0.7, 0.9, 0.8, 16.0)
+    low_speed = get_genesis_gv70_reversal_output_scale(-0.7, 0.7, -0.8, 8.0)
+    route_speed = get_genesis_gv70_reversal_output_scale(-0.7, 0.7, -0.8, 15.0)
+
+    assert same_direction == pytest.approx(1.0)
+    assert route_speed < 1.0
+    assert route_speed < low_speed
+
   def test_genesis_gv70_low_speed_center_overshoot_damping(self):
     center_overshoot = get_genesis_gv70_low_speed_center_overshoot_scale(0.02, 0.45, 22.0 * 0.44704)
     clean_center = get_genesis_gv70_low_speed_center_overshoot_scale(0.02, 0.02, 22.0 * 0.44704)
@@ -992,6 +1002,10 @@ class TestLatControl:
     assert get_genesis_g70_angle_output_scale(55.0, 1.0) > get_genesis_g70_angle_output_scale(85.0, 1.0)
     assert get_genesis_g70_angle_output_scale(85.0, -1.0) == pytest.approx(1.0)
     assert get_genesis_g70_friction_jerk_deadzone(25.0, 0.0) > 0.25
+    hwy_unwind_deadzone = get_genesis_g70_friction_jerk_deadzone(68.0 * 0.44704, 0.8, -0.6)
+    hwy_turn_in_deadzone = get_genesis_g70_friction_jerk_deadzone(68.0 * 0.44704, 0.8, 0.6)
+    assert hwy_unwind_deadzone > hwy_turn_in_deadzone
+    assert hwy_unwind_deadzone > 0.08
     assert get_genesis_g70_unwind_ff_scale(-0.7, -0.95, 0.5, 25.0) < 0.90
     assert get_genesis_g70_unwind_ff_scale(-0.7, -0.95, -0.5, 25.0) == 1.0
     assert get_genesis_g70_unwind_ff_scale(-0.7, 0.2, 0.5, 25.0) == 1.0

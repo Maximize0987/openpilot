@@ -657,6 +657,60 @@ class TestGMCarController:
 
     assert [msg[2] for msg in msgs] == [0, 2]
 
+  def test_volt_cc_redneck_holds_setpoint_without_planner_acceleration(self):
+    packer = CANPacker(DBC[CAR.CHEVROLET_VOLT_CC][Bus.pt])
+    controller = SimpleNamespace(frame=int(2.0 / DT_CTRL), last_button_frame=0, apply_speed=0, malibu_button_phase=0)
+    cs = SimpleNamespace(
+      CP=SimpleNamespace(
+        carFingerprint=CAR.CHEVROLET_VOLT_CC,
+        flags=GMFlags.NO_CAMERA.value,
+        networkLocation=structs.CarParams.NetworkLocation.gateway,
+        minEnableSpeed=0.0,
+      ),
+      buttons_counter=2,
+      out=SimpleNamespace(
+        vEgo=60.0 * CV.KPH_TO_MS,
+        cruiseState=SimpleNamespace(speed=60.0 * CV.KPH_TO_MS),
+      ),
+    )
+
+    msgs = gmcan.create_gm_cc_spam_command(
+      packer, controller, cs, SimpleNamespace(accel=0.0), SimpleNamespace(is_metric=True),
+    )
+
+    assert msgs == []
+    assert controller.apply_speed == 60
+
+  def test_volt_cc_redneck_rate_limits_setpoint_changes_by_planner_acceleration(self):
+    packer = CANPacker(DBC[CAR.CHEVROLET_VOLT_CC][Bus.pt])
+    controller = SimpleNamespace(frame=int(0.5 / DT_CTRL), last_button_frame=0, apply_speed=0, malibu_button_phase=0)
+    cs = SimpleNamespace(
+      CP=SimpleNamespace(
+        carFingerprint=CAR.CHEVROLET_VOLT_CC,
+        flags=GMFlags.NO_CAMERA.value,
+        networkLocation=structs.CarParams.NetworkLocation.gateway,
+        minEnableSpeed=0.0,
+      ),
+      buttons_counter=2,
+      out=SimpleNamespace(
+        vEgo=60.0 * CV.KPH_TO_MS,
+        cruiseState=SimpleNamespace(speed=60.0 * CV.KPH_TO_MS),
+      ),
+    )
+
+    msgs = gmcan.create_gm_cc_spam_command(
+      packer, controller, cs, SimpleNamespace(accel=0.5), SimpleNamespace(is_metric=True),
+    )
+
+    assert msgs == []
+
+    controller.frame = int(0.7 / DT_CTRL)
+    msgs = gmcan.create_gm_cc_spam_command(
+      packer, controller, cs, SimpleNamespace(accel=0.5), SimpleNamespace(is_metric=True),
+    )
+
+    assert len(msgs) == 1
+
   def test_volt_cc_no_camera_redneck_spam_stays_on_powertrain_bus(self):
     packer = CANPacker(DBC[CAR.CHEVROLET_VOLT_CC][Bus.pt])
     controller = SimpleNamespace(frame=int(0.3 / DT_CTRL), last_button_frame=0, apply_speed=0, malibu_button_phase=0)

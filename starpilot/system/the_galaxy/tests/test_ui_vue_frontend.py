@@ -110,7 +110,9 @@ def test_ui_ports_all_tool_views():
     "js/views/Tuning.js": ["LateralTuningPanel", "LongitudinalManeuvers"],
     "js/views/Navigation.js": ["getNavigation", "setNavigation", "MapsPanel", "NavigationKeysPanel"],
     "js/views/ToolEmbed.js": ["/manage_maps", "/manage_navigation_keys"],
-    "js/views/SystemTools.js": ["backupToggles", "restoreToggles", "getUpdateBranches", "factoryReset"],
+    "js/views/SystemTools.js": [
+      "backupToggles", "restoreToggles", "getToggleProfiles", "saveToggleProfile", "loadToggleProfile", "getUpdateBranches", "factoryReset",
+    ],
     "js/components/WheelControls.js": ["getWheelControlsStatus"],
     "js/components/BluetoothPanel.js": ["getBluetoothStatus"],
   }
@@ -501,6 +503,10 @@ assert(P.countAdvancedHiddenByDeveloperMode([sec], { GalaxyDeveloperMode: true }
 const slider = { key: "DeviceShutdown", data_type: "int", min: 1, max: 30, step: 1 }
 assert(P.snapNumericToBoundsAndStep(17.9, P.numericBounds(slider, {}), 0) === 18, "snap")
 assert(P.formatSliderValue(6, "1", 0, "DeviceShutdown") === "6 hours", "format")
+const laneOffset = { key: "LaneCenterOffset", data_type: "float", min: 0, max: 0.3, step: 0.01 }
+const laneBounds = P.numericBounds(laneOffset, {})
+assert(laneBounds.min === -0.3, "lane offset keeps signed lower bound")
+assert(P.snapNumericToBoundsAndStep(-0.01, laneBounds, 2) === -0.01, "lane offset snaps below zero")
 console.log("params.js logic OK")
 """,
     encoding="utf-8",
