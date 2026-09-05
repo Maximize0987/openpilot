@@ -28,6 +28,7 @@ const VEHICLE_SETTING_MAKES = {
   SubaruSNG: ["Subaru"],
   SubaruSNGManualParkingBrake: ["Subaru"],
   SubaruStopStartOff: ["Subaru"],
+  SubaruRedneckCruise: ["Subaru"],
   ClusterOffset: ["Lexus", "Toyota"],
   SNGHack: ["Lexus", "Toyota"],
   ToyotaAutoHold: ["Lexus", "Toyota"],

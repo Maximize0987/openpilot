@@ -199,6 +199,7 @@ SAFE_MODE_MANAGED_KEYS = (
   "SubaruSNG",
   "SubaruSNGManualParkingBrake",
   "SubaruStopStartOff",
+  "SubaruRedneckCruise",
   "VoltSNG",
   "JeepBrakeHold",
   "GMAutoHold",
@@ -217,6 +218,7 @@ SAFE_MODE_FIXED_VALUES = {
   "LongitudinalPersonality": int(log.LongitudinalPersonality.relaxed),
   "UseAutoSteerDelay": True,
   "SubaruStopStartOff": False,
+  "SubaruRedneckCruise": False,
 }
 
 SAFE_MODE_STOCK_PARAM_MAP = {

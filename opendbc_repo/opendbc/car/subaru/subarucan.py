@@ -3,6 +3,10 @@ from opendbc.car.subaru.values import CanBus
 
 VisualAlert = structs.CarControl.HUDControl.VisualAlert
 
+CRUISE_BUTTON_MAIN = 1
+CRUISE_BUTTON_SET = 2
+CRUISE_BUTTON_RESUME = 3
+
 
 def create_steering_control(packer, apply_torque, steer_req):
   values = {
@@ -65,6 +69,19 @@ def create_es_distance(packer, frame, es_distance_msg, bus, pcm_cancel_cmd, long
     values["Cruise_Throttle"] = 1818 # inactive throttle
 
   return packer.make_can_msg("ES_Distance", bus, values)
+
+
+def create_cruise_buttons(packer, frame, cruise_buttons_msg, button, bus=CanBus.main):
+  values = {s: cruise_buttons_msg[s] for s in [
+    "CHECKSUM",
+    "Signal1",
+    "Signal2",
+  ]}
+  values["COUNTER"] = frame % 0x10
+  values["Main"] = button == CRUISE_BUTTON_MAIN
+  values["Set"] = button == CRUISE_BUTTON_SET
+  values["Resume"] = button == CRUISE_BUTTON_RESUME
+  return packer.make_can_msg("Cruise_Buttons", bus, values)
 
 
 def create_es_lkas_state(packer, frame, es_lkas_state_msg, enabled, visual_alert, left_line, right_line, left_lane_depart, right_lane_depart,

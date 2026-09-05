@@ -1018,6 +1018,46 @@ class TestHyundaiFingerprint:
     assert ret.cruiseState.enabled
     assert ret.cruiseState.speed == pytest.approx(10 * 0.2777778)
 
+  def test_kia_ray_ev_decodes_bcm_lkas_button_pulse(self):
+    toggles = get_test_toggles()
+    CP = CarInterface.get_params(CAR.KIA_RAY_EV, gen_empty_fingerprint(), [], True, False, False, toggles)
+    FPCP = CarInterface.get_starpilot_params(CAR.KIA_RAY_EV, gen_empty_fingerprint(), [], CP, toggles)
+    car_state = CarState(CP, FPCP)
+    can_parsers = car_state.get_can_parsers(CP)
+    packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
+
+    def update(ray_lkas_button: int, frame: int):
+      msg = packer.make_can_msg("BCM_PO_11", 0, {"RAY_LKAS_BTN": ray_lkas_button})
+      can_parsers[Bus.pt].update([(frame, [msg])])
+      return car_state.update(can_parsers, toggles)[0]
+
+    update(0, 1)
+    ret = update(1, 2)
+    assert any(be.type == ButtonType.lkas and be.pressed for be in ret.buttonEvents)
+
+    ret = update(0, 3)
+    assert any(be.type == ButtonType.lkas and not be.pressed for be in ret.buttonEvents)
+
+    ret = update(2, 4)
+    assert any(be.type == ButtonType.lkas and be.pressed for be in ret.buttonEvents)
+
+  def test_non_ray_does_not_use_ray_lkas_signal(self):
+    CP = CarInterface.get_params(CAR.KIA_FORTE_2021_NON_SCC, gen_empty_fingerprint(), [], False, False, False, None)
+    car_state = CarState(CP, CarInterface.get_starpilot_params(CAR.KIA_FORTE_2021_NON_SCC,
+                                                                gen_empty_fingerprint(), [], CP, get_test_toggles()))
+    parser_cycle = SimpleNamespace(
+      vl={
+        "CLU13": {"CF_Clu_LdwsLkasSW": 0},
+        "BCM_PO_11": {"LDA_BTN": 0, "RAY_LKAS_BTN": 1},
+      },
+      ts_nanos={
+        "CLU13": {"CF_Clu_LdwsLkasSW": 1},
+        "BCM_PO_11": {"LDA_BTN": 1, "RAY_LKAS_BTN": 1},
+      },
+    )
+
+    assert not car_state.create_lkas_button_events(parser_cycle, 0)
+
   def test_hyundai_redneck_cruise_availability(self, monkeypatch):
     class FakeParams:
       def __init__(self, *args, **kwargs):

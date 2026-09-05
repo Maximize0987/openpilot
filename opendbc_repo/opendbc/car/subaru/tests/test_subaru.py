@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from opendbc.can import CANPacker, CANParser
-from opendbc.car import Bus, fw_versions, structs
+from opendbc.car import Bus, fw_versions, gen_empty_fingerprint, structs
 from opendbc.car.fw_query_definitions import StdQueries
 from opendbc.car.subaru import subarucan
 from opendbc.car.subaru.carcontroller import CarController
@@ -65,6 +65,56 @@ def test_preglobal_sng_does_not_send_standstill_keepalive_without_manual_toggle(
 
   assert throttle_cmd is False
   assert speed_cmd is False
+
+
+def test_redneck_cruise_buttons_use_resume_for_increase_and_set_for_decrease():
+  dbc = DBC[CAR.SUBARU_IMPREZA_2020][Bus.pt]
+  packer = CANPacker(dbc)
+  parser = CANParser(dbc, [("Cruise_Buttons", 0)], CanBus.main)
+  stock_buttons = defaultdict(int)
+
+  resume_msg = subarucan.create_cruise_buttons(
+    packer, 1, stock_buttons, subarucan.CRUISE_BUTTON_RESUME, CanBus.main,
+  )
+  parser.update([(1, [resume_msg])])
+  assert parser.vl["Cruise_Buttons"]["Resume"] == 1
+  assert parser.vl["Cruise_Buttons"]["Set"] == 0
+
+  set_msg = subarucan.create_cruise_buttons(
+    packer, 2, stock_buttons, subarucan.CRUISE_BUTTON_SET, CanBus.main,
+  )
+  parser.update([(2, [set_msg])])
+  assert parser.vl["Cruise_Buttons"]["Resume"] == 0
+  assert parser.vl["Cruise_Buttons"]["Set"] == 1
+
+
+def test_redneck_cruise_is_only_available_on_the_experimental_impreza(monkeypatch):
+  class FakeParams:
+    def __init__(self, **_kwargs):
+      pass
+
+    def get_bool(self, key):
+      return key == "SubaruRedneckCruise"
+
+  monkeypatch.setattr("opendbc.car.interfaces.Params", FakeParams)
+  toggles = SimpleNamespace(subaru_sng=False)
+
+  impreza_cp = CarInterface.get_non_essential_params(CAR.SUBARU_IMPREZA_2020)
+  impreza_fpcp = CarInterface.get_starpilot_params(
+    CAR.SUBARU_IMPREZA_2020, gen_empty_fingerprint(), [], impreza_cp, toggles,
+  )
+  assert impreza_fpcp.redneckCruiseAvailable
+  assert not impreza_fpcp.pcmCruiseSpeed
+  assert impreza_cp.openpilotLongitudinalControl
+  assert impreza_cp.safetyConfigs[0].safetyParam & SubaruSafetyFlags.REDNECK_CRUISE
+
+  old_impreza_cp = CarInterface.get_non_essential_params(CAR.SUBARU_IMPREZA)
+  old_impreza_fpcp = CarInterface.get_starpilot_params(
+    CAR.SUBARU_IMPREZA, gen_empty_fingerprint(), [], old_impreza_cp, toggles,
+  )
+  assert not old_impreza_fpcp.redneckCruiseAvailable
+  assert old_impreza_fpcp.pcmCruiseSpeed
+  assert not old_impreza_cp.openpilotLongitudinalControl
 
 
 class TestSubaruFingerprint:

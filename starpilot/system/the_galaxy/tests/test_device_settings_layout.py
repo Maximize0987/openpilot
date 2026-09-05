@@ -321,6 +321,13 @@ def test_hidden_feature_defaults_remain_enabled():
     assert _declared_default(key) == "1"
 
 
+def test_toyota_auto_hold_is_galaxy_only():
+  setting = _params_by_section(_layout())["Vehicle"]["ToyotaAutoHold"]
+  assert setting["galaxy_only"] is True
+  assert setting["ui_type"] == "toggle"
+  assert setting["data_type"] == "bool"
+
+
 def test_human_acceleration_param_is_removed():
   params_source = PARAM_KEYS_PATH.read_text(encoding="utf-8")
   assert '{"HumanAcceleration",' not in params_source

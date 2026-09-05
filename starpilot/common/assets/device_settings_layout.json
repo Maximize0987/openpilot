@@ -3713,6 +3713,7 @@
         "picker_description": "Holds Toyota/Lexus brakes at stops when cruise is available.",
         "data_type": "bool",
         "ui_type": "toggle",
+        "galaxy_only": true,
         "settings_tier": "simple"
       },
       {
@@ -4944,6 +4945,18 @@
         "picker_description": "Matches StarPilot's target speed with Hyundai RES/SET.",
         "data_type": "bool",
         "ui_type": "toggle",
+        "parent_key": "GalaxyDeveloperMode",
+        "settings_tier": "advanced"
+      },
+      {
+        "key": "SubaruRedneckCruise",
+        "label": "Subaru Redneck Cruise",
+        "description": "On supported Subaru Impreza-family cars, use stock Resume/Set button presses to match the cluster set speed to StarPilot's target.",
+        "picker_description": "Matches StarPilot's target speed with Subaru Resume/Set.",
+        "data_type": "bool",
+        "ui_type": "toggle",
+        "galaxy_only": true,
+        "vehicle_makes": ["Subaru"],
         "parent_key": "GalaxyDeveloperMode",
         "settings_tier": "advanced"
       },
