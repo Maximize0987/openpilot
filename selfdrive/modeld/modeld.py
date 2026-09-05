@@ -561,6 +561,8 @@ class ModelState:
 
     self.road_key, self.wide_key = _detect_vision_keys(input_shapes)
     self.vision_input_names = [self.road_key, self.wide_key]
+    self.warped_input_shape = (2, 6, *input_shapes[self.road_key][2:])
+    self.last_warp_output: Tensor | None = None
     self.numpy_inputs, self.prev_desired_curv_key = self._build_policy_inputs(self.policy_input_shapes)
     self.desire_key = next(key for key in self.numpy_inputs if key.startswith("desire"))
     self.off_policy_enabled = "off_policy" in self.policy_order
@@ -669,6 +671,7 @@ class ModelState:
     if self.prev_desired_curv_key is not None:
       self.full_prev_desired_curv.fill(0)
     self._blob_cache.clear()
+    self.last_warp_output = None
 
   def warmup(self) -> None:
     dummy_frames = {
@@ -694,16 +697,10 @@ class ModelState:
 
   def run(self, bufs: dict[str, VisionBuf], transforms: dict[str, np.ndarray],
           inputs: dict[str, np.ndarray], prepare_only: bool,
-          after_enqueue: Callable[[], None] | None = None) -> dict[str, np.ndarray] | None:
-    frames: dict[str, Tensor] = {}
-    for key, buf in bufs.items():
-      ptr = np.frombuffer(buf.data, dtype=np.uint8).ctypes.data
-      cache_key = (key, ptr)
-      if cache_key not in self._blob_cache:
-        self._blob_cache[cache_key] = Tensor.from_blob(
-          ptr, (self.frame_buf_size,), dtype="uint8", device=self.WARP_DEV,
-        )
-      frames[key] = self._blob_cache[cache_key]
+          after_enqueue: Callable[[], None] | None = None,
+          shared_warp: Tensor | None = None) -> dict[str, np.ndarray] | None:
+    if shared_warp is not None and self.image_history_pipeline != IMAGE_HISTORY_IN_POLICY:
+      raise RuntimeError("shared camera warp requires a policy-history model artifact")
 
     inputs[self.desire_key][0] = 0
     self.numpy_inputs[self.desire_key].fill(0)
@@ -720,18 +717,33 @@ class ModelState:
     self.npy["tfm"][:] = transforms[self.road_key]
     self.npy["big_tfm"][:] = transforms[self.wide_key]
 
-    warp_output = self.warp_enqueue(
-      **{key: self.input_queues[key] for key in self.warp_input_keys},
-      frame=frames[self.road_key],
-      big_frame=frames[self.wide_key],
-    )
+    if shared_warp is None:
+      frames: dict[str, Tensor] = {}
+      for key, buf in bufs.items():
+        ptr = np.frombuffer(buf.data, dtype=np.uint8).ctypes.data
+        cache_key = (key, ptr)
+        if cache_key not in self._blob_cache:
+          self._blob_cache[cache_key] = Tensor.from_blob(
+            ptr, (self.frame_buf_size,), dtype="uint8", device=self.WARP_DEV,
+          )
+        frames[key] = self._blob_cache[cache_key]
+
+      warp_output = self.warp_enqueue(
+        **{key: self.input_queues[key] for key in self.warp_input_keys},
+        frame=frames[self.road_key],
+        big_frame=frames[self.wide_key],
+      )
+    else:
+      warp_output = shared_warp
 
     if self.image_history_pipeline == IMAGE_HISTORY_IN_POLICY:
+      self.last_warp_output = warp_output
       output_tensors = self.run_policy(
         **{key: self.input_queues[key] for key in self.policy_input_keys},
         warped=warp_output,
       )
     else:
+      self.last_warp_output = None
       img, big_img = warp_output
       if prepare_only:
         return None
@@ -841,6 +853,15 @@ def _load_model_lab_model(cam_w: int, cam_h: int, model_id: str, version: str) -
   return candidate
 
 
+def _model_lab_shared_warp_compatible(lateral: ModelState, longitudinal: ModelState) -> bool:
+  return (
+    lateral.image_history_pipeline == IMAGE_HISTORY_IN_POLICY
+    and longitudinal.image_history_pipeline == IMAGE_HISTORY_IN_POLICY
+    and lateral.warped_input_shape == longitudinal.warped_input_shape
+    and lateral.WARP_DEV == longitudinal.WARP_DEV
+  )
+
+
 def _isolate_next_model_artifact_load() -> int:
   from tinygrad.uop.ops import Ops, UOpMetaClass
 
@@ -865,6 +886,9 @@ def _load_model_lab_models(cam_w: int, cam_h: int, lateral_id: str, longitudinal
     cloudlog.info(f"Model Laboratory isolated {evicted} realized buffer UOps before loading the second model")
     longitudinal = _load_model_lab_model(cam_w, cam_h, longitudinal_id, longitudinal_version)
     longitudinal.warmup()
+    if not _model_lab_shared_warp_compatible(lateral, longitudinal):
+      raise RuntimeError("Model Laboratory artifacts cannot share camera preprocessing")
+    cloudlog.info("Model Laboratory will share one camera warp between both AMD model runners")
     return lateral, longitudinal
   except Exception:
     cloudlog.exception("Model Laboratory AMD model load or warmup failed")
@@ -1269,6 +1293,8 @@ def main(demo=False):
           lateral_inputs,
           model.can_prepare_only and dropped_frame,
         )
+        if model.last_warp_output is None:
+          raise RuntimeError("Model Laboratory lateral runner did not produce a shareable camera warp")
         longitudinal_bufs, longitudinal_transforms, longitudinal_inputs = _runner_frame_args(
           model_lab_longitudinal, buf_main, buf_extra, model_transform_main, model_transform_extra,
           vec_desire, traffic_convention, lat_action_t, long_action_t,
@@ -1280,6 +1306,7 @@ def main(demo=False):
           longitudinal_inputs,
           model_lab_longitudinal.can_prepare_only and dropped_frame,
           chestnut_state.send if send_chestnut else None,
+          shared_warp=model.last_warp_output,
         )
         if (
           lateral_model_output is not None

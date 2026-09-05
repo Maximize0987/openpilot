@@ -111,6 +111,9 @@ def test_model_lab_loads_and_warms_both_amd_models_before_returning(monkeypatch)
   class FakeModel:
     def __init__(self, model_id):
       self.model_id = model_id
+      self.image_history_pipeline = modeld.IMAGE_HISTORY_IN_POLICY
+      self.warped_input_shape = (2, 6, 128, 256)
+      self.WARP_DEV = "QCOM"
 
     def warmup(self):
       calls.append(("warmup", self.model_id))
@@ -146,6 +149,74 @@ def test_model_lab_loads_and_warms_both_amd_models_before_returning(monkeypatch)
     "close_cache",
     ("timeout", modeld.BIG_MODEL_RUN_WAIT_TIMEOUT_MS),
   ]
+
+
+def test_model_lab_requires_shareable_camera_preprocessing():
+  compatible = SimpleNamespace(
+    image_history_pipeline=modeld.IMAGE_HISTORY_IN_POLICY,
+    warped_input_shape=(2, 6, 128, 256),
+    WARP_DEV="QCOM",
+  )
+  legacy = SimpleNamespace(
+    image_history_pipeline=modeld.IMAGE_HISTORY_IN_WARP,
+    warped_input_shape=(2, 6, 128, 256),
+    WARP_DEV="QCOM",
+  )
+  different_shape = SimpleNamespace(
+    image_history_pipeline=modeld.IMAGE_HISTORY_IN_POLICY,
+    warped_input_shape=(2, 6, 256, 512),
+    WARP_DEV="QCOM",
+  )
+
+  assert modeld._model_lab_shared_warp_compatible(compatible, compatible)
+  assert not modeld._model_lab_shared_warp_compatible(compatible, legacy)
+  assert not modeld._model_lab_shared_warp_compatible(compatible, different_shape)
+
+
+def test_model_state_reuses_shared_warp_without_preprocessing_again():
+  shared_warp = object()
+  policy_calls = []
+
+  class FakeOutput:
+    @staticmethod
+    def numpy():
+      return np.zeros(2, dtype=np.float32)
+
+  state = modeld.ModelState.__new__(modeld.ModelState)
+  state.image_history_pipeline = modeld.IMAGE_HISTORY_IN_POLICY
+  state.desire_key = "desire"
+  state.numpy_inputs = {"desire": np.zeros((1, modeld.ModelConstants.DESIRE_LEN), dtype=np.float32)}
+  state.npy = {
+    "desire": np.zeros(modeld.ModelConstants.DESIRE_LEN, dtype=np.float32),
+    "tfm": np.zeros((3, 3), dtype=np.float32),
+    "big_tfm": np.zeros((3, 3), dtype=np.float32),
+  }
+  state.prev_desire = np.zeros(modeld.ModelConstants.DESIRE_LEN, dtype=np.float32)
+  state.prev_desired_curv_key = None
+  state.road_key = "road"
+  state.wide_key = "wide"
+  state.input_queues = {"history": "longitudinal-history"}
+  state.warp_input_keys = ()
+  state.policy_input_keys = ("history",)
+  state.warp_enqueue = lambda **_kwargs: (_ for _ in ()).throw(AssertionError("second warp must not run"))
+  state.run_policy = lambda **kwargs: policy_calls.append(kwargs) or [FakeOutput()]
+  state.uses_external_gpu = False
+  state.model_type = "supercombo"
+  state.parser = SimpleNamespace(parse_outputs=lambda _outputs: {"plan": np.zeros(1, dtype=np.float32)})
+  state.output_slices = {"plan": slice(0, 1)}
+  state.last_warp_output = None
+
+  output = state.run(
+    {},
+    {"road": np.eye(3, dtype=np.float32), "wide": np.eye(3, dtype=np.float32)},
+    {"desire": np.zeros(modeld.ModelConstants.DESIRE_LEN, dtype=np.float32)},
+    False,
+    shared_warp=shared_warp,
+  )
+
+  assert output is not None
+  assert policy_calls == [{"history": "longitudinal-history", "warped": shared_warp}]
+  assert state.last_warp_output is shared_warp
 
 
 def test_each_runner_receives_its_own_input_names_and_shared_frame_data():

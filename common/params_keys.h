@@ -547,6 +547,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"FavoriteTrafficModeCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"WheelButtonBookmarkCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"WheelControlAOLCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
+    {"WheelControlDisengageCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
+    {"WheelControlEngageCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"WheelControlForceCoastCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"WheelControlPulseGlideCounter", {CLEAR_ON_MANAGER_START, INT, "0", "0"}},
     {"openpilotMinutes", {PERSISTENT, INT, "0", "0", 0}},

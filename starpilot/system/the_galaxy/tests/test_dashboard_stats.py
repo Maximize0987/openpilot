@@ -350,6 +350,8 @@ def _install_server_import_stubs():
       {"key": "__starpilot_controller_action__:pulse_and_glide", "label": "Pulse and Glide", "section": "Controller Actions"},
       {"key": "__starpilot_controller_action__:force_coast", "label": "Force Coasting", "section": "Controller Actions"},
       {"key": "__starpilot_controller_action__:toggle_aol", "label": "Toggle AOL", "section": "Controller Actions"},
+      {"key": "__starpilot_controller_action__:engage_openpilot", "label": "Engage Openpilot", "section": "Controller Actions"},
+      {"key": "__starpilot_controller_action__:disengage_openpilot", "label": "Disengage Openpilot", "section": "Controller Actions"},
     ),
     CONTROLLER_ACTION_SET_SPEED="__starpilot_controller_action__:set_speed",
     CONTROLLER_ACTION_SLOT_COUNT=10,
