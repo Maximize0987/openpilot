@@ -301,7 +301,7 @@ class LatControlNNFF(LatControl):
       low_speed_factor = np.interp(CS.vEgo, LOW_SPEED_X, LOW_SPEED_Y)**2
       setpoint = desired_lateral_accel + low_speed_factor * desired_curvature
       measurement = actual_lateral_accel + low_speed_factor * actual_curvature
-      gravity_adjusted_lateral_accel = desired_lateral_accel - (roll_compensation * 1.2) # added multiplier to test
+      gravity_adjusted_lateral_accel = desired_lateral_accel - (roll_compensation * 0.75) # added multiplier to test
       if self.nnff_loaded and starpilot_toggles.nnff or starpilot_toggles.nnff_lite:
         actual_curvature_rate = -VM.calc_curvature(math.radians(CS.steeringRateDeg), CS.vEgo, 0.0)
         actual_lateral_jerk = actual_curvature_rate * CS.vEgo ** 2
