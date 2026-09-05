@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 from tinygrad.uop.ops import Ops, UOpMetaClass
 
+from openpilot.selfdrive.modeld import dmonitoringmodeld
 from openpilot.selfdrive.modeld import modeld
 
 
@@ -65,6 +66,15 @@ def test_runtime_request_revalidates_hardware_version_and_size(tmp_path, monkeyp
     lambda model_id: {"model_size": "chestnut" if model_id == "long" else "small"},
   )
   assert "compatible small model" in modeld._model_lab_runtime_request(params, chestnut_ready=True)[1]
+
+
+def test_model_lab_moves_driver_monitoring_off_external_gpu_runner_core():
+  enabled = FakeParams({"enabled": True, "lateralModel": "lat", "longitudinalModel": "long"})
+  disabled = FakeParams({"enabled": False, "lateralModel": "lat", "longitudinalModel": "long"})
+
+  assert dmonitoringmodeld.dmonitoring_cpu_cores(enabled, chestnut_ready=True) == [0, 1, 2, 3]
+  assert dmonitoringmodeld.dmonitoring_cpu_cores(enabled, chestnut_ready=False) == 7
+  assert dmonitoringmodeld.dmonitoring_cpu_cores(disabled, chestnut_ready=True) == 7
 
 
 def test_model_lab_loader_uses_installed_artifact_and_manifest_version(monkeypatch):
