@@ -1,7 +1,11 @@
 import math
 import numpy as np
+import capnp   #
+import time    #
 from collections import deque
 
+from openpilot.common.numpy_fast import interp      #
+from openpilot.common.realtime import DT_CTRL      #
 from cereal import custom, log
 from opendbc.car.honda.values import CAR as HONDA_CAR, HondaFlags
 from opendbc.car.hyundai.values import HyundaiFlags
@@ -54,6 +58,12 @@ CENTER_CHATTER_JERK_DEADZONE_SPEED_V = [0.08, 0.12, 0.18, 0.18]  # m/s^3
 CENTER_CHATTER_JERK_DEADZONE_LAT_ACCEL_BP = [0.0, 0.18, 0.35]  # m/s^2
 CENTER_CHATTER_JERK_DEADZONE_LAT_ACCEL_V = [1.0, 1.0, 0.0]
 
+LL_CLOSE = 1.8
+LANE_IN = [-1.05, -0.25, -0.05, 0.15, 0.95]      #   LANE_IN = [-1.2, -0.2, 0.8]
+NUDGE_OUT = [-0.14, 0.04, 0, 0.04, 0.14]
+NUDGE_UP = 0.00134    # if 20 hz
+NUDGE_DOWN = -0.00134
+#NUDGE_INC = 0.000234   # if 100 hz
 
 def get_center_chatter_friction_jerk_deadzone(v_ego, setpoint, vehicle_deadzone=0.0):
   """Return the small-signal jerk deadzone without changing turn commands."""
@@ -178,6 +188,14 @@ class LatControlTorque(LatControl):
       if self.use_bolt_ki_multiplier and self.torque_ki_mult > 0.0 and self.torque_ki_mult != 1.0:
         self.pid._k_i = [self.pid._k_i[0], [k * self.torque_ki_mult for k in self.pid._k_i[1]]]
 
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents'])
+
+    self.current_nud = 0
+    self.last_nudge = 0
+    self.no_nudge = 0
+    self.cycles = 0
+    self.max_cycles = 0
+    
   def _clear_starpilot_lateral_state(self):
     self.starpilot_lateral_state.active = False
     self.starpilot_lateral_state.frictionThreshold = 0.0
@@ -228,6 +246,48 @@ class LatControlTorque(LatControl):
     measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
     measurement = measured_curvature * CS.vEgo ** 2
     future_desired_lateral_accel = desired_curvature * CS.vEgo ** 2
+
+    # Begin lane nudge
+    #left_lane_valid = model_v2.laneLineProbs[1] > 0.5
+    #right_lane_valid = model_v2.laneLineProbs[2] > 0.5
+    left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+    right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+    lane_avg = left_lane + right_lane
+    lane_val = interp(lane_avg, LANE_IN, NUDGE_OUT)
+    self.sm.update(0)
+      if CS.leftBlinker or CS.rightBlinker or CS.steeringPressed:
+        self.no_nudge = self.sm.frame
+        self.max_cycles = 0
+        self.cycles = 0
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.0 # cooldown after blinker
+      if right_lane > 2.5 or abs(left_lane) > 2.5:  
+        nudge_off = False
+        self.last_nudge = 0
+        self.cycles = 0
+      if self.current_nud > 0 and lane_val < 0 or self.current_nud < 0 and lane_val > 0:
+        self.cycles = 0
+        self.last_nudge = 0
+      if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and not nudge_off:
+        self.current_nud = lane_val
+        if lane_val > 0 and lane_val > self.last_nudge:
+          self.last_nudge += NUDGE_UP
+        if lane_val < 0 and lane_val < self.last_nudge:
+          self.last_nudge += NUDGE_DOWN
+        self.cycles = self.cycles + 1
+        if self.cycles > self.max_cycles:
+          self.max_cycles = self.cycles
+        if abs(lane_val) > abs(self.last_nudge):
+          lane_val = self.last_nudge
+        future_desired_lateral_accel += lane_val
+        max_nud = round(self.last_nudge, 4)
+        cur_nud = round(self.current_nud, 4)
+        self.last_nudge = lane_val
+        #print(f"NUD: {max_nud} / {cur_nud} / {self.cycles} / {self.max_cycles}")
+      else:
+        self.last_nudge = 0
+        self.cycles = 0
+      # End lane nudge 
+    
     if not active:
       output_torque = 0.0
       pid_log.active = False
