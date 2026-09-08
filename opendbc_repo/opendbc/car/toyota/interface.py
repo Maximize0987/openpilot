@@ -204,7 +204,7 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalActuatorDelay = 0.5
 
     if candidate == CAR.TOYOTA_RAV4_TSS2 and ret.openpilotLongitudinalControl:
-      ret.vEgoStopping = 0.5
+      ret.vEgoStopping = 0.25
       ret.vEgoStarting = 0.1
       ret.stoppingDecelRate = 0.01
       
