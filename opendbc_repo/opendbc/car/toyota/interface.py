@@ -204,9 +204,9 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalActuatorDelay = 0.5
 
     if candidate == CAR.TOYOTA_RAV4_TSS2 and ret.openpilotLongitudinalControl:
-      ret.vEgoStopping = 0.25
+      ret.vEgoStopping = 0.19
       ret.vEgoStarting = 0.1
-      ret.stoppingDecelRate = 0.01
+      ret.stoppingDecelRate = 0.008
       
     if ret.enableGasInterceptorDEPRECATED:
       # Pedal/SDSU Toyotas feel best with a softer final stop clamp.
