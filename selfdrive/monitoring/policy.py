@@ -387,6 +387,7 @@ class DriverMonitoring:
       if not (lowspeed_exemption or always_on_exemption):
         self.awareness = max(self.awareness - self.step_change, -0.1)
 
+    self.alert_level = AlertLevel.none
     #if self.awareness <= 0.:
       # terminal alert: disengagement required
     #  self.alert_level = AlertLevel.three
