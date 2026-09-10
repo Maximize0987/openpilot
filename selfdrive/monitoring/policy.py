@@ -387,21 +387,21 @@ class DriverMonitoring:
       if not (lowspeed_exemption or always_on_exemption):
         self.awareness = max(self.awareness - self.step_change, -0.1)
 
-    if self.awareness <= 0.:
+    #if self.awareness <= 0.:
       # terminal alert: disengagement required
-      self.alert_level = AlertLevel.three
-      if awareness_prev > 0.:
-        self.alert_3_cnt += 1
-        self.cnt_since_alert_3 = 0
-      else:
-        self.cnt_since_alert_3 += 1
-      if self.cnt_since_alert_3 == self.no_response_timeout:
-        self.no_response_cnt += 1
-    else:
-      if self.awareness <= self.threshold_alert_2:
-        self.alert_level = AlertLevel.two
-      elif self.awareness <= self.threshold_alert_1:
-        self.alert_level = AlertLevel.one
+    #  self.alert_level = AlertLevel.three
+    #  if awareness_prev > 0.:
+    #    self.alert_3_cnt += 1
+    #    self.cnt_since_alert_3 = 0
+    #  else:
+    #    self.cnt_since_alert_3 += 1
+    #  if self.cnt_since_alert_3 == self.no_response_timeout:
+    #    self.no_response_cnt += 1
+    #else:
+    #  if self.awareness <= self.threshold_alert_2:
+    #    self.alert_level = AlertLevel.two
+    #  elif self.awareness <= self.threshold_alert_1:
+    #    self.alert_level = AlertLevel.one
 
   def get_state_packet(self, valid=True):
     # build driverMonitoringState packet
