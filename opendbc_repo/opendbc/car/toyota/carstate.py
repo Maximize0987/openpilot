@@ -159,7 +159,7 @@ class CarState(CarStateBase):
     ret.steeringTorque = cp.vl["STEER_TORQUE_SENSOR"]["STEER_TORQUE_DRIVER"]
     ret.steeringTorqueEps = cp.vl["STEER_TORQUE_SENSOR"]["STEER_TORQUE_EPS"] * self.eps_torque_scale
     # we could use the override bit from dbc, but it's triggered at too high torque values
-    ret.steeringPressed = abs(ret.steeringTorque) > STEER_THRESHOLD
+    ret.steeringPressed = abs(ret.steeringTorque) > (STEER_THRESHOLD * 0.5)
 
     # Check EPS LKA/LTA fault status
     # A missing EPS_STATUS frame reads as zero in the parser. Do not turn that
