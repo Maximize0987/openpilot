@@ -4,12 +4,15 @@ import json
 import math
 import numpy as np
 import os
+import capnp   #
+import time    #
 
 from collections import deque
 from difflib import SequenceMatcher
-
 from cereal import log
-from opendbc.car.hyundai.values import CAR as HYUNDAI_CAR
+import cereal.messaging as messaging    #
+from openpilot.common.numpy_fast import interp      #
+from openpilot.common.realtime import DT_CTRL      #
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.common.params import Params
@@ -34,21 +37,17 @@ from openpilot.starpilot.common.starpilot_variables import NNFF_MODELS_PATH, get
 # dict used to rename activation functions whose names aren't valid python identifiers
 ACTIVATION_FUNCTION_NAMES = {"σ": "sigmoid"}
 
-PALISADE_NNFF_LAT_JERK_FRICTION_FACTOR = 0.25
-DEFAULT_NNFF_LAT_JERK_FRICTION_FACTOR = 0.4
-
-
-def get_nnff_lat_jerk_friction_factor(car_fingerprint) -> float:
-  return (
-    PALISADE_NNFF_LAT_JERK_FRICTION_FACTOR
-    if car_fingerprint == HYUNDAI_CAR.HYUNDAI_PALISADE_2023
-    else DEFAULT_NNFF_LAT_JERK_FRICTION_FACTOR
-  )
-
 LOW_SPEED_X = [0, 10, 20, 30]
 LOW_SPEED_Y = [12, 3, 1, 0]
 
 LAT_PLAN_MIN_IDX = 5
+
+LL_CLOSE = 1.8
+LANE_IN = [-1.05, -0.25, -0.05, 0.15, 0.95]      #   LANE_IN = [-1.2, -0.2, 0.8]
+NUDGE_OUT = [-0.14, 0.04, 0, 0.04, 0.14]
+NUDGE_UP = 0.00134    # if 20 hz
+NUDGE_DOWN = -0.00134
+#NUDGE_INC = 0.000234   # if 100 hz
 
 class FluxModel:
   def __init__(self, params_file):
@@ -189,6 +188,14 @@ class LatControlNNFF(LatControl):
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
 
+    self.sm = messaging.SubMaster(['pandaStates', 'carControl', 'liveCalibration', 'onroadEvents'])
+
+    self.current_nud = 0
+    self.last_nudge = 0
+    self.no_nudge = 0
+    self.cycles = 0
+    self.max_cycles = 0
+    
     # Instantaneous lateral jerk changes very rapidly, making it not useful on its own,
     # however, we can "look ahead" to the future planned lateral jerk in order to gauge
     # whether the current desired lateral jerk will persist into the future, i.e.
@@ -202,7 +209,7 @@ class LatControlNNFF(LatControl):
     # Scaling the lateral acceleration "friction response" could be helpful for some.
     # Increase for a stronger response, decrease for a weaker response.
     self.lat_accel_friction_factor = 0.7  # in [0, 3], in 0.05 increments. 3 is arbitrary safety limit
-    self.lat_jerk_friction_factor = get_nnff_lat_jerk_friction_factor(CP.carFingerprint)
+    self.lat_jerk_friction_factor = 0.4
 
     # precompute time differences between ModelConstants.T_IDXS
     self.t_diffs = np.diff(ModelConstants.T_IDXS)
@@ -247,8 +254,47 @@ class LatControlNNFF(LatControl):
       curvature_deadzone = abs(VM.calc_curvature(math.radians(self.steering_angle_deadzone_deg), CS.vEgo, 0.0))
       desired_lateral_accel = desired_curvature * CS.vEgo ** 2
 
-      # desired rate is the desired rate of change in the setpoint, not the absolute desired curvature
-      # desired_lateral_jerk = desired_curvature_rate * CS.vEgo ** 2
+      # Begin lane nudge
+      #left_lane_valid = model_v2.laneLineProbs[1] > 0.5
+      #right_lane_valid = model_v2.laneLineProbs[2] > 0.5
+      left_lane = interp(5, model_data.laneLines[1].x, model_data.laneLines[1].y)
+      right_lane = interp(5, model_data.laneLines[2].x, model_data.laneLines[2].y)
+      lane_avg = left_lane + right_lane
+      lane_val = interp(lane_avg, LANE_IN, NUDGE_OUT)
+      self.sm.update(0)
+      if CS.leftBlinker or CS.rightBlinker or CS.steeringPressed:
+        self.no_nudge = self.sm.frame
+        self.max_cycles = 0
+        self.cycles = 0
+      nudge_off = (self.sm.frame - self.no_nudge) * DT_CTRL < 3.0 # cooldown after blinker
+      if right_lane > 2.5 or abs(left_lane) > 2.5:  
+        nudge_off = False
+        self.last_nudge = 0
+        self.cycles = 0
+      if self.current_nud > 0 and lane_val < 0 or self.current_nud < 0 and lane_val > 0:
+        self.cycles = 0
+        self.last_nudge = 0
+      if right_lane > left_lane < LL_CLOSE or left_lane > right_lane < LL_CLOSE and not nudge_off:
+        self.current_nud = lane_val
+        if lane_val > 0 and lane_val > self.last_nudge:
+          self.last_nudge += NUDGE_UP
+        if lane_val < 0 and lane_val < self.last_nudge:
+          self.last_nudge += NUDGE_DOWN
+        self.cycles = self.cycles + 1
+        if self.cycles > self.max_cycles:
+          self.max_cycles = self.cycles
+        if abs(lane_val) > abs(self.last_nudge):
+          lane_val = self.last_nudge
+        desired_lateral_accel += lane_val
+        max_nud = round(self.last_nudge, 4)
+        cur_nud = round(self.current_nud, 4)
+        self.last_nudge = lane_val
+        #print(f"NUD: {max_nud} / {cur_nud} / {self.cycles} / {self.max_cycles}")
+      else:
+        self.last_nudge = 0
+        self.cycles = 0
+      # End lane nudge 
+      
       actual_lateral_accel = actual_curvature * CS.vEgo ** 2
       lateral_accel_deadzone = curvature_deadzone * CS.vEgo ** 2
 
